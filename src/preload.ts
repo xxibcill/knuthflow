@@ -215,6 +215,11 @@ export interface KnuthflowAPI {
     writeFile(path: string, content: string): Promise<void>;
     exists(path: string): Promise<boolean>;
   };
+  dialog: {
+    openFile(options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }): Promise<{ canceled: boolean; filePath: string | null }>;
+    openDirectory(options?: { defaultPath?: string }): Promise<{ canceled: boolean; directoryPath: string | null }>;
+    saveFile(options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }): Promise<{ canceled: boolean; filePath: string | null }>;
+  };
   app: {
     getVersion(): Promise<string>;
   };
@@ -341,6 +346,14 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('filesystem:writeFile', path, content),
     exists: (path: string) =>
       ipcRenderer.invoke('filesystem:exists', path),
+  },
+  dialog: {
+    openFile: (options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) =>
+      ipcRenderer.invoke('dialog:openFile', options),
+    openDirectory: (options?: { defaultPath?: string }) =>
+      ipcRenderer.invoke('dialog:openDirectory', options),
+    saveFile: (options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) =>
+      ipcRenderer.invoke('dialog:saveFile', options),
   },
   app: {
     getVersion: () =>

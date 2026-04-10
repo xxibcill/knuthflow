@@ -3,9 +3,12 @@ import { Terminal } from './components/Terminal';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
 import { SessionHistory } from './components/SessionHistory';
 import { SettingsPanel } from './components/SettingsPanel';
+import { EditorPane } from './components/EditorPane';
+import { DiffViewer, type DiffFile } from './components/DiffViewer';
+import { SplitPane } from './components/SplitPane';
 import type { ClaudeCodeStatus, ClaudeRunState, Workspace, Session, SessionCrashedEvent, RecoveryNeededEvent, UpdateInfo } from './preload';
 
-type ViewMode = 'terminal' | 'workspaces' | 'history';
+type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor';
 
 interface ActiveRun {
   runId: string;
@@ -46,6 +49,11 @@ export default function App() {
   const [appVersion, setAppVersion] = useState<string>('');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Editor state
+  const [editorFilePath, setEditorFilePath] = useState<string | null>(null);
+  const [diffFiles, setDiffFiles] = useState<DiffFile[]>([]);
+  const [showDiffViewer, setShowDiffViewer] = useState(false);
 
   // Add a notification
   const addNotification = useCallback((type: Notification['type'], title: string, message: string) => {
@@ -273,6 +281,28 @@ export default function App() {
     }
   };
 
+  // Editor handlers
+  const handleOpenFile = useCallback(async () => {
+    const result = await window.knuthflow.dialog.openFile({
+      defaultPath: selectedWorkspace?.path,
+    });
+    if (!result.canceled && result.filePath) {
+      setEditorFilePath(result.filePath);
+      setViewMode('editor');
+    }
+  }, [selectedWorkspace]);
+
+  const handleOpenDiff = useCallback((files: DiffFile[]) => {
+    setDiffFiles(files);
+    setShowDiffViewer(true);
+    setViewMode('editor');
+  }, []);
+
+  const handleCloseDiff = useCallback(() => {
+    setShowDiffViewer(false);
+    setDiffFiles([]);
+  }, []);
+
   const activeTab = tabs.find(t => t.id === activeTabId);
   const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null;
 
@@ -320,7 +350,28 @@ export default function App() {
               >
                 History
               </button>
+              <button
+                onClick={() => setViewMode('editor')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                  viewMode === 'editor'
+                    ? 'bg-gray-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Editor
+              </button>
             </div>
+
+            {/* Quick file open button */}
+            <button
+              onClick={handleOpenFile}
+              className="p-2 text-gray-400 hover:text-white transition-colors"
+              title="Open File"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
 
             {/* Run status indicator */}
             {activeRun && viewMode === 'terminal' && (
@@ -584,6 +635,37 @@ export default function App() {
                 </div>
               )}
             </footer>
+          </>
+        )}
+
+        {viewMode === 'editor' && (
+          <>
+            {showDiffViewer ? (
+              <SplitPane direction="horizontal" className="flex-1">
+                <EditorPane
+                  filePath={editorFilePath}
+                  readOnly={true}
+                  className="h-full"
+                />
+                <DiffViewer
+                  files={diffFiles}
+                  onClose={handleCloseDiff}
+                  className="h-full"
+                />
+              </SplitPane>
+            ) : (
+              <SplitPane direction="horizontal" className="flex-1">
+                <Terminal
+                  className="h-full"
+                  sessionId={activeSessionId}
+                />
+                <EditorPane
+                  filePath={editorFilePath}
+                  readOnly={true}
+                  className="h-full"
+                />
+              </SplitPane>
+            )}
           </>
         )}
       </main>
