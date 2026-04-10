@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Terminal } from './components/Terminal';
-import type { ClaudeCodeStatus, ClaudeRunState } from './preload';
+import { WorkspaceSelector } from './components/WorkspaceSelector';
+import { SessionHistory } from './components/SessionHistory';
+import type { ClaudeCodeStatus, ClaudeRunState, Workspace, Session } from './preload';
+
+type ViewMode = 'terminal' | 'workspaces' | 'history';
 
 interface ActiveRun {
   runId: string;
@@ -11,15 +15,46 @@ interface ActiveRun {
   error?: string;
 }
 
+interface Tab {
+  id: string;
+  name: string;
+  sessionId: string | null;
+  runId: string | null;
+  workspaceId: string | null;
+}
+
 export default function App() {
   const [status, setStatus] = useState<ClaudeCodeStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('workspaces');
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   useEffect(() => {
     window.knuthflow.claude.detect().then((result: ClaudeCodeStatus) => {
       setStatus(result);
       setLoading(false);
+    });
+
+    // Check for existing active sessions
+    window.knuthflow.session.listActive().then(activeSessions => {
+      if (activeSessions.length > 0) {
+        // Restore active sessions as tabs
+        const restoredTabs: Tab[] = activeSessions.map(session => ({
+          id: session.id,
+          name: session.name,
+          sessionId: session.ptySessionId,
+          runId: session.runId,
+          workspaceId: session.workspaceId,
+        }));
+        setTabs(restoredTabs);
+        if (restoredTabs.length > 0) {
+          setActiveTabId(restoredTabs[0].id);
+          setViewMode('terminal');
+        }
+      }
     });
   }, []);
 
@@ -38,9 +73,36 @@ export default function App() {
     };
   }, [activeRun]);
 
+  // Listen for PTY exit events to update session status
+  useEffect(() => {
+    const unsubscribePtyExit = window.knuthflow.pty.onExit(async ({ sessionId, exitCode, signal }) => {
+      // Find the tab with this pty session
+      const tab = tabs.find(t => t.sessionId === sessionId);
+      if (tab) {
+        await window.knuthflow.session.updateEnd(
+          tab.id,
+          exitCode === 0 ? 'completed' : 'failed',
+          exitCode,
+          signal ?? null
+        );
+      }
+    });
+
+    return () => {
+      unsubscribePtyExit();
+    };
+  }, [tabs]);
+
+  const handleWorkspaceSelect = async (workspace: Workspace) => {
+    setSelectedWorkspace(workspace);
+    await window.knuthflow.workspace.updateLastOpened(workspace.id);
+    setViewMode('terminal');
+  };
+
   const handleStartClaude = async () => {
     if (!status?.installed) return;
 
+    const sessionName = `Session ${new Date().toLocaleTimeString()}`;
     const result = await window.knuthflow.claude.launch([]);
 
     if (!result.success) {
@@ -51,11 +113,32 @@ export default function App() {
       return;
     }
 
+    // Create a new tab for this session
+    const newTab: Tab = {
+      id: result.sessionId,
+      name: sessionName,
+      sessionId: result.sessionId,
+      runId: result.runId,
+      workspaceId: selectedWorkspace?.id || null,
+    };
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+
     setActiveRun({
       runId: result.runId,
       sessionId: result.sessionId,
       state: 'starting',
     });
+
+    // Create session in database
+    await window.knuthflow.session.create(
+      sessionName,
+      selectedWorkspace?.id || null,
+      result.runId,
+      result.sessionId
+    );
+
+    setViewMode('terminal');
   };
 
   const handleStopClaude = async () => {
@@ -65,6 +148,39 @@ export default function App() {
     setActiveRun(null);
   };
 
+  const handleCloseTab = async (tabId: string) => {
+    const tab = tabs.find(t => t.id === tabId);
+    if (tab?.runId) {
+      await window.knuthflow.claude.kill(tab.runId);
+    }
+
+    setTabs(prev => {
+      const remainingTabs = prev.filter(t => t.id !== tabId);
+      // If we closed the active tab, switch to another
+      if (activeTabId === tabId && remainingTabs.length > 0) {
+        // Schedule the tab switch after the state update
+        setTimeout(() => setActiveTabId(remainingTabs[0].id), 0);
+      } else if (remainingTabs.length === 0) {
+        setViewMode('workspaces');
+        setActiveRun(null);
+      }
+      return remainingTabs;
+    });
+  };
+
+  const handleRestoreSession = (session: Session) => {
+    // Session restoration is not yet implemented
+    // For now, just log the request - completed/failed sessions cannot be restored
+    if (session.status === 'active') {
+      console.log('Session is already active:', session);
+    } else {
+      console.log('Session restoration requested for completed/failed session:', session);
+    }
+  };
+
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null;
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
@@ -72,11 +188,47 @@ export default function App() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Knuthflow</h1>
-            <p className="text-sm text-gray-400">Desktop wrapper for Claude Code CLI</p>
+            {selectedWorkspace && viewMode === 'terminal' && (
+              <p className="text-sm text-gray-400">{selectedWorkspace.name}</p>
+            )}
           </div>
           <div className="flex items-center gap-4">
+            {/* View mode switcher */}
+            <div className="flex items-center gap-1 bg-gray-700 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('terminal')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                  viewMode === 'terminal'
+                    ? 'bg-gray-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Terminal
+              </button>
+              <button
+                onClick={() => setViewMode('workspaces')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                  viewMode === 'workspaces'
+                    ? 'bg-gray-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Workspaces
+              </button>
+              <button
+                onClick={() => setViewMode('history')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                  viewMode === 'history'
+                    ? 'bg-gray-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                History
+              </button>
+            </div>
+
             {/* Run status indicator */}
-            {activeRun && (
+            {activeRun && viewMode === 'terminal' && (
               <div className="flex items-center gap-2">
                 {activeRun.state === 'starting' && (
                   <>
@@ -122,7 +274,7 @@ export default function App() {
             )}
 
             {/* Start/Stop button */}
-            {!loading && status?.installed && (
+            {!loading && status?.installed && viewMode === 'terminal' && (
               activeRun && (activeRun.state === 'starting' || activeRun.state === 'running') ? (
                 <button
                   onClick={handleStopClaude}
@@ -135,7 +287,7 @@ export default function App() {
                   onClick={handleStartClaude}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
                 >
-                  Start Claude Code
+                  New Session
                 </button>
               )
             )}
@@ -143,37 +295,93 @@ export default function App() {
         </div>
       </header>
 
+      {/* Tab bar */}
+      {tabs.length > 0 && viewMode === 'terminal' && (
+        <div className="flex-none bg-gray-800 border-b border-gray-700 px-2">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {tabs.map(tab => (
+              <div
+                key={tab.id}
+                onClick={() => setActiveTabId(tab.id)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-t cursor-pointer transition-colors min-w-0 ${
+                  activeTabId === tab.id
+                    ? 'bg-gray-900 text-white border-b-2 border-blue-500'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                <span className="truncate text-sm">{tab.name}</span>
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleCloseTab(tab.id);
+                  }}
+                  className="p-0.5 hover:text-red-400 flex-shrink-0"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main content */}
       <main className="flex-1 flex flex-col min-h-0">
-        {/* Terminal View */}
-        <div className="flex-1 min-h-0">
-          <Terminal
-            className="h-full"
-            sessionId={activeRun?.sessionId}
-          />
-        </div>
-
-        {/* Status Bar */}
-        <footer className="flex-none bg-gray-800 border-t border-gray-700 px-4 py-2">
-          <div className="flex items-center justify-between text-xs text-gray-400">
-            <span>
-              {status?.installed
-                ? `Claude Code: ${status.executablePath}`
-                : 'Claude Code not detected'}
-            </span>
-            <span>
-              {activeRun ? (
-                activeRun.state === 'running'
-                  ? `Run: ${activeRun.runId}`
-                  : activeRun.state === 'exited'
-                  ? `Exited with code ${activeRun.exitCode}`
-                  : activeRun.state === 'failed'
-                  ? `Failed: ${activeRun.error || activeRun.exitCode}`
-                  : 'Ready'
-              ) : 'Ready'}
-            </span>
+        {viewMode === 'workspaces' && (
+          <div className="flex-1 min-h-0">
+            <WorkspaceSelector
+              onSelect={handleWorkspaceSelect}
+              selectedWorkspace={selectedWorkspace}
+            />
           </div>
-        </footer>
+        )}
+
+        {viewMode === 'history' && (
+          <div className="flex-1 min-h-0">
+            <SessionHistory
+              onRestore={handleRestoreSession}
+              currentWorkspaceId={selectedWorkspace?.id || null}
+            />
+          </div>
+        )}
+
+        {viewMode === 'terminal' && (
+          <>
+            {/* Terminal View */}
+            <div className="flex-1 min-h-0">
+              <Terminal
+                className="h-full"
+                sessionId={activeSessionId}
+              />
+            </div>
+
+            {/* Status Bar */}
+            <footer className="flex-none bg-gray-800 border-t border-gray-700 px-4 py-2">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span>
+                  {selectedWorkspace
+                    ? `Workspace: ${selectedWorkspace.path}`
+                    : status?.installed
+                    ? `Claude Code: ${status.executablePath}`
+                    : 'Claude Code not detected'}
+                </span>
+                <span>
+                  {activeRun ? (
+                    activeRun.state === 'running'
+                      ? `Run: ${activeRun.runId}`
+                      : activeRun.state === 'exited'
+                      ? `Exited with code ${activeRun.exitCode}`
+                      : activeRun.state === 'failed'
+                      ? `Failed: ${activeRun.error || activeRun.exitCode}`
+                      : 'Ready'
+                  ) : 'Ready'}
+                </span>
+              </div>
+            </footer>
+          </>
+        )}
       </main>
     </div>
   );

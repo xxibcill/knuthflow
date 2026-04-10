@@ -43,13 +43,12 @@ export interface PtyError {
 
 export class PtyManager extends EventEmitter {
   private sessions: Map<string, PtySession> = new Map();
-  private idCounter = 0;
 
   /**
-   * Generates a unique session ID
+   * Generates a unique session ID using crypto
    */
   private generateId(): string {
-    return `pty-${Date.now()}-${++this.idCounter}`;
+    return `pty-${crypto.randomUUID()}`;
   }
 
   /**
@@ -64,9 +63,12 @@ export class PtyManager extends EventEmitter {
 
     let ptyProcess: pty.IPty;
 
+    // Determine the shell to use
+    const shell = process.platform === 'win32'
+      ? 'powershell.exe'
+      : process.env.SHELL || '/bin/bash';
+
     try {
-      // Use login shell as default executable
-      const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/bash';
       ptyProcess = pty.spawn(shell, [], {
         name,
         cols,
@@ -77,6 +79,8 @@ export class PtyManager extends EventEmitter {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.emit('error', { sessionId, error: err });
+      // Clean up any partial session state
+      this.sessions.delete(sessionId);
       throw err;
     }
 

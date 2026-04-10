@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { getPtyManager, PtyOptions } from './main/ptyManager';
+import { getDatabase, closeDatabase, Workspace, Session } from './main/database';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -167,6 +168,7 @@ interface ActiveRun {
 }
 
 const activeRuns: Map<string, ActiveRun> = new Map();
+const MAX_ACTIVE_RUNS = 100;
 
 ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   // First detect Claude Code
@@ -198,6 +200,9 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   const shellReadyHandler = ({ sessionId: id, data }: { sessionId: string; data: string }) => {
     if (id === sessionId && data) {
       ptyManager.removeListener('data', shellReadyHandler);
+      clearTimeout(fallbackTimer);
+      ptyManager.removeListener('exit', cleanupHandler);
+      ptyManager.removeListener('error', errorHandler);
       const cmd = `"${execPath}" ${args.join(' ')}\r`;
       ptyManager.write(sessionId, cmd);
     }
@@ -207,6 +212,8 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   // Fallback timeout if shell doesn't emit data within 5 seconds
   const fallbackTimer = setTimeout(() => {
     ptyManager.removeListener('data', shellReadyHandler);
+    ptyManager.removeListener('exit', cleanupHandler);
+    ptyManager.removeListener('error', errorHandler);
     const cmd = `"${execPath}" ${args.join(' ')}\r`;
     ptyManager.write(sessionId, cmd);
   }, 5000);
@@ -215,10 +222,23 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   const cleanupHandler = ({ sessionId: id }: { sessionId: string; exitCode: number; signal?: number }) => {
     if (id === sessionId) {
       clearTimeout(fallbackTimer);
+      ptyManager.removeListener('data', shellReadyHandler);
       ptyManager.removeListener('exit', cleanupHandler);
+      ptyManager.removeListener('error', errorHandler);
     }
   };
   ptyManager.on('exit', cleanupHandler);
+
+  // Clean up handlers on PTY error
+  const errorHandler = ({ sessionId: id }: { sessionId: string; error: Error }) => {
+    if (id === sessionId) {
+      clearTimeout(fallbackTimer);
+      ptyManager.removeListener('data', shellReadyHandler);
+      ptyManager.removeListener('exit', cleanupHandler);
+      ptyManager.removeListener('error', errorHandler);
+    }
+  };
+  ptyManager.on('error', errorHandler);
 
   return {
     success: true,
@@ -293,6 +313,20 @@ ptyManager.on('exit', ({ sessionId, exitCode, signal }) => {
             activeRuns.delete(runId);
           }
         }, 30000); // Clean up after 30 seconds
+      }
+
+      // Enforce max size cap - remove oldest completed/failed runs if over limit
+      if (activeRuns.size > MAX_ACTIVE_RUNS) {
+        const toRemove: string[] = [];
+        for (const [id, r] of activeRuns.entries()) {
+          if (r.state === 'exited' || r.state === 'failed') {
+            toRemove.push(id);
+            if (toRemove.length >= activeRuns.size - MAX_ACTIVE_RUNS + 1) break;
+          }
+        }
+        for (const id of toRemove) {
+          activeRuns.delete(id);
+        }
       }
       break;
     }
@@ -461,6 +495,98 @@ ipcMain.handle('claude:detect', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Workspace Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('workspace:create', async (_event, name: string, workspacePath: string) => {
+  const db = getDatabase();
+  const workspace = db.getWorkspaceByPath(workspacePath);
+  if (workspace) {
+    return { success: false, error: 'Workspace with this path already exists' };
+  }
+  const id = `ws-${crypto.randomUUID()}`;
+  const created = db.createWorkspace({ id, name, path: workspacePath });
+  return { success: true, workspace: created };
+});
+
+ipcMain.handle('workspace:get', async (_event, id: string) => {
+  const db = getDatabase();
+  return db.getWorkspace(id);
+});
+
+ipcMain.handle('workspace:list', async () => {
+  const db = getDatabase();
+  return db.listWorkspaces();
+});
+
+ipcMain.handle('workspace:listRecent', async (_event, limit = 10) => {
+  const db = getDatabase();
+  return db.listRecentWorkspaces(limit);
+});
+
+ipcMain.handle('workspace:updateLastOpened', async (_event, id: string) => {
+  const db = getDatabase();
+  db.updateWorkspaceLastOpened(id);
+});
+
+ipcMain.handle('workspace:delete', async (_event, id: string) => {
+  const db = getDatabase();
+  db.deleteWorkspace(id);
+});
+
+ipcMain.handle('workspace:validatePath', async (_event, workspacePath: string) => {
+  try {
+    const exists = fs.existsSync(workspacePath);
+    if (!exists) {
+      return { valid: false, error: 'Path does not exist' };
+    }
+    const stats = fs.statSync(workspacePath);
+    if (!stats.isDirectory()) {
+      return { valid: false, error: 'Path is not a directory' };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'Unable to access path' };
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Session Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('session:create', async (_event, name: string, workspaceId: string | null, runId: string | null, ptySessionId: string | null) => {
+  const db = getDatabase();
+  const id = `sess-${crypto.randomUUID()}`;
+  const session = db.createSession({ id, name, workspaceId, runId, ptySessionId });
+  return session;
+});
+
+ipcMain.handle('session:get', async (_event, id: string) => {
+  const db = getDatabase();
+  return db.getSession(id);
+});
+
+ipcMain.handle('session:updateEnd', async (_event, id: string, status: 'completed' | 'failed', exitCode: number | null, signal: number | null) => {
+  const db = getDatabase();
+  db.updateSessionEnd(id, status, exitCode, signal);
+});
+
+ipcMain.handle('session:list', async (_event, limit = 50) => {
+  const db = getDatabase();
+  return db.listSessions(limit);
+});
+
+ipcMain.handle('session:listRecent', async (_event, workspaceId: string | null, limit = 20) => {
+  const db = getDatabase();
+  return db.listRecentSessions(workspaceId, limit);
+});
+
+ipcMain.handle('session:listActive', async () => {
+  const db = getDatabase();
+  return db.listActiveSessions();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // App Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -487,4 +613,7 @@ app.on('will-quit', () => {
 
   // Cleanup PTY manager
   ptyManager.dispose();
+
+  // Cleanup database
+  closeDatabase();
 });
