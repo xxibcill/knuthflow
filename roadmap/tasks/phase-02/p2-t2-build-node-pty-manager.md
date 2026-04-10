@@ -27,3 +27,7 @@ Implement a main-process PTY manager that can create, track, and dispose of term
 - Main-process ownership is preserved
 - Failure cases do not leave orphaned PTY bookkeeping
 
+## Status
+
+Not Implemented
+

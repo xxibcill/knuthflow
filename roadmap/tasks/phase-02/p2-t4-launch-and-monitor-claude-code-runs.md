@@ -27,3 +27,7 @@ Launch Claude Code inside the PTY, expose run state, and handle normal exits and
 - Normal exit and failure states are distinguishable
 - Stopping a run does not leave terminal state inconsistent
 
+## Status
+
+Not Implemented
+

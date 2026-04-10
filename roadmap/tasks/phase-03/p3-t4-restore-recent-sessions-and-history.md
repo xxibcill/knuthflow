@@ -27,3 +27,7 @@ Expose recent sessions and restore enough context that users can resume work wit
 - Restore behavior is clearly defined for active versus completed sessions
 - History does not depend on manually reading logs
 
+## Status
+
+Not Implemented
+

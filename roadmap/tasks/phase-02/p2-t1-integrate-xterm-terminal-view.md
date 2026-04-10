@@ -26,3 +26,7 @@ Add an embedded terminal view in the renderer that can display a real shell or C
 - Mounting and unmounting do not leak obvious resources
 - The component is reusable for later tab support
 
+## Status
+
+Not Implemented
+

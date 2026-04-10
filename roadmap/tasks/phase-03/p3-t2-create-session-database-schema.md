@@ -26,3 +26,7 @@ Create the SQLite schema needed to persist workspace metadata, session records, 
 - Database ownership is kept in the trusted process boundary
 - Later features can extend the schema predictably
 
+## Status
+
+Not Implemented
+

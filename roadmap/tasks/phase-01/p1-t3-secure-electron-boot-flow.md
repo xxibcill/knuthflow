@@ -27,3 +27,7 @@ Apply secure Electron defaults so Knuthflow does not depend on unsafe renderer p
 - App startup still works after security hardening
 - Security-sensitive defaults are captured in project docs
 
+## Status
+
+Not Implemented
+

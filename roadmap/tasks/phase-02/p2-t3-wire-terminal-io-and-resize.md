@@ -27,3 +27,7 @@ Connect the renderer terminal and the main-process PTY manager so input, output,
 - Resizing updates both the UI and the backing PTY
 - Disconnected sessions stop streaming without crashing the renderer
 
+## Status
+
+Not Implemented
+

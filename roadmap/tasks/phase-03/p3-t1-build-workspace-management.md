@@ -26,3 +26,7 @@ Let users register, select, and reopen local workspaces so Claude Code sessions 
 - The selected workspace is available to the launch flow
 - Recent workspace behavior reduces repeated setup
 
+## Status
+
+Not Implemented
+

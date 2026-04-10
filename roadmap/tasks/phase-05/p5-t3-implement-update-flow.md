@@ -26,3 +26,7 @@ Add version visibility and update handling so Knuthflow can improve after instal
 - The update path does not corrupt local app data
 - Update behavior matches the chosen distribution channel
 
+## Status
+
+Not Implemented
+

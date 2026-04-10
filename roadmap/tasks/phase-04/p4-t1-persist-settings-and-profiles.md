@@ -26,3 +26,7 @@ Define how user settings and launch profiles are stored locally so the app can p
 - Defaults are predictable on first run
 - Future settings changes can be migrated safely
 
+## Status
+
+Not Implemented
+

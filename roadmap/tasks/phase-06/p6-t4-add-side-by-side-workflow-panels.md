@@ -26,3 +26,7 @@ Support richer side-by-side workflows by showing terminal, prompt context, edito
 - Users can focus on one workflow without losing context in another
 - Layout state can be restored predictably
 - The richer UI still respects the terminal-first foundation
+
+## Status
+
+Not Implemented

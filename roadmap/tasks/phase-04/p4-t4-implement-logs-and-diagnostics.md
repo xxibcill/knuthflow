@@ -27,3 +27,7 @@ Make the app supportable by exposing logs, runtime diagnostics, and exportable t
 - Log storage has basic retention or cleanup behavior
 - Sensitive data handling is explicitly considered
 
+## Status
+
+Not Implemented
+

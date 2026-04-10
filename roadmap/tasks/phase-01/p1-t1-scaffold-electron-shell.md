@@ -27,3 +27,7 @@ using latest version as possible
 - The main window loads the renderer successfully
 - Build and dev commands are documented
 - The shell can be extended without reworking the initial scaffolding
+
+## Status
+
+Done

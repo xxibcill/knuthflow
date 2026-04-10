@@ -26,3 +26,7 @@ Let users review changed files and patches in-app before they accept or act on c
 - File status and change context are easy to scan
 - Patch review does not depend on raw git output alone
 
+## Status
+
+Not Implemented
+

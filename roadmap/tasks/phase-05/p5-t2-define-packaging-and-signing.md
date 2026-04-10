@@ -26,3 +26,7 @@ Establish how Knuthflow will be built, packaged, signed, and installed on target
 - Build outputs are consistent across releases
 - Packaging work is no longer blocked by ambiguity
 
+## Status
+
+Not Implemented
+

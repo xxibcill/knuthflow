@@ -26,3 +26,7 @@ Store sensitive values using OS-backed secure storage rather than plaintext file
 - Failures in secure storage surface clearly
 - The storage abstraction can support multiple platforms
 
+## Status
+
+Not Implemented
+

@@ -26,3 +26,7 @@ Decide whether Knuthflow should remain terminal-first or expand into a lightweig
 - Product scope changes are documented if approved
 - The team can either proceed or consciously defer
 
+## Status
+
+Not Implemented
+

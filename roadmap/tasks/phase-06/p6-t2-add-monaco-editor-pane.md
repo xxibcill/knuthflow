@@ -26,3 +26,7 @@ Integrate Monaco so users can open and inspect files in-app when editor mode is 
 - Large files and empty states are handled acceptably
 - The feature stays optional within the product surface if needed
 
+## Status
+
+Not Implemented
+

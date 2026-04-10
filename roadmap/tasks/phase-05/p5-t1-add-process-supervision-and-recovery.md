@@ -27,3 +27,7 @@ Harden Knuthflow against broken PTYs, unexpected process exits, and app restarts
 - Recovery paths are visible to the user
 - Failure cleanup reduces the chance of repeated corruption
 
+## Status
+
+Not Implemented
+

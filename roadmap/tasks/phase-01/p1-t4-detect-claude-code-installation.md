@@ -27,3 +27,7 @@ Detect whether Claude Code is installed locally, runnable, and compatible enough
 - Failures surface actionable guidance
 - Terminal launch work can depend on this result
 
+## Status
+
+Not Implemented
+

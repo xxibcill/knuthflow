@@ -26,3 +26,7 @@ Define which responsibilities live in the main process, preload layer, and rende
 - Preload only exposes a minimal, auditable API surface
 - Future task docs can reference the IPC contract without ambiguity
 
+## Status
+
+Not Implemented
+

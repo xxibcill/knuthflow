@@ -26,3 +26,7 @@ Expose key wrapper settings in the UI so users do not need to configure Knuthflo
 - Saved settings are reflected in launch behavior
 - Settings screens remain understandable without documentation
 
+## Status
+
+Not Implemented
+

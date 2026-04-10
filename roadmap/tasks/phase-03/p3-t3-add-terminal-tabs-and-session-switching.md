@@ -27,3 +27,7 @@ Support multiple active or recent session tabs so users can move between workstr
 - Closing a tab does not corrupt other session state
 - Tab state is ready for future restore logic
 
+## Status
+
+Not Implemented
+
