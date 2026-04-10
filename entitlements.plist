@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Allow the app to run in the background -->
+  <key>LSBackgroundOnly</key>
+  <false/>
+
+  <!-- Allow the app to use the network for Claude Code communication -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!-- Allow the app to read/write files in the user's workspace directories -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <!-- Allow the app to access its own container -->
+  <key>com.apple.security.app-sandbox</key>
+  <false/>
+
+  <!-- Allow the app to use node APIs (node-pty requires this to be disabled) -->
+  <key>com.apple.security.inherit</key>
+  <true/>
+</dict>
+</plist>

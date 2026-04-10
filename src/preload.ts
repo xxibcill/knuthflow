@@ -128,6 +128,37 @@ export interface Session {
   ptySessionId: string | null;
 }
 
+export interface SessionCrashedEvent {
+  sessionId: string;
+  ptySessionId: string;
+  exitCode: number | null;
+  signal: number | null;
+  error?: string;
+  timestamp: number;
+}
+
+export interface RecoveryNeededEvent {
+  type: 'restart' | 'cleanup' | 'notify' | 'none';
+  sessionId: string;
+  reason: string;
+  timestamp: number;
+}
+
+export interface IntegrityValidationResult {
+  valid: boolean;
+  cleaned: number;
+  issues: string[];
+}
+
+export interface UpdateInfo {
+  available: boolean;
+  version: string | null;
+  releaseDate: string | null;
+  releaseNotes: string | null;
+  downloadUrl: string | null;
+  isMandatory: boolean;
+}
+
 export interface AppSettings {
   cliPath: string | null;
   defaultArgs: string[];
@@ -212,6 +243,20 @@ export interface KnuthflowAPI {
     listRecent(workspaceId: string | null, limit?: number): Promise<Session[]>;
     listActive(): Promise<Session[]>;
   };
+  supervisor: {
+    validateIntegrity(): Promise<IntegrityValidationResult>;
+    cleanupOrphans(): Promise<{ success: boolean }>;
+    explainExit(exitCode: number | null, signal?: number): Promise<string>;
+    onSessionCrashed(callback: (data: SessionCrashedEvent) => void): () => void;
+    onRecoveryNeeded(callback: (data: RecoveryNeededEvent) => void): () => void;
+    onOrphanCleaned(callback: (data: { sessionId: string }) => void): () => void;
+  };
+  update: {
+    check(): Promise<UpdateInfo>;
+    getVersion(): Promise<string>;
+    openDownload(downloadUrl: string): Promise<{ success: boolean }>;
+    formatNotes(notes: string | null): Promise<string | null>;
+  };
   settings: {
     get<K extends keyof AppSettings>(key: K): Promise<AppSettings[K] | null>;
     set<K extends keyof AppSettings>(key: K, value: AppSettings[K]): Promise<void>;
@@ -242,7 +287,7 @@ export interface KnuthflowAPI {
   diagnostics: {
     getSystemInfo(): Promise<SystemDiagnostics>;
   };
-}
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Preload API - Secure IPC bridge
@@ -347,6 +392,39 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('session:listRecent', workspaceId, limit),
     listActive: () =>
       ipcRenderer.invoke('session:listActive'),
+  },
+  supervisor: {
+    validateIntegrity: () =>
+      ipcRenderer.invoke('supervisor:validateIntegrity'),
+    cleanupOrphans: () =>
+      ipcRenderer.invoke('supervisor:cleanupOrphans'),
+    explainExit: (exitCode: number | null, signal?: number) =>
+      ipcRenderer.invoke('supervisor:explainExit', exitCode, signal),
+    onSessionCrashed: (callback: (data: SessionCrashedEvent) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: SessionCrashedEvent) => callback(data);
+      ipcRenderer.on('supervisor:sessionCrashed', handler);
+      return () => ipcRenderer.removeListener('supervisor:sessionCrashed', handler);
+    },
+    onRecoveryNeeded: (callback: (data: RecoveryNeededEvent) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: RecoveryNeededEvent) => callback(data);
+      ipcRenderer.on('supervisor:recoveryNeeded', handler);
+      return () => ipcRenderer.removeListener('supervisor:recoveryNeeded', handler);
+    },
+    onOrphanCleaned: (callback: (data: { sessionId: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data);
+      ipcRenderer.on('supervisor:orphanCleaned', handler);
+      return () => ipcRenderer.removeListener('supervisor:orphanCleaned', handler);
+    },
+  },
+  update: {
+    check: () =>
+      ipcRenderer.invoke('update:check'),
+    getVersion: () =>
+      ipcRenderer.invoke('update:getVersion'),
+    openDownload: (downloadUrl: string) =>
+      ipcRenderer.invoke('update:openDownload', downloadUrl),
+    formatNotes: (notes: string | null) =>
+      ipcRenderer.invoke('update:formatNotes', notes),
   },
   settings: {
     get: <K extends keyof AppSettings>(key: K) =>
