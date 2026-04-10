@@ -45,6 +45,26 @@ export interface PtyExitEvent {
   signal?: number;
 }
 
+export type ClaudeRunState = 'idle' | 'starting' | 'running' | 'exited' | 'failed';
+
+export interface ClaudeLaunchResult {
+  success: boolean;
+  runId?: string;
+  sessionId?: string;
+  executablePath?: string;
+  version?: string | null;
+  error?: string;
+}
+
+export interface ClaudeRunInfo {
+  runId: string;
+  sessionId: string;
+  state: ClaudeRunState;
+  exitCode?: number;
+  signal?: number;
+  error?: string;
+}
+
 export interface KnuthflowAPI {
   process: {
     spawn(args: string[], cwd?: string): Promise<ProcessSpawnResult>;
@@ -78,6 +98,12 @@ export interface KnuthflowAPI {
   };
   claude: {
     detect(): Promise<ClaudeCodeStatus>;
+    launch(args?: string[]): Promise<ClaudeLaunchResult>;
+    kill(runId: string): Promise<{ success: boolean; error?: string }>;
+    getRunState(runId: string): Promise<{ state: ClaudeRunState; sessionId: string | null; exitCode?: number; signal?: number; error?: string }>;
+    listRuns(): Promise<ClaudeRunInfo[]>;
+    onRunStateChanged(callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void): void;
+    removeRunStateListener(callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void): void;
   };
 }
 
@@ -143,6 +169,20 @@ const api: KnuthflowAPI = {
   claude: {
     detect: () =>
       ipcRenderer.invoke('claude:detect'),
+    launch: (args?: string[]) =>
+      ipcRenderer.invoke('claude:launch', args),
+    kill: (runId: string) =>
+      ipcRenderer.invoke('claude:kill', runId),
+    getRunState: (runId: string) =>
+      ipcRenderer.invoke('claude:getRunState', runId),
+    listRuns: () =>
+      ipcRenderer.invoke('claude:listRuns'),
+    onRunStateChanged: (callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void) => {
+      ipcRenderer.on('claude:runStateChanged', (_event, data) => callback(data));
+    },
+    removeRunStateListener: (_callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void) => {
+      ipcRenderer.removeAllListeners('claude:runStateChanged');
+    },
   },
 };
 

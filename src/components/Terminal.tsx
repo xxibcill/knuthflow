@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 
 interface TerminalProps {
   sessionId?: string | null;
+  onSessionCreated?: (sessionId: string) => void;
   onSessionExit?: (exitCode: number, signal?: number) => void;
   onResize?: (cols: number, rows: number) => void;
   className?: string;
@@ -44,7 +45,7 @@ const DEFAULT_THEME = {
   brightWhite: '#ffffff',
 };
 
-export function Terminal({ sessionId: initialSessionId, onSessionExit, onResize, className = '' }: TerminalProps) {
+export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSessionExit, onResize, className = '' }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -96,6 +97,9 @@ export function Terminal({ sessionId: initialSessionId, onSessionExit, onResize,
     window.knuthflow.pty.create().then((id: string) => {
       setSessionId(id);
       setLoading(false);
+      if (onSessionCreated) {
+        onSessionCreated(id);
+      }
     }).catch((err: Error) => {
       setError(err.message);
       setLoading(false);

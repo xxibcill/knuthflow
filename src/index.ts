@@ -153,6 +153,159 @@ ptyManager.on('error', ({ sessionId, error }) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Claude Code Launch
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ClaudeRunState = 'idle' | 'starting' | 'running' | 'exited' | 'failed';
+
+interface ActiveRun {
+  sessionId: string;
+  state: ClaudeRunState;
+  exitCode?: number;
+  signal?: number;
+  error?: string;
+}
+
+const activeRuns: Map<string, ActiveRun> = new Map();
+
+ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
+  // First detect Claude Code
+  const detection = detectClaudeCode();
+  if (!detection.installed || !detection.executablePath) {
+    return { success: false, error: detection.error || 'Claude Code not installed' };
+  }
+
+  const runId = `run-${Date.now()}`;
+  const sessionId = ptyManager.create({
+    cwd: process.cwd(),
+    cols: 80,
+    rows: 24,
+  });
+
+  // Mark as starting
+  activeRuns.set(runId, { sessionId, state: 'starting' });
+
+  // Get the PTY session and spawn claude
+  const session = ptyManager.get(sessionId);
+  if (!session) {
+    activeRuns.delete(runId);
+    return { success: false, error: 'Failed to create PTY session' };
+  }
+
+  // Store the executable path for reference
+  activeRuns.set(runId, { sessionId, state: 'running' });
+
+  // Spawn claude in the PTY
+  const execPath = detection.executablePath;
+
+  // For PTY, we write directly to spawn - but node-pty doesn't expose spawn directly
+  // Instead, we'll use the PTY's process to launch claude
+  // Actually, node-pty spawns a shell, so we need to write the command to the PTY
+
+  // Wait for shell to be ready, then write the claude command
+  setTimeout(() => {
+    const cmd = `"${execPath}" ${args.join(' ')}\r`;
+    ptyManager.write(sessionId, cmd);
+  }, 100);
+
+  return {
+    success: true,
+    runId,
+    sessionId,
+    executablePath: execPath,
+    version: detection.version,
+  };
+});
+
+ipcMain.handle('claude:kill', async (_event, runId: string) => {
+  const run = activeRuns.get(runId);
+  if (!run) {
+    return { success: false, error: 'Run not found' };
+  }
+
+  // Send SIGTERM to the PTY
+  ptyManager.kill(run.sessionId, 'SIGTERM');
+  run.state = 'exited';
+
+  return { success: true };
+});
+
+ipcMain.handle('claude:getRunState', async (_event, runId: string) => {
+  const run = activeRuns.get(runId);
+  if (!run) {
+    return { state: 'idle', sessionId: null };
+  }
+
+  return {
+    state: run.state,
+    sessionId: run.sessionId,
+    exitCode: run.exitCode,
+    signal: run.signal,
+    error: run.error,
+  };
+});
+
+ipcMain.handle('claude:listRuns', async () => {
+  return Array.from(activeRuns.entries()).map(([runId, run]) => ({
+    runId,
+    sessionId: run.sessionId,
+    state: run.state,
+    exitCode: run.exitCode,
+    signal: run.signal,
+  }));
+});
+
+// Update run state when PTY exits
+ptyManager.on('exit', ({ sessionId, exitCode, signal }) => {
+  for (const [runId, run] of activeRuns.entries()) {
+    if (run.sessionId === sessionId) {
+      run.state = exitCode === 0 ? 'exited' : 'failed';
+      run.exitCode = exitCode;
+      run.signal = signal;
+
+      // Forward to renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('claude:runStateChanged', {
+          runId,
+          state: run.state,
+          exitCode,
+          signal,
+        });
+      }
+
+      // Clean up old runs after a delay (keep for state visibility)
+      if (run.state === 'exited' || run.state === 'failed') {
+        setTimeout(() => {
+          const currentRun = activeRuns.get(runId);
+          if (currentRun && (currentRun.state === 'exited' || currentRun.state === 'failed')) {
+            activeRuns.delete(runId);
+          }
+        }, 30000); // Clean up after 30 seconds
+      }
+      break;
+    }
+  }
+});
+
+ptyManager.on('error', ({ sessionId, error }) => {
+  for (const [runId, run] of activeRuns.entries()) {
+    if (run.sessionId === sessionId) {
+      run.state = 'failed';
+      run.error = error.message;
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('claude:runStateChanged', {
+          runId,
+          state: 'failed',
+          error: error.message,
+        });
+      }
+      break;
+    }
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // IPC Handlers - Storage Operations
 // ─────────────────────────────────────────────────────────────────────────────
 
