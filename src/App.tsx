@@ -31,10 +31,10 @@ export default function App() {
       }
     };
 
-    window.knuthflow.claude.onRunStateChanged(handleRunStateChanged);
+    const unsubscribe = window.knuthflow.claude.onRunStateChanged(handleRunStateChanged);
 
     return () => {
-      window.knuthflow.claude.removeRunStateListener(handleRunStateChanged);
+      unsubscribe();
     };
   }, [activeRun]);
 

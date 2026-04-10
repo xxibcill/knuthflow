@@ -175,38 +175,50 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
     return { success: false, error: detection.error || 'Claude Code not installed' };
   }
 
-  const runId = `run-${Date.now()}`;
+  const runId = `run-${crypto.randomUUID()}`;
   const sessionId = ptyManager.create({
     cwd: process.cwd(),
     cols: 80,
     rows: 24,
   });
 
-  // Mark as starting
-  activeRuns.set(runId, { sessionId, state: 'starting' });
-
   // Get the PTY session and spawn claude
   const session = ptyManager.get(sessionId);
   if (!session) {
-    activeRuns.delete(runId);
     return { success: false, error: 'Failed to create PTY session' };
   }
 
-  // Store the executable path for reference
+  // Store the executable path for reference - set atomically
   activeRuns.set(runId, { sessionId, state: 'running' });
 
   // Spawn claude in the PTY
   const execPath = detection.executablePath;
 
-  // For PTY, we write directly to spawn - but node-pty doesn't expose spawn directly
-  // Instead, we'll use the PTY's process to launch claude
-  // Actually, node-pty spawns a shell, so we need to write the command to the PTY
+  // Wait for first data from PTY (shell ready signal), then write the claude command
+  const shellReadyHandler = ({ sessionId: id, data }: { sessionId: string; data: string }) => {
+    if (id === sessionId && data) {
+      ptyManager.removeListener('data', shellReadyHandler);
+      const cmd = `"${execPath}" ${args.join(' ')}\r`;
+      ptyManager.write(sessionId, cmd);
+    }
+  };
+  ptyManager.on('data', shellReadyHandler);
 
-  // Wait for shell to be ready, then write the claude command
-  setTimeout(() => {
+  // Fallback timeout if shell doesn't emit data within 5 seconds
+  const fallbackTimer = setTimeout(() => {
+    ptyManager.removeListener('data', shellReadyHandler);
     const cmd = `"${execPath}" ${args.join(' ')}\r`;
     ptyManager.write(sessionId, cmd);
-  }, 100);
+  }, 5000);
+
+  // Clean up fallback timer when PTY exits
+  const cleanupHandler = ({ sessionId: id }: { sessionId: string; exitCode: number; signal?: number }) => {
+    if (id === sessionId) {
+      clearTimeout(fallbackTimer);
+      ptyManager.removeListener('exit', cleanupHandler);
+    }
+  };
+  ptyManager.on('exit', cleanupHandler);
 
   return {
     success: true,

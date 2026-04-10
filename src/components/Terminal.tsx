@@ -49,9 +49,20 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(initialSessionId || null);
+  const sessionIdRef = useRef<string | null>(initialSessionId || null);
+  const onSessionExitRef = useRef(onSessionExit);
+  const onResizeRef = useRef(onResize);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onSessionExitRef.current = onSessionExit;
+  }, [onSessionExit]);
+
+  useEffect(() => {
+    onResizeRef.current = onResize;
+  }, [onResize]);
 
   // Initialize xterm
   useEffect(() => {
@@ -91,8 +102,8 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
     fitAddonRef.current = fitAddon;
 
     // Initial resize callback
-    if (onResize) {
-      onResize(xterm.cols, xterm.rows);
+    if (onResizeRef.current) {
+      onResizeRef.current(xterm.cols, xterm.rows);
     }
 
     return () => {
@@ -100,15 +111,15 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Create PTY session
   useEffect(() => {
-    if (sessionId || loading) return;
+    if (sessionIdRef.current || loading) return;
 
     setLoading(true);
     window.knuthflow.pty.create().then((id: string) => {
-      setSessionId(id);
+      sessionIdRef.current = id;
       setLoading(false);
       if (onSessionCreated) {
         onSessionCreated(id);
@@ -117,63 +128,67 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
       setError(err.message);
       setLoading(false);
     });
-  }, [sessionId, loading]);
+  }, [loading]);
 
   // Wire PTY data -> xterm
   useEffect(() => {
-    if (!sessionId || !xtermRef.current) return;
+    if (!sessionIdRef.current || !xtermRef.current) return;
 
+    const currentSessionId = sessionIdRef.current;
     const handleData = (event: PtyDataEvent) => {
-      if (event.sessionId === sessionId && xtermRef.current) {
+      if (event.sessionId === currentSessionId && xtermRef.current) {
         xtermRef.current.write(event.data);
       }
     };
 
-    window.knuthflow.pty.onData(handleData);
+    const unsubscribe = window.knuthflow.pty.onData(handleData);
 
     return () => {
-      window.knuthflow.pty.removeDataListener(handleData as (data: PtyDataEvent) => void);
+      unsubscribe();
     };
-  }, [sessionId]);
+  }, []);
 
   // Wire xterm data -> PTY
   useEffect(() => {
-    if (!sessionId || !xtermRef.current) return;
+    if (!sessionIdRef.current || !xtermRef.current) return;
 
+    const currentSessionId = sessionIdRef.current;
     const xterm = xtermRef.current;
     const dataDisposable = xterm.onData((data: string) => {
-      window.knuthflow.pty.write(sessionId, data);
+      window.knuthflow.pty.write(currentSessionId, data);
     });
 
     return () => {
       dataDisposable.dispose();
     };
-  }, [sessionId]);
+  }, []);
 
   // Wire PTY exit event
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionIdRef.current) return;
 
+    const currentSessionId = sessionIdRef.current;
     const handleExit = (event: PtyExitEvent) => {
-      if (event.sessionId === sessionId) {
-        if (onSessionExit) {
-          onSessionExit(event.exitCode, event.signal);
+      if (event.sessionId === currentSessionId) {
+        if (onSessionExitRef.current) {
+          onSessionExitRef.current(event.exitCode, event.signal);
         }
         xtermRef.current?.write('\r\n\x1b[33m[Session exited with code ' + event.exitCode + ']\x1b[0m\r\n');
       }
     };
 
-    window.knuthflow.pty.onExit(handleExit);
+    const unsubscribe = window.knuthflow.pty.onExit(handleExit);
 
     return () => {
-      window.knuthflow.pty.removeExitListener(handleExit as (exit: PtyExitEvent) => void);
+      unsubscribe();
     };
-  }, [sessionId, onSessionExit]);
+  }, []);
 
   // Handle resize - sync xterm dimensions to PTY
   useEffect(() => {
-    if (!sessionId || !fitAddonRef.current || !xtermRef.current) return;
+    if (!sessionIdRef.current || !fitAddonRef.current || !xtermRef.current) return;
 
+    const currentSessionId = sessionIdRef.current;
     const handleResize = () => {
       if (fitAddonRef.current && xtermRef.current && containerRef.current) {
         // Only fit if container has actual dimensions
@@ -181,9 +196,9 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
           fitAddonRef.current.fit();
         }
         const { cols, rows } = xtermRef.current;
-        window.knuthflow.pty.resize(sessionId, cols, rows);
-        if (onResize) {
-          onResize(cols, rows);
+        window.knuthflow.pty.resize(currentSessionId, cols, rows);
+        if (onResizeRef.current) {
+          onResizeRef.current(cols, rows);
         }
       }
     };
@@ -205,18 +220,18 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
     };
-  }, [sessionId, onResize]);
+  }, []);
 
   // Cleanup PTY session on unmount
   useEffect(() => {
     return () => {
-      if (sessionId) {
-        window.knuthflow.pty.kill(sessionId).catch(() => {
+      if (sessionIdRef.current) {
+        window.knuthflow.pty.kill(sessionIdRef.current).catch(() => {
           // Ignore cleanup errors
         });
       }
     };
-  }, [sessionId]);
+  }, []);
 
   return (
     <div className={`terminal-wrapper ${className}`}>

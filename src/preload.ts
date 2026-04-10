@@ -78,10 +78,8 @@ export interface KnuthflowAPI {
     resize(sessionId: string, cols: number, rows: number): Promise<void>;
     kill(sessionId: string, signal?: string): Promise<void>;
     list(): Promise<PtySessionInfo[]>;
-    onData(callback: (data: PtyDataEvent) => void): void;
-    onExit(callback: (exit: PtyExitEvent) => void): void;
-    removeDataListener(callback: (data: PtyDataEvent) => void): void;
-    removeExitListener(callback: (exit: PtyExitEvent) => void): void;
+    onData(callback: (data: PtyDataEvent) => void): () => void;
+    onExit(callback: (exit: PtyExitEvent) => void): () => void;
   };
   storage: {
     get<T = unknown>(key: string): Promise<T>;
@@ -102,8 +100,7 @@ export interface KnuthflowAPI {
     kill(runId: string): Promise<{ success: boolean; error?: string }>;
     getRunState(runId: string): Promise<{ state: ClaudeRunState; sessionId: string | null; exitCode?: number; signal?: number; error?: string }>;
     listRuns(): Promise<ClaudeRunInfo[]>;
-    onRunStateChanged(callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void): void;
-    removeRunStateListener(callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void): void;
+    onRunStateChanged(callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void): () => void;
   };
 }
 
@@ -134,16 +131,14 @@ const api: KnuthflowAPI = {
     list: () =>
       ipcRenderer.invoke('pty:list'),
     onData: (callback: (data: PtyDataEvent) => void) => {
-      ipcRenderer.on('pty:data', (_event, data: PtyDataEvent) => callback(data));
+      const handler = (_event: Electron.IpcRendererEvent, data: PtyDataEvent) => callback(data);
+      ipcRenderer.on('pty:data', handler);
+      return () => ipcRenderer.removeListener('pty:data', handler);
     },
     onExit: (callback: (exit: PtyExitEvent) => void) => {
-      ipcRenderer.on('pty:exit', (_event, exit: PtyExitEvent) => callback(exit));
-    },
-    removeDataListener: (_callback: (data: PtyDataEvent) => void) => {
-      ipcRenderer.removeAllListeners('pty:data');
-    },
-    removeExitListener: (_callback: (exit: PtyExitEvent) => void) => {
-      ipcRenderer.removeAllListeners('pty:exit');
+      const handler = (_event: Electron.IpcRendererEvent, exit: PtyExitEvent) => callback(exit);
+      ipcRenderer.on('pty:exit', handler);
+      return () => ipcRenderer.removeListener('pty:exit', handler);
     },
   },
   storage: {
@@ -178,10 +173,9 @@ const api: KnuthflowAPI = {
     listRuns: () =>
       ipcRenderer.invoke('claude:listRuns'),
     onRunStateChanged: (callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void) => {
-      ipcRenderer.on('claude:runStateChanged', (_event, data) => callback(data));
-    },
-    removeRunStateListener: (_callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void) => {
-      ipcRenderer.removeAllListeners('claude:runStateChanged');
+      const handler = (_event: Electron.IpcRendererEvent, data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => callback(data);
+      ipcRenderer.on('claude:runStateChanged', handler);
+      return () => ipcRenderer.removeListener('claude:runStateChanged', handler);
     },
   },
 };
