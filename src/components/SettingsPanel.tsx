@@ -758,7 +758,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   <span className="text-gray-400">Platform:</span>
                   <span className="text-white">{navigator.platform}</span>
                   <span className="text-gray-400">Electron:</span>
-                  <span className="text-white">41.2.0</span>
+                  <span className="text-white">{diagnostics?.app.electronVersion ?? 'Unknown'}</span>
                 </div>
               </div>
             </div>
@@ -787,3 +787,4 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 }
 
 export default SettingsPanel;
+

@@ -599,6 +599,14 @@ ipcMain.handle('settings:get', async (_event, key: string) => {
 
 ipcMain.handle('settings:set', async (_event, key: string, value: unknown) => {
   const db = getDatabase();
+  const validKeys: (keyof AppSettings)[] = [
+    'cliPath', 'defaultArgs', 'launchOnStartup', 'restoreLastWorkspace',
+    'defaultWorkspaceId', 'confirmBeforeExit', 'confirmBeforeKill', 'autoSaveSessions',
+    'fontSize', 'fontFamily', 'cursorStyle', 'showTabBar', 'showStatusBar', 'theme'
+  ];
+  if (!validKeys.includes(key as keyof AppSettings)) {
+    throw new Error(`Invalid settings key: ${key}`);
+  }
   db.setSetting(key as keyof AppSettings, value as AppSettings[keyof AppSettings]);
 });
 

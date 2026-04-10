@@ -35,8 +35,13 @@ class KeychainBackend implements SecureStorageBackend {
     try {
       // Use security command-line tool to retrieve from keychain
       const { execSync } = require('child_process');
-      const escapedKey = key.replace(/'/g, "'\\''");
-      const cmd = `security find-generic-password -s "${this.serviceName}" -a "${escapedKey}" -w 2>/dev/null`;
+      // Use null-byte separator to avoid shell injection issues
+      const cmd = [
+        'security', 'find-generic-password',
+        '-s', this.serviceName,
+        '-a', key,
+        '-w'
+      ];
 
       const result = execSync(cmd, {
         encoding: 'utf-8',
@@ -55,12 +60,14 @@ class KeychainBackend implements SecureStorageBackend {
 
     try {
       const { execSync } = require('child_process');
-      const escapedKey = key.replace(/'/g, "'\\''");
-      const escapedValue = value.replace(/'/g, "'\\''");
 
       // First try to delete existing item
       try {
-        execSync(`security delete-generic-password -s "${this.serviceName}" -a "${escapedKey}" 2>/dev/null`, {
+        execSync([
+          'security', 'delete-generic-password',
+          '-s', this.serviceName,
+          '-a', key
+        ], {
           timeout: 5000,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
@@ -69,13 +76,20 @@ class KeychainBackend implements SecureStorageBackend {
       }
 
       // Add new item
-      execSync(`security add-generic-password -s "${this.serviceName}" -a "${escapedKey}" -w "${escapedValue}" -U 2>/dev/null`, {
+      execSync([
+        'security', 'add-generic-password',
+        '-s', this.serviceName,
+        '-a', key,
+        '-w', value,
+        '-U'
+      ], {
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[SecureStorage] Keychain set failed:', err);
       return false;
     }
   }
@@ -85,8 +99,11 @@ class KeychainBackend implements SecureStorageBackend {
 
     try {
       const { execSync } = require('child_process');
-      const escapedKey = key.replace(/'/g, "'\\''");
-      execSync(`security delete-generic-password -s "${this.serviceName}" -a "${escapedKey}" 2>/dev/null`, {
+      execSync([
+        'security', 'delete-generic-password',
+        '-s', this.serviceName,
+        '-a', key
+      ], {
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -252,7 +269,6 @@ export function getSecureStorage(): SecureStorage {
   return secureStorageInstance;
 }
 
-// For testing purposes
 export function resetSecureStorage(): void {
   secureStorageInstance = null;
 }

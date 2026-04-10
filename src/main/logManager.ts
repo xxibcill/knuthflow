@@ -122,7 +122,8 @@ class LogManager {
           }
         }).filter((l): l is LogEntry => l !== null);
       }
-    } catch {
+    } catch (err) {
+      console.error('[LogManager] Failed to load recent logs:', err);
       this.logs = [];
     }
   }
@@ -190,8 +191,9 @@ class LogManager {
     try {
       const lines = this.logs.map(l => JSON.stringify(l)).join('\n') + '\n';
       fs.appendFileSync(this.currentLogFile, lines, 'utf-8');
-    } catch {
-      // Ignore write errors
+    } catch (err) {
+      // Log to console for diagnostics system failures
+      console.error('[LogManager] Failed to flush logs to file:', err);
     }
   }
 
@@ -271,3 +273,4 @@ export function resetLogManager(): void {
     logManagerInstance = null;
   }
 }
+
