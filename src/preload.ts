@@ -73,6 +73,48 @@ export interface Workspace {
   lastOpenedAt: number | null;
 }
 
+export enum LogLevel {
+  DEBUG = 'debug',
+  INFO = 'info',
+  WARN = 'warn',
+  ERROR = 'error',
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: number;
+  level: LogLevel;
+  category: string;
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+export interface SystemDiagnostics {
+  app: {
+    version: string;
+    platform: string;
+    arch: string;
+    electronVersion: string;
+    nodeVersion: string;
+    chromeVersion: string;
+  };
+  claude: {
+    installed: boolean;
+    path: string | null;
+    version: string | null;
+    error: string | null;
+  };
+  storage: {
+    usingFallback: boolean;
+    backend: string;
+  };
+  database: {
+    workspaceCount: number;
+    recentSessionCount: number;
+  };
+  logFiles: string[];
+}
+
 export interface Session {
   id: string;
   workspaceId: string | null;
@@ -84,6 +126,36 @@ export interface Session {
   signal: number | null;
   runId: string | null;
   ptySessionId: string | null;
+}
+
+export interface AppSettings {
+  cliPath: string | null;
+  defaultArgs: string[];
+  launchOnStartup: boolean;
+  restoreLastWorkspace: boolean;
+  defaultWorkspaceId: string | null;
+  confirmBeforeExit: boolean;
+  confirmBeforeKill: boolean;
+  autoSaveSessions: boolean;
+  fontSize: number;
+  fontFamily: string;
+  cursorStyle: 'block' | 'underline' | 'bar';
+  showTabBar: boolean;
+  showStatusBar: boolean;
+  theme: 'dark' | 'light' | 'system';
+}
+
+export interface LaunchProfile {
+  id: string;
+  name: string;
+  description: string;
+  cliPath: string | null;
+  args: string[];
+  env: Record<string, string>;
+  workspaceId: string | null;
+  isDefault: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface KnuthflowAPI {
@@ -139,6 +211,35 @@ export interface KnuthflowAPI {
     list(limit?: number): Promise<Session[]>;
     listRecent(workspaceId: string | null, limit?: number): Promise<Session[]>;
     listActive(): Promise<Session[]>;
+  };
+  settings: {
+    get<K extends keyof AppSettings>(key: K): Promise<AppSettings[K] | null>;
+    set<K extends keyof AppSettings>(key: K, value: AppSettings[K]): Promise<void>;
+    getAll(): Promise<AppSettings>;
+  };
+  profile: {
+    create(profile: Omit<LaunchProfile, 'id' | 'createdAt' | 'updatedAt'>): Promise<LaunchProfile>;
+    get(id: string): Promise<LaunchProfile | null>;
+    getDefault(): Promise<LaunchProfile | null>;
+    list(): Promise<LaunchProfile[]>;
+    update(id: string, updates: Partial<Omit<LaunchProfile, 'id' | 'createdAt'>>): Promise<LaunchProfile | null>;
+    delete(id: string): Promise<boolean>;
+  };
+  secureStorage: {
+    get(key: string): Promise<string | null>;
+    set(key: string, value: string): Promise<boolean>;
+    delete(key: string): Promise<boolean>;
+    isUsingFallback(): Promise<boolean>;
+  };
+  logs: {
+    get(limit?: number, level?: string): Promise<LogEntry[]>;
+    getByCategory(category: string, limit?: number): Promise<LogEntry[]>;
+    export(format?: 'json' | 'text'): Promise<string>;
+    getFilePaths(): Promise<string[]>;
+    clear(): Promise<boolean>;
+  };
+  diagnostics: {
+    getSystemInfo(): Promise<SystemDiagnostics>;
   };
 }
 
@@ -245,6 +346,54 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('session:listRecent', workspaceId, limit),
     listActive: () =>
       ipcRenderer.invoke('session:listActive'),
+  },
+  settings: {
+    get: <K extends keyof AppSettings>(key: K) =>
+      ipcRenderer.invoke('settings:get', key) as Promise<AppSettings[K] | null>,
+    set: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) =>
+      ipcRenderer.invoke('settings:set', key, value),
+    getAll: () =>
+      ipcRenderer.invoke('settings:getAll') as Promise<AppSettings>,
+  },
+  profile: {
+    create: (profile: Omit<LaunchProfile, 'id' | 'createdAt' | 'updatedAt'>) =>
+      ipcRenderer.invoke('profile:create', profile),
+    get: (id: string) =>
+      ipcRenderer.invoke('profile:get', id) as Promise<LaunchProfile | null>,
+    getDefault: () =>
+      ipcRenderer.invoke('profile:getDefault') as Promise<LaunchProfile | null>,
+    list: () =>
+      ipcRenderer.invoke('profile:list') as Promise<LaunchProfile[]>,
+    update: (id: string, updates: Partial<Omit<LaunchProfile, 'id' | 'createdAt'>>) =>
+      ipcRenderer.invoke('profile:update', id, updates) as Promise<LaunchProfile | null>,
+    delete: (id: string) =>
+      ipcRenderer.invoke('profile:delete', id) as Promise<boolean>,
+  },
+  secureStorage: {
+    get: (key: string) =>
+      ipcRenderer.invoke('secureStorage:get', key) as Promise<string | null>,
+    set: (key: string, value: string) =>
+      ipcRenderer.invoke('secureStorage:set', key, value) as Promise<boolean>,
+    delete: (key: string) =>
+      ipcRenderer.invoke('secureStorage:delete', key) as Promise<boolean>,
+    isUsingFallback: () =>
+      ipcRenderer.invoke('secureStorage:isUsingFallback') as Promise<boolean>,
+  },
+  logs: {
+    get: (limit?: number, level?: string) =>
+      ipcRenderer.invoke('logs:get', limit, level) as Promise<LogEntry[]>,
+    getByCategory: (category: string, limit?: number) =>
+      ipcRenderer.invoke('logs:getByCategory', category, limit) as Promise<LogEntry[]>,
+    export: (format?: 'json' | 'text') =>
+      ipcRenderer.invoke('logs:export', format) as Promise<string>,
+    getFilePaths: () =>
+      ipcRenderer.invoke('logs:getFilePaths') as Promise<string[]>,
+    clear: () =>
+      ipcRenderer.invoke('logs:clear') as Promise<boolean>,
+  },
+  diagnostics: {
+    getSystemInfo: () =>
+      ipcRenderer.invoke('diagnostics:getSystemInfo') as Promise<SystemDiagnostics>,
   },
 };
 

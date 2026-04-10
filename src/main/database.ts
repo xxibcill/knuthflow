@@ -3,6 +3,10 @@ import * as path from 'path';
 import { app } from 'electron';
 import * as fs from 'fs';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface Workspace {
   id: string;
   name: string;
@@ -24,12 +28,77 @@ export interface Session {
   ptySessionId: string | null;
 }
 
+// Settings types
+export interface AppSettings {
+  // CLI Configuration
+  cliPath: string | null;
+  defaultArgs: string[];
+
+  // Launch Behavior
+  launchOnStartup: boolean;
+  restoreLastWorkspace: boolean;
+  defaultWorkspaceId: string | null;
+
+  // Safety
+  confirmBeforeExit: boolean;
+  confirmBeforeKill: boolean;
+  autoSaveSessions: boolean;
+
+  // Terminal
+  fontSize: number;
+  fontFamily: string;
+  cursorStyle: 'block' | 'underline' | 'bar';
+
+  // UI Preferences
+  showTabBar: boolean;
+  showStatusBar: boolean;
+  theme: 'dark' | 'light' | 'system';
+}
+
+export interface LaunchProfile {
+  id: string;
+  name: string;
+  description: string;
+  cliPath: string | null;
+  args: string[];
+  env: Record<string, string>;
+  workspaceId: string | null;
+  isDefault: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DatabaseSchema {
   version: number;
 }
 
 // Schema version for migrations
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Default Settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  cliPath: null,
+  defaultArgs: [],
+  launchOnStartup: false,
+  restoreLastWorkspace: true,
+  defaultWorkspaceId: null,
+  confirmBeforeExit: false,
+  confirmBeforeKill: true,
+  autoSaveSessions: true,
+  fontSize: 14,
+  fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+  cursorStyle: 'block',
+  showTabBar: true,
+  showStatusBar: true,
+  theme: 'dark',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SessionDatabase with Settings
+// ─────────────────────────────────────────────────────────────────────────────
 
 class SessionDatabase {
   private db: Database.Database;
@@ -64,6 +133,11 @@ class SessionDatabase {
     // Migrate from version 0 to 1
     if (fromVersion < 1) {
       this.migrateToV1();
+    }
+
+    // Migrate from version 1 to 2 (add settings and profiles)
+    if (fromVersion < 2) {
+      this.migrateToV2();
     }
 
     // Update schema version
@@ -106,6 +180,168 @@ class SessionDatabase {
       CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
       CREATE INDEX IF NOT EXISTS idx_workspaces_last_opened ON workspaces(last_opened_at);
     `);
+  }
+
+  private migrateToV2(): void {
+    // Create settings table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    // Create launch_profiles table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS launch_profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        cli_path TEXT,
+        args TEXT NOT NULL DEFAULT '[]',
+        env TEXT NOT NULL DEFAULT '{}',
+        workspace_id TEXT,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+      )
+    `);
+
+    // Initialize with default settings
+    const insertSetting = this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      insertSetting.run(key, JSON.stringify(value));
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Settings Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] | null {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(row.value) as AppSettings[K];
+    } catch {
+      return null;
+    }
+  }
+
+  setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
+    this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
+  }
+
+  getAllSettings(): AppSettings {
+    const rows = this.db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+    const settings: Partial<AppSettings> = {};
+    for (const row of rows) {
+      try {
+        (settings as Record<string, unknown>)[row.key] = JSON.parse(row.value);
+      } catch {
+        // Skip malformed values
+      }
+    }
+    return { ...DEFAULT_SETTINGS, ...settings };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Launch Profile Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createProfile(profile: Omit<LaunchProfile, 'createdAt' | 'updatedAt'>): LaunchProfile {
+    const now = Date.now();
+    const stmt = this.db.prepare(`
+      INSERT INTO launch_profiles (id, name, description, cli_path, args, env, workspace_id, is_default, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      profile.id,
+      profile.name,
+      profile.description,
+      profile.cliPath,
+      JSON.stringify(profile.args),
+      JSON.stringify(profile.env),
+      profile.workspaceId,
+      profile.isDefault ? 1 : 0,
+      now,
+      now
+    );
+
+    // If this is set as default, unset other defaults
+    if (profile.isDefault) {
+      this.db.prepare('UPDATE launch_profiles SET is_default = 0 WHERE id != ?').run(profile.id);
+    }
+
+    return { ...profile, createdAt: now, updatedAt: now };
+  }
+
+  getProfile(id: string): LaunchProfile | null {
+    const row = this.db.prepare('SELECT * FROM launch_profiles WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToProfile(row);
+  }
+
+  getDefaultProfile(): LaunchProfile | null {
+    const row = this.db.prepare('SELECT * FROM launch_profiles WHERE is_default = 1 LIMIT 1').get() as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToProfile(row);
+  }
+
+  listProfiles(): LaunchProfile[] {
+    const rows = this.db.prepare('SELECT * FROM launch_profiles ORDER BY name').all() as Record<string, unknown>[];
+    return rows.map(row => this.rowToProfile(row));
+  }
+
+  updateProfile(id: string, updates: Partial<Omit<LaunchProfile, 'id' | 'createdAt'>>): LaunchProfile | null {
+    const existing = this.getProfile(id);
+    if (!existing) return null;
+
+    const updated = { ...existing, ...updates, updatedAt: Date.now() };
+    const stmt = this.db.prepare(`
+      UPDATE launch_profiles
+      SET name = ?, description = ?, cli_path = ?, args = ?, env = ?, workspace_id = ?, is_default = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    stmt.run(
+      updated.name,
+      updated.description,
+      updated.cliPath,
+      JSON.stringify(updated.args),
+      JSON.stringify(updated.env),
+      updated.workspaceId,
+      updated.isDefault ? 1 : 0,
+      updated.updatedAt,
+      id
+    );
+
+    // If this is set as default, unset other defaults
+    if (updated.isDefault) {
+      this.db.prepare('UPDATE launch_profiles SET is_default = 0 WHERE id != ?').run(id);
+    }
+
+    return updated;
+  }
+
+  deleteProfile(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM launch_profiles WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  private rowToProfile(row: Record<string, unknown>): LaunchProfile {
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      description: row.description as string || '',
+      cliPath: row.cli_path as string | null,
+      args: JSON.parse(row.args as string || '[]'),
+      env: JSON.parse(row.env as string || '{}'),
+      workspaceId: row.workspace_id as string | null,
+      isDefault: (row.is_default as number) === 1,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -263,7 +499,10 @@ class SessionDatabase {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Singleton instance
+// ─────────────────────────────────────────────────────────────────────────────
+
 let dbInstance: SessionDatabase | null = null;
 
 export function getDatabase(): SessionDatabase {

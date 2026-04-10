@@ -3,7 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { getPtyManager, PtyOptions } from './main/ptyManager';
-import { getDatabase, closeDatabase, Workspace, Session } from './main/database';
+import { getDatabase, closeDatabase, Workspace, Session, AppSettings, LaunchProfile } from './main/database';
+import { getSecureStorage } from './main/secureStorage';
+import { getLogManager, LogLevel, LogEntry } from './main/logManager';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -584,6 +586,167 @@ ipcMain.handle('session:listRecent', async (_event, workspaceId: string | null, 
 ipcMain.handle('session:listActive', async () => {
   const db = getDatabase();
   return db.listActiveSessions();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Settings Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('settings:get', async (_event, key: string) => {
+  const db = getDatabase();
+  return db.getSetting(key as keyof AppSettings);
+});
+
+ipcMain.handle('settings:set', async (_event, key: string, value: unknown) => {
+  const db = getDatabase();
+  db.setSetting(key as keyof AppSettings, value as AppSettings[keyof AppSettings]);
+});
+
+ipcMain.handle('settings:getAll', async () => {
+  const db = getDatabase();
+  return db.getAllSettings();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Launch Profile Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('profile:create', async (_event, profile: Omit<LaunchProfile, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const db = getDatabase();
+  const id = `profile-${crypto.randomUUID()}`;
+  return db.createProfile({ id, ...profile });
+});
+
+ipcMain.handle('profile:get', async (_event, id: string) => {
+  const db = getDatabase();
+  return db.getProfile(id);
+});
+
+ipcMain.handle('profile:getDefault', async () => {
+  const db = getDatabase();
+  return db.getDefaultProfile();
+});
+
+ipcMain.handle('profile:list', async () => {
+  const db = getDatabase();
+  return db.listProfiles();
+});
+
+ipcMain.handle('profile:update', async (_event, id: string, updates: Partial<Omit<LaunchProfile, 'id' | 'createdAt'>>) => {
+  const db = getDatabase();
+  return db.updateProfile(id, updates);
+});
+
+ipcMain.handle('profile:delete', async (_event, id: string) => {
+  const db = getDatabase();
+  return db.deleteProfile(id);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Secure Storage Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('secureStorage:get', async (_event, key: string) => {
+  const storage = getSecureStorage();
+  return storage.get(key);
+});
+
+ipcMain.handle('secureStorage:set', async (_event, key: string, value: string) => {
+  const storage = getSecureStorage();
+  return storage.set(key, value);
+});
+
+ipcMain.handle('secureStorage:delete', async (_event, key: string) => {
+  const storage = getSecureStorage();
+  return storage.delete(key);
+});
+
+ipcMain.handle('secureStorage:isUsingFallback', async () => {
+  const storage = getSecureStorage();
+  return storage.isUsingFallback();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Logs and Diagnostics
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('logs:get', async (_event, limit?: number, level?: string) => {
+  const logManager = getLogManager();
+  if (level && Object.values(LogLevel).includes(level as LogLevel)) {
+    return logManager.getLogs(limit, level as LogLevel);
+  }
+  return logManager.getLogs(limit);
+});
+
+ipcMain.handle('logs:getByCategory', async (_event, category: string, limit?: number) => {
+  const logManager = getLogManager();
+  return logManager.getLogsByCategory(category, limit);
+});
+
+ipcMain.handle('logs:export', async (_event, format?: 'json' | 'text') => {
+  const logManager = getLogManager();
+  return logManager.exportLogs(format || 'json');
+});
+
+ipcMain.handle('logs:getFilePaths', async () => {
+  const logManager = getLogManager();
+  return logManager.getLogFilePaths();
+});
+
+ipcMain.handle('logs:clear', async () => {
+  const logManager = getLogManager();
+  logManager.clearLogs();
+  return true;
+});
+
+ipcMain.handle('diagnostics:getSystemInfo', async () => {
+  const logManager = getLogManager();
+
+  // Get Claude Code detection info
+  const claudeDetection = detectClaudeCode();
+
+  // Get app info
+  const appInfo = {
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    electronVersion: process.versions.electron,
+    nodeVersion: process.versions.node,
+    chromeVersion: process.versions.chrome,
+  };
+
+  // Get storage backend info
+  const storage = getSecureStorage();
+  const usingFallback = storage.isUsingFallback();
+
+  // Get database size
+  const db = getDatabase();
+  const workspaces = db.listWorkspaces();
+  const sessions = db.listSessions(10);
+
+  logManager.info('diagnostics', 'System info requested', {
+    claudeInstalled: claudeDetection.installed,
+    appVersion: appInfo.version,
+  });
+
+  return {
+    app: appInfo,
+    claude: {
+      installed: claudeDetection.installed,
+      path: claudeDetection.executablePath,
+      version: claudeDetection.version,
+      error: claudeDetection.error,
+    },
+    storage: {
+      usingFallback,
+      backend: process.platform === 'darwin' ? 'Keychain' : 'Encrypted File',
+    },
+    database: {
+      workspaceCount: workspaces.length,
+      recentSessionCount: sessions.length,
+    },
+    logFiles: logManager.getLogFilePaths(),
+  };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
