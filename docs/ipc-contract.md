@@ -68,6 +68,7 @@ domains:
   - storage     → Persistent storage operations
   - filesystem  → File operations
   - app         → Application-level operations
+  - claude      → Claude Code CLI detection and diagnostics
 ```
 
 ### Channel Definitions
@@ -103,6 +104,12 @@ domains:
 |---------|-----------|---------|----------|---------|
 | `app:getVersion` | Renderer → Main | `void` | `string` | Get app version |
 
+#### Claude Code Detection (`claude:*`)
+
+| Channel | Direction | Payload | Response | Purpose |
+|---------|-----------|---------|----------|---------|
+| `claude:detect` | Renderer → Main | `void` | `ClaudeCodeStatus` | Detect Claude Code installation and return diagnostics |
+
 ## Typed API Surface (Preload)
 
 ```typescript
@@ -130,6 +137,17 @@ interface KnuthflowAPI {
   app: {
     getVersion(): Promise<string>;
   };
+  // Claude Code detection
+  claude: {
+    detect(): Promise<ClaudeCodeStatus>;
+  };
+}
+
+interface ClaudeCodeStatus {
+  installed: boolean;
+  executablePath: string | null;
+  version: string | null;
+  error: string | null;
 }
 ```
 

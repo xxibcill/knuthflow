@@ -13,6 +13,13 @@ export interface ProcessInfo {
   status: string;
 }
 
+export interface ClaudeCodeStatus {
+  installed: boolean;
+  executablePath: string | null;
+  version: string | null;
+  error: string | null;
+}
+
 export interface KnuthflowAPI {
   process: {
     spawn(args: string[], cwd?: string): Promise<ProcessSpawnResult>;
@@ -32,6 +39,9 @@ export interface KnuthflowAPI {
   };
   app: {
     getVersion(): Promise<string>;
+  };
+  claude: {
+    detect(): Promise<ClaudeCodeStatus>;
   };
 }
 
@@ -69,6 +79,10 @@ const api: KnuthflowAPI = {
   app: {
     getVersion: () =>
       ipcRenderer.invoke('app:getVersion'),
+  },
+  claude: {
+    detect: () =>
+      ipcRenderer.invoke('claude:detect'),
   },
 };
 
