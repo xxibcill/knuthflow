@@ -65,6 +65,27 @@ export interface ClaudeRunInfo {
   error?: string;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: number;
+  lastOpenedAt: number | null;
+}
+
+export interface Session {
+  id: string;
+  workspaceId: string | null;
+  name: string;
+  startTime: number;
+  endTime: number | null;
+  status: 'active' | 'completed' | 'failed';
+  exitCode: number | null;
+  signal: number | null;
+  runId: string | null;
+  ptySessionId: string | null;
+}
+
 export interface KnuthflowAPI {
   process: {
     spawn(args: string[], cwd?: string): Promise<ProcessSpawnResult>;
@@ -101,6 +122,23 @@ export interface KnuthflowAPI {
     getRunState(runId: string): Promise<{ state: ClaudeRunState; sessionId: string | null; exitCode?: number; signal?: number; error?: string }>;
     listRuns(): Promise<ClaudeRunInfo[]>;
     onRunStateChanged(callback: (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => void): () => void;
+  };
+  workspace: {
+    create(name: string, path: string): Promise<{ success: boolean; workspace?: Workspace; error?: string }>;
+    get(id: string): Promise<Workspace | null>;
+    list(): Promise<Workspace[]>;
+    listRecent(limit?: number): Promise<Workspace[]>;
+    updateLastOpened(id: string): Promise<void>;
+    delete(id: string): Promise<void>;
+    validatePath(path: string): Promise<{ valid: boolean; error?: string }>;
+  };
+  session: {
+    create(name: string, workspaceId: string | null, runId: string | null, ptySessionId: string | null): Promise<Session>;
+    get(id: string): Promise<Session | null>;
+    updateEnd(id: string, status: 'completed' | 'failed', exitCode: number | null, signal: number | null): Promise<void>;
+    list(limit?: number): Promise<Session[]>;
+    listRecent(workspaceId: string | null, limit?: number): Promise<Session[]>;
+    listActive(): Promise<Session[]>;
   };
 }
 
@@ -177,6 +215,36 @@ const api: KnuthflowAPI = {
       ipcRenderer.on('claude:runStateChanged', handler);
       return () => ipcRenderer.removeListener('claude:runStateChanged', handler);
     },
+  },
+  workspace: {
+    create: (name: string, path: string) =>
+      ipcRenderer.invoke('workspace:create', name, path),
+    get: (id: string) =>
+      ipcRenderer.invoke('workspace:get', id),
+    list: () =>
+      ipcRenderer.invoke('workspace:list'),
+    listRecent: (limit?: number) =>
+      ipcRenderer.invoke('workspace:listRecent', limit),
+    updateLastOpened: (id: string) =>
+      ipcRenderer.invoke('workspace:updateLastOpened', id),
+    delete: (id: string) =>
+      ipcRenderer.invoke('workspace:delete', id),
+    validatePath: (path: string) =>
+      ipcRenderer.invoke('workspace:validatePath', path),
+  },
+  session: {
+    create: (name: string, workspaceId: string | null, runId: string | null, ptySessionId: string | null) =>
+      ipcRenderer.invoke('session:create', name, workspaceId, runId, ptySessionId),
+    get: (id: string) =>
+      ipcRenderer.invoke('session:get', id),
+    updateEnd: (id: string, status: 'completed' | 'failed', exitCode: number | null, signal: number | null) =>
+      ipcRenderer.invoke('session:updateEnd', id, status, exitCode, signal),
+    list: (limit?: number) =>
+      ipcRenderer.invoke('session:list', limit),
+    listRecent: (workspaceId: string | null, limit?: number) =>
+      ipcRenderer.invoke('session:listRecent', workspaceId, limit),
+    listActive: () =>
+      ipcRenderer.invoke('session:listActive'),
   },
 };
 

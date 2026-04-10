@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { getPtyManager, PtyOptions } from './main/ptyManager';
+import { getDatabase, closeDatabase, Workspace, Session } from './main/database';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -461,6 +462,98 @@ ipcMain.handle('claude:detect', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Workspace Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('workspace:create', async (_event, name: string, workspacePath: string) => {
+  const db = getDatabase();
+  const workspace = db.getWorkspaceByPath(workspacePath);
+  if (workspace) {
+    return { success: false, error: 'Workspace with this path already exists' };
+  }
+  const id = `ws-${crypto.randomUUID()}`;
+  const created = db.createWorkspace({ id, name, path: workspacePath });
+  return { success: true, workspace: created };
+});
+
+ipcMain.handle('workspace:get', async (_event, id: string) => {
+  const db = getDatabase();
+  return db.getWorkspace(id);
+});
+
+ipcMain.handle('workspace:list', async () => {
+  const db = getDatabase();
+  return db.listWorkspaces();
+});
+
+ipcMain.handle('workspace:listRecent', async (_event, limit = 10) => {
+  const db = getDatabase();
+  return db.listRecentWorkspaces(limit);
+});
+
+ipcMain.handle('workspace:updateLastOpened', async (_event, id: string) => {
+  const db = getDatabase();
+  db.updateWorkspaceLastOpened(id);
+});
+
+ipcMain.handle('workspace:delete', async (_event, id: string) => {
+  const db = getDatabase();
+  db.deleteWorkspace(id);
+});
+
+ipcMain.handle('workspace:validatePath', async (_event, workspacePath: string) => {
+  try {
+    const exists = fs.existsSync(workspacePath);
+    if (!exists) {
+      return { valid: false, error: 'Path does not exist' };
+    }
+    const stats = fs.statSync(workspacePath);
+    if (!stats.isDirectory()) {
+      return { valid: false, error: 'Path is not a directory' };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'Unable to access path' };
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Session Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('session:create', async (_event, name: string, workspaceId: string | null, runId: string | null, ptySessionId: string | null) => {
+  const db = getDatabase();
+  const id = `sess-${crypto.randomUUID()}`;
+  const session = db.createSession({ id, name, workspaceId, runId, ptySessionId });
+  return session;
+});
+
+ipcMain.handle('session:get', async (_event, id: string) => {
+  const db = getDatabase();
+  return db.getSession(id);
+});
+
+ipcMain.handle('session:updateEnd', async (_event, id: string, status: 'completed' | 'failed', exitCode: number | null, signal: number | null) => {
+  const db = getDatabase();
+  db.updateSessionEnd(id, status, exitCode, signal);
+});
+
+ipcMain.handle('session:list', async (_event, limit = 50) => {
+  const db = getDatabase();
+  return db.listSessions(limit);
+});
+
+ipcMain.handle('session:listRecent', async (_event, workspaceId: string | null, limit = 20) => {
+  const db = getDatabase();
+  return db.listRecentSessions(workspaceId, limit);
+});
+
+ipcMain.handle('session:listActive', async () => {
+  const db = getDatabase();
+  return db.listActiveSessions();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // App Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -487,4 +580,7 @@ app.on('will-quit', () => {
 
   // Cleanup PTY manager
   ptyManager.dispose();
+
+  // Cleanup database
+  closeDatabase();
 });
