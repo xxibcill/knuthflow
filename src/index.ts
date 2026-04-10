@@ -168,6 +168,7 @@ interface ActiveRun {
 }
 
 const activeRuns: Map<string, ActiveRun> = new Map();
+const MAX_ACTIVE_RUNS = 100;
 
 ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   // First detect Claude Code
@@ -199,6 +200,9 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   const shellReadyHandler = ({ sessionId: id, data }: { sessionId: string; data: string }) => {
     if (id === sessionId && data) {
       ptyManager.removeListener('data', shellReadyHandler);
+      clearTimeout(fallbackTimer);
+      ptyManager.removeListener('exit', cleanupHandler);
+      ptyManager.removeListener('error', errorHandler);
       const cmd = `"${execPath}" ${args.join(' ')}\r`;
       ptyManager.write(sessionId, cmd);
     }
@@ -208,6 +212,8 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   // Fallback timeout if shell doesn't emit data within 5 seconds
   const fallbackTimer = setTimeout(() => {
     ptyManager.removeListener('data', shellReadyHandler);
+    ptyManager.removeListener('exit', cleanupHandler);
+    ptyManager.removeListener('error', errorHandler);
     const cmd = `"${execPath}" ${args.join(' ')}\r`;
     ptyManager.write(sessionId, cmd);
   }, 5000);
@@ -216,10 +222,23 @@ ipcMain.handle('claude:launch', async (_event, args: string[] = []) => {
   const cleanupHandler = ({ sessionId: id }: { sessionId: string; exitCode: number; signal?: number }) => {
     if (id === sessionId) {
       clearTimeout(fallbackTimer);
+      ptyManager.removeListener('data', shellReadyHandler);
       ptyManager.removeListener('exit', cleanupHandler);
+      ptyManager.removeListener('error', errorHandler);
     }
   };
   ptyManager.on('exit', cleanupHandler);
+
+  // Clean up handlers on PTY error
+  const errorHandler = ({ sessionId: id }: { sessionId: string; error: Error }) => {
+    if (id === sessionId) {
+      clearTimeout(fallbackTimer);
+      ptyManager.removeListener('data', shellReadyHandler);
+      ptyManager.removeListener('exit', cleanupHandler);
+      ptyManager.removeListener('error', errorHandler);
+    }
+  };
+  ptyManager.on('error', errorHandler);
 
   return {
     success: true,
@@ -294,6 +313,20 @@ ptyManager.on('exit', ({ sessionId, exitCode, signal }) => {
             activeRuns.delete(runId);
           }
         }, 30000); // Clean up after 30 seconds
+      }
+
+      // Enforce max size cap - remove oldest completed/failed runs if over limit
+      if (activeRuns.size > MAX_ACTIVE_RUNS) {
+        const toRemove: string[] = [];
+        for (const [id, r] of activeRuns.entries()) {
+          if (r.state === 'exited' || r.state === 'failed') {
+            toRemove.push(id);
+            if (toRemove.length >= activeRuns.size - MAX_ACTIVE_RUNS + 1) break;
+          }
+        }
+        for (const id of toRemove) {
+          activeRuns.delete(id);
+        }
       }
       break;
     }

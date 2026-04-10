@@ -147,7 +147,10 @@ class SessionDatabase {
   }
 
   listWorkspaces(): Workspace[] {
-    const rows = this.db.prepare('SELECT * FROM workspaces ORDER BY last_opened_at DESC NULLS LAST, created_at DESC').all() as Record<string, unknown>[];
+    const rows = this.db.prepare(`
+      SELECT * FROM workspaces
+      ORDER BY CASE WHEN last_opened_at IS NULL THEN 1 ELSE 0 END, last_opened_at DESC, created_at DESC
+    `).all() as Record<string, unknown>[];
     return rows.map(row => ({
       id: row.id as string,
       name: row.name as string,
@@ -270,7 +273,12 @@ export function getDatabase(): SessionDatabase {
       fs.mkdirSync(userDataPath, { recursive: true });
     }
     const dbPath = path.join(userDataPath, 'knuthflow.db');
-    dbInstance = new SessionDatabase(dbPath);
+    try {
+      dbInstance = new SessionDatabase(dbPath);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      throw new Error(`Failed to initialize database at ${dbPath}: ${err.message}`);
+    }
   }
   return dbInstance;
 }

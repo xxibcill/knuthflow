@@ -154,20 +154,28 @@ export default function App() {
       await window.knuthflow.claude.kill(tab.runId);
     }
 
-    setTabs(prev => prev.filter(t => t.id !== tabId));
-    if (activeTabId === tabId) {
-      setActiveTabId(tabs.length > 1 ? tabs[0].id : null);
-    }
-    if (tabs.length <= 1) {
-      setViewMode('workspaces');
-      setActiveRun(null);
-    }
+    setTabs(prev => {
+      const remainingTabs = prev.filter(t => t.id !== tabId);
+      // If we closed the active tab, switch to another
+      if (activeTabId === tabId && remainingTabs.length > 0) {
+        // Schedule the tab switch after the state update
+        setTimeout(() => setActiveTabId(remainingTabs[0].id), 0);
+      } else if (remainingTabs.length === 0) {
+        setViewMode('workspaces');
+        setActiveRun(null);
+      }
+      return remainingTabs;
+    });
   };
 
   const handleRestoreSession = (session: Session) => {
-    // Cannot restore an already completed/failed session
-    // Just show info about it
-    console.log('Restore session requested:', session);
+    // Session restoration is not yet implemented
+    // For now, just log the request - completed/failed sessions cannot be restored
+    if (session.status === 'active') {
+      console.log('Session is already active:', session);
+    } else {
+      console.log('Session restoration requested for completed/failed session:', session);
+    }
   };
 
   const activeTab = tabs.find(t => t.id === activeTabId);
