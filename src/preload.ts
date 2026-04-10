@@ -20,12 +20,48 @@ export interface ClaudeCodeStatus {
   error: string | null;
 }
 
+export interface PtyOptions {
+  cwd?: string;
+  cols?: number;
+  rows?: number;
+  env?: Record<string, string | undefined>;
+  name?: string;
+}
+
+export interface PtySessionInfo {
+  id: string;
+  pid: number;
+  createdAt: number;
+}
+
+export interface PtyDataEvent {
+  sessionId: string;
+  data: string;
+}
+
+export interface PtyExitEvent {
+  sessionId: string;
+  exitCode: number;
+  signal?: number;
+}
+
 export interface KnuthflowAPI {
   process: {
     spawn(args: string[], cwd?: string): Promise<ProcessSpawnResult>;
     send(pid: number, input: string): Promise<void>;
     kill(pid: number): Promise<void>;
     list(): Promise<ProcessInfo[]>;
+  };
+  pty: {
+    create(options?: PtyOptions): Promise<string>;
+    write(sessionId: string, data: string): Promise<void>;
+    resize(sessionId: string, cols: number, rows: number): Promise<void>;
+    kill(sessionId: string, signal?: string): Promise<void>;
+    list(): Promise<PtySessionInfo[]>;
+    onData(callback: (data: PtyDataEvent) => void): void;
+    onExit(callback: (exit: PtyExitEvent) => void): void;
+    removeDataListener(callback: (data: PtyDataEvent) => void): void;
+    removeExitListener(callback: (exit: PtyExitEvent) => void): void;
   };
   storage: {
     get<T = unknown>(key: string): Promise<T>;
@@ -59,6 +95,30 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('process:kill', pid),
     list: () =>
       ipcRenderer.invoke('process:list'),
+  },
+  pty: {
+    create: (options?: PtyOptions) =>
+      ipcRenderer.invoke('pty:create', options),
+    write: (sessionId: string, data: string) =>
+      ipcRenderer.invoke('pty:write', sessionId, data),
+    resize: (sessionId: string, cols: number, rows: number) =>
+      ipcRenderer.invoke('pty:resize', sessionId, cols, rows),
+    kill: (sessionId: string, signal?: string) =>
+      ipcRenderer.invoke('pty:kill', sessionId, signal),
+    list: () =>
+      ipcRenderer.invoke('pty:list'),
+    onData: (callback: (data: PtyDataEvent) => void) => {
+      ipcRenderer.on('pty:data', (_event, data: PtyDataEvent) => callback(data));
+    },
+    onExit: (callback: (exit: PtyExitEvent) => void) => {
+      ipcRenderer.on('pty:exit', (_event, exit: PtyExitEvent) => callback(exit));
+    },
+    removeDataListener: (_callback: (data: PtyDataEvent) => void) => {
+      ipcRenderer.removeAllListeners('pty:data');
+    },
+    removeExitListener: (_callback: (exit: PtyExitEvent) => void) => {
+      ipcRenderer.removeAllListeners('pty:exit');
+    },
   },
   storage: {
     get: <T = unknown>(key: string) =>

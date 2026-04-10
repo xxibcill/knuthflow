@@ -17,4 +17,11 @@ export const mainConfig: Configuration = {
   resolve: {
     extensions: ['.js', '.ts', '.jsx', '.tsx', '.css', '.json'],
   },
+  /**
+   * Mark node-pty as external so webpack doesn't try to bundle the native module.
+   * The native module will be loaded from node_modules at runtime.
+   */
+  externals: {
+    'node-pty': 'commonjs node-pty',
+  },
 };
