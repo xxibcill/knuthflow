@@ -615,6 +615,20 @@ ipcMain.handle('settings:getAll', async () => {
   return db.getAllSettings();
 });
 
+ipcMain.handle('settings:setAll', async (_event, settings: Partial<AppSettings>) => {
+  const db = getDatabase();
+  const validKeys: (keyof AppSettings)[] = [
+    'cliPath', 'defaultArgs', 'launchOnStartup', 'restoreLastWorkspace',
+    'defaultWorkspaceId', 'confirmBeforeExit', 'confirmBeforeKill', 'autoSaveSessions',
+    'fontSize', 'fontFamily', 'cursorStyle', 'showTabBar', 'showStatusBar', 'theme'
+  ];
+  for (const [key, value] of Object.entries(settings)) {
+    if (validKeys.includes(key as keyof AppSettings)) {
+      db.setSetting(key as keyof AppSettings, value as AppSettings[keyof AppSettings]);
+    }
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // IPC Handlers - Launch Profile Operations
 // ─────────────────────────────────────────────────────────────────────────────

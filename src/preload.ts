@@ -215,6 +215,7 @@ export interface KnuthflowAPI {
   settings: {
     get<K extends keyof AppSettings>(key: K): Promise<AppSettings[K] | null>;
     set<K extends keyof AppSettings>(key: K, value: AppSettings[K]): Promise<void>;
+    setAll(settings: Partial<AppSettings>): Promise<void>;
     getAll(): Promise<AppSettings>;
   };
   profile: {
@@ -352,6 +353,8 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('settings:get', key) as Promise<AppSettings[K] | null>,
     set: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) =>
       ipcRenderer.invoke('settings:set', key, value),
+    setAll: (settings: Partial<AppSettings>) =>
+      ipcRenderer.invoke('settings:setAll', settings),
     getAll: () =>
       ipcRenderer.invoke('settings:getAll') as Promise<AppSettings>,
   },

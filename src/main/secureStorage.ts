@@ -20,7 +20,7 @@ export interface SecureStorageBackend {
 class KeychainBackend implements SecureStorageBackend {
   private serviceName: string;
 
-  constructor(serviceName: string = 'Knuthflow') {
+  constructor(serviceName = 'Knuthflow') {
     this.serviceName = serviceName;
   }
 
@@ -50,7 +50,8 @@ class KeychainBackend implements SecureStorageBackend {
       });
 
       return result.trim() || null;
-    } catch {
+    } catch (err) {
+      console.error('[SecureStorage] Keychain get failed:', err);
       return null;
     }
   }
@@ -71,8 +72,8 @@ class KeychainBackend implements SecureStorageBackend {
           timeout: 5000,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-      } catch {
-        // Ignore deletion errors
+      } catch (err) {
+        console.error('[SecureStorage] Keychain delete before set failed:', err);
       }
 
       // Add new item
@@ -108,7 +109,8 @@ class KeychainBackend implements SecureStorageBackend {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[SecureStorage] Keychain delete failed:', err);
       return false;
     }
   }
@@ -161,7 +163,8 @@ class EncryptedFileBackend implements SecureStorageBackend {
       decipher.setAuthTag(encrypted.slice(-16));
       const decrypted = Buffer.concat([decipher.update(encrypted.slice(12, -16)), decipher.final()]);
       return decrypted.toString('utf-8');
-    } catch {
+    } catch (err) {
+      console.error('[SecureStorage] EncryptedFile get failed:', err);
       return null;
     }
   }
@@ -175,7 +178,8 @@ class EncryptedFileBackend implements SecureStorageBackend {
       const encrypted = Buffer.concat([iv, cipher.update(value, 'utf-8'), cipher.final()]);
       fs.writeFileSync(filePath, Buffer.concat([encrypted, cipher.getAuthTag()]), { mode: 0o600 });
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[SecureStorage] EncryptedFile set failed:', err);
       return false;
     }
   }
@@ -187,7 +191,8 @@ class EncryptedFileBackend implements SecureStorageBackend {
         fs.unlinkSync(filePath);
       }
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[SecureStorage] EncryptedFile delete failed:', err);
       return false;
     }
   }
@@ -200,7 +205,7 @@ class EncryptedFileBackend implements SecureStorageBackend {
 class SecureStorage {
   private primary: SecureStorageBackend;
   private fallback: SecureStorageBackend;
-  private useFallback: boolean = false;
+  private useFallback = false;
 
   constructor() {
     this.primary = new KeychainBackend();
@@ -269,6 +274,9 @@ export function getSecureStorage(): SecureStorage {
   return secureStorageInstance;
 }
 
+/**
+ * Resets the secure storage singleton. For testing purposes only.
+ */
 export function resetSecureStorage(): void {
   secureStorageInstance = null;
 }

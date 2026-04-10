@@ -64,8 +64,8 @@ class LogManager {
           this.rotateLog();
         }
       }
-    } catch {
-      // Ignore errors
+    } catch (err) {
+      console.error('[LogManager] Failed to check log rotation:', err);
     }
   }
 
@@ -76,8 +76,8 @@ class LogManager {
       if (fs.existsSync(this.currentLogFile)) {
         fs.renameSync(this.currentLogFile, archiveName);
       }
-    } catch {
-      // Ignore errors
+    } catch (err) {
+      console.error('[LogManager] Failed to rotate log:', err);
     }
     this.cleanOldLogs();
   }
@@ -97,12 +97,12 @@ class LogManager {
       for (let i = this.maxLogFiles; i < files.length; i++) {
         try {
           fs.unlinkSync(files[i].path);
-        } catch {
-          // Ignore
+        } catch (err) {
+          console.error('[LogManager] Failed to remove old log file:', files[i].path, err);
         }
       }
-    } catch {
-      // Ignore errors
+    } catch (err) {
+      console.error('[LogManager] Failed to clean old logs:', err);
     }
   }
 
@@ -251,7 +251,8 @@ class LogManager {
         .map(f => path.join(this.logDir, f))
         .sort()
         .reverse();
-    } catch {
+    } catch (err) {
+      console.error('[LogManager] Failed to get log file paths:', err);
       return [];
     }
   }
@@ -267,6 +268,9 @@ export function getLogManager(): LogManager {
   return logManagerInstance;
 }
 
+/**
+ * Resets the log manager singleton. For testing purposes only.
+ */
 export function resetLogManager(): void {
   if (logManagerInstance) {
     logManagerInstance.clearLogs();

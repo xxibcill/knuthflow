@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import * as path from 'path';
 import type { AppSettings, LaunchProfile, Workspace, SystemDiagnostics, LogEntry } from '../preload';
 
 interface SettingsPanelProps {
@@ -69,6 +68,14 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       if (settings.fontSize < 8 || settings.fontSize > 72) {
         newErrors.fontSize = 'Font size must be between 8 and 72';
       }
+      // Validate cliPath if provided - must be a valid path
+      if (settings.cliPath && settings.cliPath.trim() !== '') {
+        const trimmedPath = settings.cliPath.trim();
+        // Check for path traversal attempts or empty-looking paths
+        if (trimmedPath.includes('..') || /^\s*$/.test(trimmedPath)) {
+          newErrors.cliPath = 'Invalid CLI path';
+        }
+      }
     }
 
     setErrors(newErrors);
@@ -80,10 +87,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
     setSaving(true);
     try {
-      // Save each setting individually
-      for (const [key, value] of Object.entries(settings)) {
-        await window.knuthflow.settings.set(key as keyof AppSettings, value);
-      }
+      // Save all settings in a single batch call
+      await window.knuthflow.settings.setAll(settings);
       onClose();
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -101,16 +106,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const handleAddProfile = async () => {
     if (!profileName.trim()) return;
 
-    const argsArray = profileArgs
-      .split(' ')
-      .map(arg => arg.trim())
-      .filter(arg => arg.length > 0);
-
     await window.knuthflow.profile.create({
       name: profileName.trim(),
       description: profileDescription.trim(),
       cliPath: profileCliPath.trim() || null,
-      args: argsArray,
+      args: profileArgs.split(' ').map(arg => arg.trim()).filter(arg => arg.length > 0),
       env: {},
       workspaceId: profileWorkspaceId,
       isDefault: profileIsDefault,
@@ -565,9 +565,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   <div className="bg-gray-700 rounded-lg p-4">
                     {diagnostics.logFiles.length > 0 ? (
                       <div className="space-y-1">
-                        {diagnostics.logFiles.slice(0, 5).map((file, i) => (
-                          <div key={i} className="text-xs text-gray-400 font-mono">{path.basename(file)}</div>
-                        ))}
+                        {diagnostics.logFiles.slice(0, 5).map((filePath, i) => {
+                          const fileName = filePath.split(/[/\\]/).pop() || filePath;
+                          return (
+                            <div key={i} className="text-xs text-gray-400 font-mono">{fileName}</div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-sm text-gray-400">No log files found</p>
@@ -748,7 +751,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             <div className="space-y-6">
               <div className="text-center py-8">
                 <h1 className="text-2xl font-bold text-white mb-2">Knuthflow</h1>
-                <p className="text-gray-400">Version 1.0.0</p>
+                <p className="text-gray-400">Version {diagnostics?.app.version ?? 'Unknown'}</p>
                 <p className="text-sm text-gray-500 mt-4">Desktop wrapper for Claude Code CLI</p>
               </div>
 
