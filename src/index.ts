@@ -24,13 +24,38 @@ const createWindow = (): void => {
     width: 800,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Navigation Constraints - Prevent renderer from navigating to untrusted origins
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Block window.open calls from renderer
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
+  // Block renderer from navigating to arbitrary URLs
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const parsedUrl = new URL(url);
+    // Only allow navigation within the app's origin
+    if (parsedUrl.origin !== 'file://') {
+      event.preventDefault();
+    }
   });
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
   // Open DevTools in development
-  mainWindow.webContents.openDevTools();
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
+  }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

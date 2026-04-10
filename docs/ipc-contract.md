@@ -144,6 +144,37 @@ When adding new IPC channels:
 5. **Expose via preload** - Add to KnuthflowAPI interface
 6. **Validate input** - Never trust renderer data, validate in main handler
 
+## Security Configuration
+
+The following security-sensitive defaults are enforced in the main process window creation:
+
+### BrowserWindow WebPreferences
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `contextIsolation` | `true` | Renderer has isolated JavaScript context - preload and renderer share no scope |
+| `nodeIntegration` | `false` | Renderer cannot access Node.js APIs directly |
+| `sandbox` | `true` | Renderer runs in sandboxed OS process |
+| `webSecurity` | `true` | Enforces same-origin policy and prevents CORS bypasses |
+| `allowRunningInsecureContent` | `false` | Blocks loading mixed HTTP/HTTPS content |
+
+### Navigation Constraints
+
+| Handler | Behavior |
+|---------|----------|
+| `setWindowOpenHandler` | Denies all `window.open()` calls from renderer |
+| `will-navigate` | Prevents navigation to any origin except `file://` (app origin) |
+
+### Content Security Policy
+
+Set in `index.html` via CSP header:
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+```
+
+This policy restricts loading to same-origin scripts and allows inline styles (required for Tailwind).
+
 ## Implementation Notes
 
 - All IPC uses `ipcMain.handle` for invoke/response pattern
