@@ -4,6 +4,8 @@ import * as path from 'path';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { getPtyManager, PtyOptions } from './main/ptyManager';
 import { getDatabase, closeDatabase, Workspace, Session } from './main/database';
+import { getSupervisor, resetSupervisor } from './main/supervisor';
+import { registerUpdateHandlers } from './main/updateManager';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -587,10 +589,71 @@ ipcMain.handle('session:listActive', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Supervision and Recovery
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('supervisor:validateIntegrity', async () => {
+  const supervisor = getSupervisor();
+  return supervisor.validateSessionIntegrity();
+});
+
+ipcMain.handle('supervisor:cleanupOrphans', async () => {
+  const supervisor = getSupervisor();
+  supervisor.cleanupOrphanedSessions();
+  return { success: true };
+});
+
+ipcMain.handle('supervisor:explainExit', async (_event, exitCode: number | null, signal?: number) => {
+  const supervisor = getSupervisor();
+  return supervisor.explainExit(exitCode, signal ?? undefined);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // App Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  // Initialize database first
+  getDatabase();
+
+  // Register update handlers
+  registerUpdateHandlers();
+
+  // Validate session integrity on startup and clean up orphaned sessions
+  const supervisor = getSupervisor();
+  const integrity = supervisor.validateSessionIntegrity();
+  if (!integrity.valid) {
+    console.log('[Supervisor] Session integrity issues found:', integrity.issues);
+  }
+  if (integrity.cleaned > 0) {
+    console.log(`[Supervisor] Cleaned up ${integrity.cleaned} orphaned sessions`);
+  }
+
+  // Start the supervision loop
+  supervisor.start();
+
+  // Forward supervisor events to renderer
+  supervisor.on('sessionCrashed', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('supervisor:sessionCrashed', data);
+    }
+  });
+
+  supervisor.on('recoveryNeeded', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('supervisor:recoveryNeeded', data);
+    }
+  });
+
+  supervisor.on('orphanCleaned', (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('supervisor:orphanCleaned', data);
+    }
+  });
+
+  // Create the main window
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -610,6 +673,9 @@ app.on('will-quit', () => {
     proc.kill();
   }
   activeProcesses.clear();
+
+  // Stop the supervisor
+  resetSupervisor();
 
   // Cleanup PTY manager
   ptyManager.dispose();
