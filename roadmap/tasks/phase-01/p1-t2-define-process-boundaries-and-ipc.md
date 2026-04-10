@@ -28,5 +28,5 @@ Define which responsibilities live in the main process, preload layer, and rende
 
 ## Status
 
-Not Implemented
+Done
 
