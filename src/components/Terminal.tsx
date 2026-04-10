@@ -72,7 +72,20 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
     xterm.loadAddon(fitAddon);
 
     xterm.open(containerRef.current);
-    fitAddon.fit();
+
+    // Use requestAnimationFrame to ensure the terminal is rendered before fitting
+    // Retry a few times in case container becomes visible after a frame
+    let fitAttempts = 0;
+    const fitTerminal = () => {
+      if (fitAddonRef.current && containerRef.current &&
+          containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
+        fitAddonRef.current.fit();
+      } else if (fitAttempts < 3) {
+        fitAttempts++;
+        requestAnimationFrame(fitTerminal);
+      }
+    };
+    requestAnimationFrame(fitTerminal);
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
@@ -162,8 +175,11 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
     if (!sessionId || !fitAddonRef.current || !xtermRef.current) return;
 
     const handleResize = () => {
-      if (fitAddonRef.current && xtermRef.current) {
-        fitAddonRef.current.fit();
+      if (fitAddonRef.current && xtermRef.current && containerRef.current) {
+        // Only fit if container has actual dimensions
+        if (containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
+          fitAddonRef.current.fit();
+        }
         const { cols, rows } = xtermRef.current;
         window.knuthflow.pty.resize(sessionId, cols, rows);
         if (onResize) {
