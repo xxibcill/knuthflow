@@ -12,14 +12,6 @@ interface RalphOperatorControlsProps {
   onCancelConfirmation: () => void;
 }
 
-const actionLabels: Record<OperatorControlAction, string> = {
-  pause: 'Pause',
-  resume: 'Resume',
-  stop: 'Stop',
-  replan: 'Replan',
-  validate: 'Validate Now',
-};
-
 const actionIcons: Record<OperatorControlAction, string> = {
   pause: 'M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z',
   resume: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -50,29 +42,7 @@ export function RalphOperatorControls({
   const isDisabled = !isRunning && currentPhase === 'idle';
 
   const handleAction = (action: OperatorControlAction) => {
-    // Check if action requires confirmation
-    if (action === 'stop' || action === 'replan') {
-      const confirmation: OperatorConfirmation = action === 'stop'
-        ? {
-            action: 'stop',
-            title: 'Stop Ralph Run?',
-            message: 'This will terminate the current Ralph run. Any in-progress work may be lost. This action cannot be undone.',
-            confirmLabel: 'Stop Run',
-            cancelLabel: 'Cancel',
-            isDangerous: true,
-          }
-        : {
-            action: 'replan',
-            title: 'Replan Ralph Run?',
-            message: 'This will regenerate the fix_plan.md and reset the loop state. Current progress on tasks will be preserved.',
-            confirmLabel: 'Replan',
-            cancelLabel: 'Cancel',
-            isDangerous: false,
-          };
-      // Pass to parent to show confirmation dialog
-      onAction('replan'); // This would need parent to handle via pendingConfirmation
-      return;
-    }
+    // stop and replan are handled by parent via pendingConfirmation
     onAction(action);
   };
 

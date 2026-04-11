@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { LoopSummary, PlanSnapshot } from './RalphConsole.types';
 
 interface RalphLoopHistoryPanelProps {
@@ -10,6 +10,11 @@ interface RalphLoopHistoryPanelProps {
   onViewArtifact?: (summaryId: string) => void;
 }
 
+const TRUNCATE_PROMPT_LENGTH = 150;
+const TRUNCATE_RESPONSE_LENGTH = 100;
+const MAX_FILES_DISPLAY = 3;
+const TRUNCATE_SNAPSHOT_LENGTH = 200;
+
 const formatTimestamp = (timestamp: number) => {
   return new Date(timestamp).toLocaleString([], {
     month: 'short',
@@ -19,18 +24,7 @@ const formatTimestamp = (timestamp: number) => {
   });
 };
 
-const formatDuration = (start: number, end: number) => {
-  const ms = end - start;
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-  return `${seconds}s`;
-};
-
 const getOutcomeColor = (response: string) => {
-  // Simple heuristic based on response content
   if (response.includes('error') || response.includes('failed')) {
     return 'text-red-400';
   }
@@ -91,7 +85,7 @@ export function RalphLoopHistoryPanel({
       <div className="flex-1 overflow-y-auto">
         {viewMode === 'summaries' ? (
           <div className="divide-y divide-gray-800">
-            {summaries.map((summary, index) => (
+            {summaries.map((summary) => (
               <div
                 key={summary.id}
                 className="p-3 hover:bg-gray-800 cursor-pointer"
@@ -110,8 +104,8 @@ export function RalphLoopHistoryPanel({
                 <div className="mb-2 p-2 bg-gray-900 rounded border border-gray-700">
                   <p className="text-xs text-gray-500 mb-1">Prompt</p>
                   <p className="text-xs text-gray-300 line-clamp-3 font-mono">
-                    {summary.prompt.slice(0, 150)}
-                    {summary.prompt.length > 150 && '...'}
+                    {summary.prompt.slice(0, TRUNCATE_PROMPT_LENGTH)}
+                    {summary.prompt.length > TRUNCATE_PROMPT_LENGTH && '...'}
                   </p>
                 </div>
 
@@ -122,7 +116,7 @@ export function RalphLoopHistoryPanel({
                       Files: {summary.selectedFiles.length}
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {summary.selectedFiles.slice(0, 3).map((file, i) => (
+                      {summary.selectedFiles.slice(0, MAX_FILES_DISPLAY).map((file, i) => (
                         <span
                           key={i}
                           className="text-xs px-1.5 py-0.5 bg-gray-700 text-gray-300 rounded truncate max-w-32"
@@ -130,9 +124,9 @@ export function RalphLoopHistoryPanel({
                           {file.split('/').pop()}
                         </span>
                       ))}
-                      {summary.selectedFiles.length > 3 && (
+                      {summary.selectedFiles.length > MAX_FILES_DISPLAY && (
                         <span className="text-xs text-gray-500">
-                          +{summary.selectedFiles.length - 3} more
+                          +{summary.selectedFiles.length - MAX_FILES_DISPLAY} more
                         </span>
                       )}
                     </div>
@@ -142,8 +136,8 @@ export function RalphLoopHistoryPanel({
                 {/* Response preview */}
                 <div>
                   <p className={`text-xs ${getOutcomeColor(summary.response)}`}>
-                    {summary.response.slice(0, 100)}
-                    {summary.response.length > 100 && '...'}
+                    {summary.response.slice(0, TRUNCATE_RESPONSE_LENGTH)}
+                    {summary.response.length > TRUNCATE_RESPONSE_LENGTH && '...'}
                   </p>
                 </div>
               </div>
@@ -177,8 +171,8 @@ export function RalphLoopHistoryPanel({
                   <div className="p-2 bg-gray-900 rounded border border-gray-700 mb-2">
                     <p className="text-xs text-gray-500 mb-1">Plan Content</p>
                     <p className="text-xs text-gray-300 line-clamp-4 font-mono">
-                      {snapshot.planContent.slice(0, 200)}
-                      {snapshot.planContent.length > 200 && '...'}
+                      {snapshot.planContent.slice(0, TRUNCATE_SNAPSHOT_LENGTH)}
+                      {snapshot.planContent.length > TRUNCATE_SNAPSHOT_LENGTH && '...'}
                     </p>
                   </div>
 

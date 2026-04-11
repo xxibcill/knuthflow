@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type {
   RalphRunDashboardItem,
   RalphPhase,
@@ -38,7 +38,9 @@ interface TimelineEvent {
   outcome?: 'success' | 'failed' | 'skipped';
 }
 
-export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }: RalphConsolePanelProps) {
+const POLLING_INTERVAL_MS = 5000;
+
+export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspace, onOpenFile }: RalphConsolePanelProps) {
   // State
   const [runs, setRuns] = useState<RalphRunDashboardItem[]>([]);
   const [selectedRun, setSelectedRun] = useState<RalphRunDashboardItem | null>(null);
@@ -59,6 +61,11 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load runs on mount
+  const runsRef = useRef(runs);
+  useEffect(() => {
+    runsRef.current = runs;
+  }, [runs]);
+
   useEffect(() => {
     loadRuns();
   }, []);
@@ -94,9 +101,6 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
             phase = 'failed';
           }
 
-          const selectedItem = null;
-          const safetyState = null;
-
           allRuns.push({
             runId: run.id,
             projectId: run.projectId,
@@ -105,10 +109,10 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
             name: run.name,
             status: run.status,
             phase,
-            selectedItem,
+            selectedItem: null,
+            safetyState: null,
             iterationCount: run.iterationCount,
             loopCount: run.iterationCount,
-            safetyState,
             startTime: run.startTime,
             endTime: run.endTime,
             error: run.error,
@@ -223,17 +227,16 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (window.knuthflow.ralph as any)[`${action}Run`]?.(selectedRun.runId);
       await loadRuns();
-      if (selectedRun) {
-        const updatedRun = runs.find(r => r.runId === selectedRun.runId);
-        if (updatedRun) {
-          setSelectedRun(updatedRun);
-          loadSelectedRunDetails(updatedRun);
-        }
+      const currentRuns = runsRef.current;
+      const updatedRun = currentRuns.find(r => r.runId === selectedRun.runId);
+      if (updatedRun) {
+        setSelectedRun(updatedRun);
+        loadSelectedRunDetails(updatedRun);
       }
     } catch (error) {
       console.error(`Failed to ${action} run:`, error);
     }
-  }, [selectedRun, runs, loadRuns, loadSelectedRunDetails]);
+  }, [selectedRun, loadRuns, loadSelectedRunDetails]);
 
   // Handle confirmation
   const handleConfirm = useCallback(async () => {
@@ -244,16 +247,15 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
       await (window.knuthflow.ralph as any)[`${pendingConfirmation.action}Run`]?.(selectedRun.runId);
       setPendingConfirmation(null);
       await loadRuns();
-      if (selectedRun) {
-        const updatedRun = runs.find(r => r.runId === selectedRun.runId);
-        if (updatedRun) {
-          setSelectedRun(updatedRun);
-        }
+      const currentRuns = runsRef.current;
+      const updatedRun = currentRuns.find(r => r.runId === selectedRun.runId);
+      if (updatedRun) {
+        setSelectedRun(updatedRun);
       }
     } catch (error) {
       console.error(`Failed to ${pendingConfirmation.action}:`, error);
     }
-  }, [pendingConfirmation, selectedRun, runs, loadRuns]);
+  }, [pendingConfirmation, selectedRun, loadRuns]);
 
   // Handle confirmation cancel
   const handleCancelConfirmation = useCallback(() => {
@@ -307,16 +309,23 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
   }, [onOpenFile]);
 
   // Poll for updates (every 5 seconds when running)
+  const selectedRunRef = useRef(selectedRun);
+  useEffect(() => {
+    selectedRunRef.current = selectedRun;
+  }, [selectedRun]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      if (selectedRun?.status === 'running') {
+      if (selectedRunRef.current?.status === 'running') {
         loadRuns();
-        loadSelectedRunDetails(selectedRun);
+        if (selectedRunRef.current) {
+          loadSelectedRunDetails(selectedRunRef.current);
+        }
       }
-    }, 5000);
+    }, POLLING_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [selectedRun, loadRuns, loadSelectedRunDetails]);
+  }, [loadRuns, loadSelectedRunDetails]);
 
   // Tab definitions
   const tabs: { id: ViewTab; label: string; count?: number }[] = [
@@ -546,7 +555,7 @@ export function RalphConsolePanel({ workspacePath, onOpenWorkspace, onOpenFile }
                   <RalphSafetyAlerts
                     alerts={alerts}
                     onDismiss={(id) => setAlerts(prev => prev.filter(a => a.id !== id))}
-                    onViewDetails={(alert) => {
+                    onViewDetails={(_alert) => {
                       // Show alert details
                     }}
                   />

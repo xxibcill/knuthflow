@@ -16,8 +16,6 @@ interface RalphPhaseTimelineProps {
   onSelectEvent?: (event: TimelineEvent) => void;
 }
 
-const phaseOrder: RalphPhase[] = ['starting', 'planning', 'executing', 'validating', 'completed', 'failed'];
-
 const phaseLabels: Record<RalphPhase, string> = {
   idle: 'Idle',
   starting: 'Start',

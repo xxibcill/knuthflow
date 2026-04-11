@@ -83,10 +83,13 @@ export function RalphArtifactViewer({
     return Array.from(types);
   }, [artifacts]);
 
-  const truncateContent = (content: string, maxLength = 200) => {
-    if (content.length <= maxLength) return content;
-    return content.slice(0, maxLength) + '...';
-  };
+const TRUNCATE_PREVIEW_LENGTH = 300;
+const TRUNCATE_DEFAULT_LENGTH = 200;
+
+const truncateContent = (content: string, maxLength = TRUNCATE_DEFAULT_LENGTH) => {
+  if (content.length <= maxLength) return content;
+  return content.slice(0, maxLength) + '...';
+};
 
   const handleSelectArtifact = (artifact: RalphArtifact) => {
     onSelectArtifact?.(artifact);
@@ -94,7 +97,7 @@ export function RalphArtifactViewer({
   };
 
   const renderArtifactContent = (artifact: RalphArtifact, isExpanded: boolean) => {
-    const content = isExpanded ? artifact.content : truncateContent(artifact.content, 300);
+    const content = isExpanded ? artifact.content : truncateContent(artifact.content, TRUNCATE_PREVIEW_LENGTH);
     return (
       <div className={`
         font-mono text-xs whitespace-pre-wrap break-words
