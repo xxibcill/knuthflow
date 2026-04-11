@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -417,6 +417,51 @@ ipcMain.handle('filesystem:writeFile', async (_event, filePath: string, content:
 
 ipcMain.handle('filesystem:exists', async (_event, filePath: string) => {
   return fs.existsSync(filePath);
+});
+
+ipcMain.handle('dialog:openFile', async (_event, options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    defaultPath: options?.defaultPath,
+    filters: options?.filters || [
+      { name: 'All Files', extensions: ['*'] },
+      { name: 'Source Code', extensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'md', 'css', 'html'] },
+    ],
+    properties: ['openFile'],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true, filePath: null };
+  }
+
+  return { canceled: false, filePath: result.filePaths[0] };
+});
+
+ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: string }) => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    defaultPath: options?.defaultPath,
+    properties: ['openDirectory'],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true, directoryPath: null };
+  }
+
+  return { canceled: false, directoryPath: result.filePaths[0] };
+});
+
+ipcMain.handle('dialog:saveFile', async (_event, options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    defaultPath: options?.defaultPath,
+    filters: options?.filters || [
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { canceled: true, filePath: null };
+  }
+
+  return { canceled: false, filePath: result.filePath };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
