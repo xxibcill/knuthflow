@@ -44,16 +44,27 @@ export function RalphFixPlanPanel({
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const deferredCount = tasks.filter(t => t.status === 'deferred').length;
 
+  // Validate workspacePath
+  if (!workspacePath) {
+    return (
+      <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+        Workspace path not available
+      </div>
+    );
+  }
+
+  const fixPlanPath = `${workspacePath}/fix_plan.md`;
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
         <div>
           <h3 className="text-sm font-medium text-white">Fix Plan</h3>
-          <p className="text-xs text-gray-400">{workspacePath}/fix_plan.md</p>
+          <p className="text-xs text-gray-400">{fixPlanPath}</p>
         </div>
         <button
-          onClick={() => onOpenInEditor?.(`${workspacePath}/fix_plan.md`, 1)}
+          onClick={() => onOpenInEditor?.(fixPlanPath, 1)}
           className="text-xs text-blue-400 hover:text-blue-300 hover:underline"
         >
           Open in Editor
@@ -133,7 +144,7 @@ export function RalphFixPlanPanel({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onOpenInEditor?.(`${workspacePath}/fix_plan.md`, task.lineNumber);
+                      onOpenInEditor?.(fixPlanPath, task.lineNumber);
                     }}
                     className="flex-shrink-0 text-xs text-gray-600 hover:text-blue-400"
                     title={`Line ${task.lineNumber}`}
@@ -149,3 +160,4 @@ export function RalphFixPlanPanel({
     </div>
   );
 }
+

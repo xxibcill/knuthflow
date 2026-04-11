@@ -264,7 +264,7 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
       return;
     }
 
-    // Execute action via IPC
+    // Execute non-confirmation actions via IPC
     const runId = selectedRun.runId;
     try {
       const ralphAPI = window.knuthflow.ralph;
@@ -275,15 +275,10 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
         case 'resume':
           await ralphAPI.resumeRun(runId);
           break;
-        case 'stop':
-          await ralphAPI.stopRun(runId);
-          break;
-        case 'replan':
-          await ralphAPI.replanRun(runId);
-          break;
         case 'validate':
           await ralphAPI.validateRun(runId);
           break;
+        // stop and replan are handled via confirmation flow
       }
       await loadRuns();
       setSelectedRun(currentRuns => {
@@ -355,7 +350,7 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
         const parentId = stack.length > 0 ? stack[stack.length - 1].id : null;
 
         const task: PlanTask = {
-          id: `task-${i}`,
+          id: `task-${i}-${title.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '')}`,
           title,
           description: '',
           status,
@@ -397,22 +392,27 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
 
   // Poll for updates (every 5 seconds when running)
   const selectedRunRef = useRef(selectedRun);
+  const selectedRunIdRef = useRef<string | null>(null);
   useEffect(() => {
     selectedRunRef.current = selectedRun;
+    selectedRunIdRef.current = selectedRun?.runId ?? null;
   }, [selectedRun]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (selectedRunRef.current?.status === 'running') {
-        loadRunsRef.current();
-        if (selectedRunRef.current) {
-          loadSelectedRunDetailsRef.current(selectedRunRef.current);
+    const interval = setInterval(async () => {
+      const currentRunId = selectedRunIdRef.current;
+      if (currentRunId && selectedRunRef.current?.status === 'running') {
+        await loadRunsRef.current();
+        // Find the updated run after state refresh
+        const updatedRun = runs.find(r => r.runId === currentRunId);
+        if (updatedRun && selectedRunIdRef.current === currentRunId) {
+          await loadSelectedRunDetailsRef.current(updatedRun);
         }
       }
     }, POLLING_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [runs]);
 
   // Tab definitions
   const tabs: { id: ViewTab; label: string; count?: number }[] = [
@@ -618,7 +618,12 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
                     onViewArtifact={(id) => {
                       const summary = loopSummaries.find(s => s.id === id);
                       if (summary) {
-                        console.debug('View artifact:', summary);
+                        // Switch to artifacts tab and select the relevant artifact
+                        setActiveTab('artifacts');
+                        const artifact = artifacts.find(a => a.itemId === id);
+                        if (artifact) {
+                          setSelectedArtifact(artifact);
+                        }
                       }
                     }}
                   />
@@ -643,7 +648,8 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
                     alerts={alerts}
                     onDismiss={(id) => setAlerts(prev => prev.filter(a => a.id !== id))}
                     onViewDetails={(alert) => {
-                      console.debug('View alert details:', alert);
+                      // Could open a modal with full alert details, for now just log
+                      console.debug('Alert details:', alert);
                     }}
                   />
                 )}

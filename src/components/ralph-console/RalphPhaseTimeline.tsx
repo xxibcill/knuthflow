@@ -178,3 +178,4 @@ export function RalphPhaseTimeline({ events, currentIteration, onSelectEvent }: 
     </div>
   );
 }
+
