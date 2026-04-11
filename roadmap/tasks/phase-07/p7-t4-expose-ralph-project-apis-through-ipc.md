@@ -6,13 +6,13 @@
 
 ## Objective
 
-Expose Ralph bootstrap, readiness, and state inspection through secure IPC so the renderer can work with autonomous projects without gaining raw filesystem power.
+Expose Ralph bootstrap, readiness, and state inspection through secure IPC so the renderer can work with autonomous projects without gaining raw filesystem or database power.
 
 ## Deliverables
 
 - Main-process services for Ralph project bootstrap, validation, and inspection
 - Preload types and IPC channels for Ralph workspace operations
-- Renderer-ready read models for control files, loop state, and last summary metadata
+- Renderer-ready read models that combine workspace control files with SQLite-backed loop state and summary metadata
 - Security boundaries that restrict Ralph file access to known workspaces
 
 ## Dependencies
@@ -25,5 +25,5 @@ Expose Ralph bootstrap, readiness, and state inspection through secure IPC so th
 
 - Renderer code can bootstrap and inspect Ralph workspaces without direct Node access
 - IPC contracts are typed and stable enough for later UI work
-- Workspace-scoped file access is enforced in the main process
+- Workspace-scoped file access and database-mediated state access are enforced in the main process
 - Ralph-specific APIs do not weaken the existing Electron security boundary

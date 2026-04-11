@@ -2,17 +2,17 @@
 
 ## Functional Feature Outcome
 
-Users can turn a supported workspace into a Ralph-ready project with control files, persistent loop state, and readiness validation before autonomous execution starts.
+Users can turn a supported workspace into a Ralph-ready project with workspace control files, SQLite-backed loop state, and readiness validation before autonomous execution starts.
 
 ## Why This Phase Exists
 
-Ralph needs an explicit contract between the workspace, the prompt stack, and the persisted runtime state. Without bootstrap and integrity checks, the loop would be running against guesswork and stale files.
+Ralph needs an explicit contract between the workspace, the prompt stack, and persisted app-owned runtime state. Without bootstrap and integrity checks, the loop would be running against guesswork and stale metadata.
 
 ## Scope
 
 - Ralph project model and storage layout
-- Bootstrap flow for `PROMPT.md`, `AGENT.md`, `fix_plan.md`, `specs/`, and `.ralph/`
-- Loop state persistence and plan snapshots
+- Bootstrap flow for `PROMPT.md`, `AGENT.md`, `fix_plan.md`, and `specs/`
+- SQLite-backed loop state persistence and plan snapshots
 - Workspace readiness and integrity validation
 
 ## Tasks
@@ -32,6 +32,6 @@ Ralph needs an explicit contract between the workspace, the prompt stack, and th
 ## Exit Criteria
 
 - A workspace can be initialized into a Ralph-ready project with one explicit action
-- Ralph control files and `.ralph/` runtime state persist predictably between app restarts
-- Missing or malformed Ralph files are detected before a run starts
+- Ralph control files and SQLite-backed runtime state persist predictably between app restarts
+- Missing or malformed Ralph control files or runtime records are detected before a run starts
 - Renderer code can inspect Ralph project readiness without direct filesystem access

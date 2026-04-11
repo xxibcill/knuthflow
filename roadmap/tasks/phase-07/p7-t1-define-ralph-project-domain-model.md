@@ -6,14 +6,14 @@
 
 ## Objective
 
-Introduce the core Ralph project types, filesystem conventions, and persisted state model so the loop runtime, UI, and recovery logic all share one source of truth.
+Introduce the core Ralph project types, workspace file conventions, and persisted state model so the loop runtime, UI, and recovery logic all share one source of truth.
 
 ## Deliverables
 
 - Type definitions for Ralph projects, loop runs, selected items, summaries, and plan snapshots
-- Storage layout rules for `.ralph/`, `status.json`, `.session_id`, `loop_summary.md`, and plan snapshots
-- Database extensions or persisted metadata for Ralph-enabled workspaces and loop history
-- A versioning and migration strategy for workspaces that do not yet contain Ralph state
+- Storage ownership rules that keep operator-authored control files in the workspace and mutable runtime state in SQLite
+- Database extensions or persisted metadata for Ralph-enabled workspaces, loop history, summaries, and plan snapshots
+- A versioning and migration strategy for workspaces that do not yet contain Ralph metadata
 
 ## Dependencies
 
@@ -22,7 +22,7 @@ Introduce the core Ralph project types, filesystem conventions, and persisted st
 
 ## Acceptance Criteria
 
-- Ralph state can be persisted and reloaded without ambiguous file ownership
-- The model distinguishes workspace bootstrap data from per-run transient state
+- Ralph state can be persisted and reloaded without ambiguous ownership between workspace files and SQLite records
+- The model distinguishes operator-authored bootstrap data from per-run transient state
 - Existing non-Ralph workspaces remain usable without forced migration
 - The persisted model is versioned so future schema changes are manageable

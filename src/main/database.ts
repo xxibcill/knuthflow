@@ -3,6 +3,29 @@ import * as path from 'path';
 import { app } from 'electron';
 import * as fs from 'fs';
 
+import type {
+  RalphProject,
+  LoopRunStatus,
+  LoopRun,
+  LoopSummary,
+  PlanSnapshot,
+} from '../shared/ralphTypes';
+export type {
+  RalphProject,
+  LoopRunStatus,
+  LoopRun,
+  LoopSummary,
+  PlanSnapshot,
+  RalphControlFiles,
+  BootstrapError,
+  ValidationSeverity,
+  ValidationIssue,
+  ReadinessReport,
+} from '../shared/ralphTypes';
+export {
+  STALE_RUN_THRESHOLD_MS,
+} from '../shared/ralphTypes';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +96,7 @@ export interface DatabaseSchema {
 }
 
 // Schema version for migrations
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default Settings
@@ -138,6 +161,11 @@ class SessionDatabase {
     // Migrate from version 1 to 2 (add settings and profiles)
     if (fromVersion < 2) {
       this.migrateToV2();
+    }
+
+    // Migrate from version 2 to 3 (add Ralph tables)
+    if (fromVersion < 3) {
+      this.migrateToV3();
     }
 
     // Update schema version
@@ -213,6 +241,80 @@ class SessionDatabase {
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
       insertSetting.run(key, JSON.stringify(value));
     }
+  }
+
+  private migrateToV3(): void {
+    // Create ralph_projects table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS ralph_projects (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL UNIQUE,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+      )
+    `);
+
+    // Create loop_runs table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS loop_runs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        start_time INTEGER,
+        end_time INTEGER,
+        exit_code INTEGER,
+        signal INTEGER,
+        error TEXT,
+        iteration_count INTEGER NOT NULL DEFAULT 0,
+        session_id TEXT,
+        pty_session_id TEXT,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+      )
+    `);
+
+    // Create loop_summaries table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS loop_summaries (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        iteration INTEGER NOT NULL,
+        prompt TEXT NOT NULL,
+        response TEXT NOT NULL,
+        selected_files TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+        FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+      )
+    `);
+
+    // Create plan_snapshots table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS plan_snapshots (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        iteration INTEGER NOT NULL,
+        plan_content TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+        FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+      )
+    `);
+
+    // Create indexes for Ralph tables
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_loop_runs_project_id ON loop_runs(project_id);
+      CREATE INDEX IF NOT EXISTS idx_loop_runs_status ON loop_runs(status);
+      CREATE INDEX IF NOT EXISTS idx_loop_summaries_project_id ON loop_summaries(project_id);
+      CREATE INDEX IF NOT EXISTS idx_loop_summaries_run_id ON loop_summaries(run_id);
+      CREATE INDEX IF NOT EXISTS idx_plan_snapshots_project_id ON plan_snapshots(project_id);
+      CREATE INDEX IF NOT EXISTS idx_plan_snapshots_run_id ON plan_snapshots(run_id);
+    `);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -491,6 +593,262 @@ class SessionDatabase {
       signal: row.signal as number | null,
       runId: row.run_id as string | null,
       ptySessionId: row.pty_session_id as string | null,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Ralph Project Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createRalphProject(workspaceId: string): RalphProject {
+    const id = `${SessionDatabase.RALPH_PROJECT_ID_PREFIX}${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO ralph_projects (id, workspace_id, version, created_at, updated_at)
+      VALUES (?, ?, 1, ?, ?)
+    `).run(id, workspaceId, now, now);
+    return { id, workspaceId, version: 1, createdAt: now, updatedAt: now };
+  }
+
+  private static readonly RALPH_PROJECT_ID_PREFIX = 'ralph-';
+
+  getRalphProjectByWorkspaceId(workspaceId: string): RalphProject | null {
+    const row = this.db.prepare('SELECT * FROM ralph_projects WHERE workspace_id = ?').get(workspaceId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: row.id as string,
+      workspaceId: row.workspace_id as string,
+      version: row.version as number,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  getRalphProject(id: string): RalphProject | null {
+    const row = this.db.prepare('SELECT * FROM ralph_projects WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: row.id as string,
+      workspaceId: row.workspace_id as string,
+      version: row.version as number,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  updateRalphProjectVersion(id: string): void {
+    const now = Date.now();
+    this.db.prepare('UPDATE ralph_projects SET version = version + 1, updated_at = ? WHERE id = ?').run(now, id);
+  }
+
+  deleteRalphProject(id: string): void {
+    // Delete Ralph state atomically so partial cleanup cannot orphan the project.
+    const deleteProject = this.db.transaction((projectId: string) => {
+      this.db.prepare('DELETE FROM loop_summaries WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM plan_snapshots WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM loop_runs WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM ralph_projects WHERE id = ?').run(projectId);
+    });
+
+    deleteProject(id);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Loop Run Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createLoopRun(projectId: string, name: string): LoopRun {
+    const id = `loop-${crypto.randomUUID()}`;
+    const now = Date.now();
+    const stmt = this.db.prepare(`
+      INSERT INTO loop_runs (id, project_id, name, status, created_at)
+      VALUES (?, ?, ?, 'pending', ?)
+    `);
+    stmt.run(id, projectId, name, now);
+    return {
+      id,
+      projectId,
+      name,
+      status: 'pending',
+      startTime: null,
+      endTime: null,
+      exitCode: null,
+      signal: null,
+      error: null,
+      iterationCount: 0,
+      sessionId: null,
+      ptySessionId: null,
+      createdAt: now,
+    };
+  }
+
+  getLoopRun(id: string): LoopRun | null {
+    const row = this.db.prepare('SELECT * FROM loop_runs WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToLoopRun(row);
+  }
+
+  startLoopRun(id: string, sessionId: string, ptySessionId: string): void {
+    const now = Date.now();
+    this.db.prepare(`
+      UPDATE loop_runs SET status = 'running', start_time = ?, session_id = ?, pty_session_id = ?
+      WHERE id = ?
+    `).run(now, sessionId, ptySessionId, id);
+  }
+
+  endLoopRun(id: string, status: 'completed' | 'failed' | 'cancelled', exitCode: number | null, signal: number | null, error: string | null): void {
+    const now = Date.now();
+    this.db.prepare(`
+      UPDATE loop_runs SET status = ?, end_time = ?, exit_code = ?, signal = ?, error = ?
+      WHERE id = ?
+    `).run(status, now, exitCode, signal, error, id);
+  }
+
+  incrementLoopRunIteration(id: string): void {
+    this.db.prepare('UPDATE loop_runs SET iteration_count = iteration_count + 1 WHERE id = ?').run(id);
+  }
+
+  listLoopRuns(projectId: string, limit = 50): LoopRun[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM loop_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT ?
+    `).all(projectId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLoopRun(row));
+  }
+
+  listActiveLoopRuns(projectId: string): LoopRun[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM loop_runs WHERE project_id = ? AND status = 'running'
+    `).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLoopRun(row));
+  }
+
+  private rowToLoopRun(row: Record<string, unknown>): LoopRun {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      name: row.name as string,
+      status: row.status as LoopRunStatus,
+      startTime: row.start_time as number | null,
+      endTime: row.end_time as number | null,
+      exitCode: row.exit_code as number | null,
+      signal: row.signal as number | null,
+      error: row.error as string | null,
+      iterationCount: row.iteration_count as number,
+      sessionId: row.session_id as string | null,
+      ptySessionId: row.pty_session_id as string | null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Loop Summary Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createLoopSummary(projectId: string, runId: string, iteration: number, prompt: string, response: string, selectedFiles: string[]): LoopSummary {
+    const id = `summary-${crypto.randomUUID()}`;
+    const now = Date.now();
+    const stmt = this.db.prepare(`
+      INSERT INTO loop_summaries (id, project_id, run_id, iteration, prompt, response, selected_files, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, projectId, runId, iteration, prompt, response, JSON.stringify(selectedFiles), now);
+    return {
+      id,
+      projectId,
+      runId,
+      iteration,
+      prompt,
+      response,
+      selectedFiles,
+      createdAt: now,
+    };
+  }
+
+  getLoopSummary(id: string): LoopSummary | null {
+    const row = this.db.prepare('SELECT * FROM loop_summaries WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToLoopSummary(row);
+  }
+
+  listLoopSummaries(runId: string): LoopSummary[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM loop_summaries WHERE run_id = ? ORDER BY iteration ASC
+    `).all(runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLoopSummary(row));
+  }
+
+  getLatestLoopSummary(runId: string): LoopSummary | null {
+    const row = this.db.prepare(`
+      SELECT * FROM loop_summaries WHERE run_id = ? ORDER BY iteration DESC LIMIT 1
+    `).get(runId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToLoopSummary(row);
+  }
+
+  private rowToLoopSummary(row: Record<string, unknown>): LoopSummary {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      iteration: row.iteration as number,
+      prompt: row.prompt as string,
+      response: row.response as string,
+      selectedFiles: JSON.parse(row.selected_files as string || '[]'),
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Plan Snapshot Operations
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createPlanSnapshot(projectId: string, runId: string, iteration: number, planContent: string): PlanSnapshot {
+    const id = `snapshot-${crypto.randomUUID()}`;
+    const now = Date.now();
+    const stmt = this.db.prepare(`
+      INSERT INTO plan_snapshots (id, project_id, run_id, iteration, plan_content, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, projectId, runId, iteration, planContent, now);
+    return {
+      id,
+      projectId,
+      runId,
+      iteration,
+      planContent,
+      createdAt: now,
+    };
+  }
+
+  getPlanSnapshot(id: string): PlanSnapshot | null {
+    const row = this.db.prepare('SELECT * FROM plan_snapshots WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPlanSnapshot(row);
+  }
+
+  listPlanSnapshots(runId: string): PlanSnapshot[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM plan_snapshots WHERE run_id = ? ORDER BY iteration ASC
+    `).all(runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPlanSnapshot(row));
+  }
+
+  getLatestPlanSnapshot(runId: string): PlanSnapshot | null {
+    const row = this.db.prepare(`
+      SELECT * FROM plan_snapshots WHERE run_id = ? ORDER BY iteration DESC LIMIT 1
+    `).get(runId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPlanSnapshot(row);
+  }
+
+  private rowToPlanSnapshot(row: Record<string, unknown>): PlanSnapshot {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      iteration: row.iteration as number,
+      planContent: row.plan_content as string,
+      createdAt: row.created_at as number,
     };
   }
 
