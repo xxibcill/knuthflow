@@ -1,4 +1,38 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  ProcessSpawnResult,
+  ProcessInfo,
+  ClaudeCodeStatus,
+  PtyOptions,
+  PtySessionInfo,
+  PtyDataEvent,
+  PtyExitEvent,
+  ClaudeRunState,
+  ClaudeLaunchResult,
+  ClaudeRunInfo,
+  Workspace,
+  Session,
+  SessionCrashedEvent,
+  RecoveryNeededEvent,
+  LogLevel,
+  LogEntry,
+  SystemDiagnostics,
+  IntegrityValidationResult,
+  UpdateInfo,
+  AppSettings,
+  LaunchProfile,
+  KnuthflowAPI,
+  LoopRunStatus,
+  RalphProject,
+  LoopRun,
+  LoopSummary,
+  PlanSnapshot,
+  ValidationSeverity,
+  ValidationIssue,
+  ReadinessReport,
+  BootstrapResult,
+  RalphControlFiles,
+} from './shared/preloadTypes';
 
 // Re-export all types from shared module
 export type {
@@ -34,7 +68,7 @@ export type {
   ReadinessReport,
   BootstrapResult,
   RalphControlFiles,
-} from './shared/preloadTypes';
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Preload API - Secure IPC bridge

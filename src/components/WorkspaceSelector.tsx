@@ -66,8 +66,8 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
 
   const handleBrowsePath = async () => {
     const result = await window.knuthflow.dialog.openDirectory({ defaultPath: newPath || undefined });
-    if (result && !result.canceled && result.filePaths.length > 0) {
-      setNewPath(result.filePaths[0]);
+    if (result && !result.canceled && result.directoryPath) {
+      setNewPath(result.directoryPath);
     }
   };
 

@@ -226,7 +226,7 @@ export interface LaunchProfile {
 // Ralph Types (re-exported from ralphTypes)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export {
+export type {
   LoopRunStatus,
   RalphProject,
   LoopRun,

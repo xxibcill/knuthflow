@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as crypto from 'crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ class KeychainBackend implements SecureStorageBackend {
         '-w'
       ];
 
-      const result = execSync(cmd, {
+      const result = execFileSync(cmd[0], cmd.slice(1), {
         encoding: 'utf-8',
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -63,11 +63,7 @@ class KeychainBackend implements SecureStorageBackend {
     try {
       // First try to delete existing item
       try {
-        execSync([
-          'security', 'delete-generic-password',
-          '-s', this.serviceName,
-          '-a', key
-        ], {
+        execFileSync('security', ['delete-generic-password', '-s', this.serviceName, '-a', key], {
           timeout: 5000,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
@@ -76,13 +72,7 @@ class KeychainBackend implements SecureStorageBackend {
       }
 
       // Add new item
-      execSync([
-        'security', 'add-generic-password',
-        '-s', this.serviceName,
-        '-a', key,
-        '-w', value,
-        '-U'
-      ], {
+      execFileSync('security', ['add-generic-password', '-s', this.serviceName, '-a', key, '-w', value, '-U'], {
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -98,11 +88,7 @@ class KeychainBackend implements SecureStorageBackend {
     if (!this.isAvailable()) return false;
 
     try {
-      execSync([
-        'security', 'delete-generic-password',
-        '-s', this.serviceName,
-        '-a', key
-      ], {
+      execFileSync('security', ['delete-generic-password', '-s', this.serviceName, '-a', key], {
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
