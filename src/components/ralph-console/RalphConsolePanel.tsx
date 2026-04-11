@@ -326,6 +326,8 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   const parseFixPlanTasks = (content: string): PlanTask[] => {
     const lines = content.split('\n');
     const tasks: PlanTask[] = [];
+    const taskMap = new Map<string, PlanTask>();
+    const stack: PlanTask[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -340,7 +342,13 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
         if (checkbox === '[x]') status = 'completed';
         else if (checkbox === '[-]') status = 'deferred';
 
-        tasks.push({
+        // Find parent by popping stack until we find an item with lower indent
+        while (stack.length > 0 && stack[stack.length - 1].indentLevel >= indent) {
+          stack.pop();
+        }
+        const parentId = stack.length > 0 ? stack[stack.length - 1].id : null;
+
+        const task: PlanTask = {
           id: `task-${i}`,
           title,
           description: '',
@@ -350,8 +358,21 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
           indentLevel: indent,
           priority: 0,
           children: [],
-          parentId: null,
-        });
+          parentId,
+        };
+
+        // Add as child to parent if exists
+        if (parentId) {
+          const parent = taskMap.get(parentId);
+          if (parent) {
+            parent.children.push(task);
+          }
+        } else {
+          tasks.push(task);
+        }
+
+        taskMap.set(task.id, task);
+        stack.push(task);
       }
     }
 

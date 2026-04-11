@@ -691,9 +691,9 @@ export default function App() {
                 const ws = workspaces.find(w => w.path === path);
                 if (ws) {
                   setSelectedWorkspace(ws);
-                  setViewMode('terminal');
                 }
               });
+              setViewMode('terminal');
             }}
             onOpenFile={(filePath, lineNumber) => {
               setEditorFilePath(filePath);
