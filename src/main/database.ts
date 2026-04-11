@@ -98,6 +98,67 @@ export interface DatabaseSchema {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Ralph Artifact & Learning Types (Phase 09)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ArtifactType =
+  | 'compiler_output'
+  | 'test_log'
+  | 'diff'
+  | 'exit_metadata'
+  | 'generated_file'
+  | 'validation_result'
+  | 'loop_summary';
+
+export type ArtifactSeverity = 'error' | 'warning' | 'info';
+
+export interface RalphArtifact {
+  id: string;
+  projectId: string;
+  runId: string;
+  iteration: number;
+  itemId: string | null;
+  type: ArtifactType;
+  content: string;
+  exitCode: number | null;
+  durationMs: number | null;
+  severity: ArtifactSeverity;
+  createdAt: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface LoopLearning {
+  id: string;
+  projectId: string;
+  pattern: string;
+  countermeasure: string;
+  successCount: number;
+  lastSeenAt: number;
+  createdAt: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface FollowUp {
+  id: string;
+  projectId: string;
+  taskId: string | null;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  resolved: boolean;
+  createdAt: number;
+  resolvedAt: number | null;
+  reason: string;
+}
+
+export interface SafetyStateRecord {
+  projectId: string;
+  rateLimitState: string;
+  circuitBreakerState: string;
+  updatedAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default Settings
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -687,6 +748,268 @@ class SessionDatabase {
       iteration: row.iteration as number,
       planContent: row.plan_content as string,
       createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Ralph Artifact Operations (Phase 09)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createArtifact(params: {
+    projectId: string;
+    runId: string;
+    iteration: number;
+    itemId: string | null;
+    type: ArtifactType;
+    content: string;
+    exitCode: number | null;
+    durationMs: number | null;
+    severity: ArtifactSeverity;
+    metadata: Record<string, unknown>;
+  }): RalphArtifact {
+    const id = `artifact-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO ralph_artifacts (id, project_id, run_id, iteration, item_id, type, content, exit_code, duration_ms, severity, metadata, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.runId,
+      params.iteration,
+      params.itemId,
+      params.type,
+      params.content,
+      params.exitCode,
+      params.durationMs,
+      params.severity,
+      JSON.stringify(params.metadata),
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      runId: params.runId,
+      iteration: params.iteration,
+      itemId: params.itemId,
+      type: params.type,
+      content: params.content,
+      exitCode: params.exitCode,
+      durationMs: params.durationMs,
+      severity: params.severity,
+      createdAt: now,
+      metadata: params.metadata,
+    };
+  }
+
+  getArtifact(id: string): RalphArtifact | null {
+    const row = this.db.prepare('SELECT * FROM ralph_artifacts WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToArtifact(row);
+  }
+
+  listArtifacts(params: {
+    projectId?: string;
+    runId?: string;
+    iteration?: number;
+    itemId?: string | null;
+    type?: ArtifactType;
+  }): RalphArtifact[] {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (params.projectId) {
+      conditions.push('project_id = ?');
+      values.push(params.projectId);
+    }
+    if (params.runId) {
+      conditions.push('run_id = ?');
+      values.push(params.runId);
+    }
+    if (params.iteration !== undefined) {
+      conditions.push('iteration = ?');
+      values.push(params.iteration);
+    }
+    if (params.itemId !== undefined) {
+      if (params.itemId === null) {
+        conditions.push('item_id IS NULL');
+      } else {
+        conditions.push('item_id = ?');
+        values.push(params.itemId);
+      }
+    }
+    if (params.type) {
+      conditions.push('type = ?');
+      values.push(params.type);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const rows = this.db.prepare(`
+      SELECT * FROM ralph_artifacts ${where} ORDER BY created_at DESC
+    `).all(...values) as Record<string, unknown>[];
+    return rows.map(row => this.rowToArtifact(row));
+  }
+
+  deleteArtifact(id: string): void {
+    this.db.prepare('DELETE FROM ralph_artifacts WHERE id = ?').run(id);
+  }
+
+  deleteArtifactsForRun(runId: string): void {
+    this.db.prepare('DELETE FROM ralph_artifacts WHERE run_id = ?').run(runId);
+  }
+
+  private rowToArtifact(row: Record<string, unknown>): RalphArtifact {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      iteration: row.iteration as number,
+      itemId: row.item_id as string | null,
+      type: row.type as ArtifactType,
+      content: row.content as string,
+      exitCode: row.exit_code as number | null,
+      durationMs: row.duration_ms as number | null,
+      severity: row.severity as ArtifactSeverity,
+      createdAt: row.created_at as number,
+      metadata: JSON.parse(row.metadata as string || '{}'),
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Loop Learning Operations (Phase 09)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  upsertLoopLearning(params: {
+    projectId: string;
+    pattern: string;
+    countermeasure: string;
+    metadata?: Record<string, unknown>;
+  }): LoopLearning {
+    const existing = this.getLoopLearningByPattern(params.projectId, params.pattern);
+
+    if (existing) {
+      // Update existing
+      const now = Date.now();
+      this.db.prepare(`
+        UPDATE loop_learning SET success_count = success_count + 1, last_seen_at = ?, metadata = ?
+        WHERE id = ?
+      `).run(now, JSON.stringify(params.metadata || {}), existing.id);
+      return { ...existing, successCount: existing.successCount + 1, lastSeenAt: now };
+    }
+
+    // Create new
+    const id = `learning-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO loop_learning (id, project_id, pattern, countermeasure, success_count, last_seen_at, created_at, metadata)
+      VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+    `).run(id, params.projectId, params.pattern, params.countermeasure, now, now, JSON.stringify(params.metadata || {}));
+
+    return {
+      id,
+      projectId: params.projectId,
+      pattern: params.pattern,
+      countermeasure: params.countermeasure,
+      successCount: 1,
+      lastSeenAt: now,
+      createdAt: now,
+      metadata: params.metadata || {},
+    };
+  }
+
+  getLoopLearningByPattern(projectId: string, pattern: string): LoopLearning | null {
+    const row = this.db.prepare(`
+      SELECT * FROM loop_learning WHERE project_id = ? AND pattern = ?
+    `).get(projectId, pattern) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToLoopLearning(row);
+  }
+
+  listLoopLearning(projectId: string): LoopLearning[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM loop_learning WHERE project_id = ? ORDER BY success_count DESC
+    `).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLoopLearning(row));
+  }
+
+  updateLoopLearningSuccessCount(id: string, count: number): void {
+    this.db.prepare('UPDATE loop_learning SET success_count = ?, last_seen_at = ? WHERE id = ?')
+      .run(count, Date.now(), id);
+  }
+
+  private rowToLoopLearning(row: Record<string, unknown>): LoopLearning {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      pattern: row.pattern as string,
+      countermeasure: row.countermeasure as string,
+      successCount: row.success_count as number,
+      lastSeenAt: row.last_seen_at as number,
+      createdAt: row.created_at as number,
+      metadata: JSON.parse(row.metadata as string || '{}'),
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Follow-up Operations (Phase 09)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createFollowUp(projectId: string, followUp: Omit<FollowUp, 'projectId' | 'resolved' | 'resolvedAt'>): FollowUp {
+    const id = followUp.id;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO follow_ups (id, project_id, task_id, title, description, priority, resolved, created_at, resolved_at, reason)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
+    `).run(id, projectId, followUp.taskId, followUp.title, followUp.description, followUp.priority, now, followUp.reason);
+    return { ...followUp, projectId, resolved: false, resolvedAt: null };
+  }
+
+  listFollowUps(projectId: string, includeResolved = false): FollowUp[] {
+    const query = includeResolved
+      ? 'SELECT * FROM follow_ups WHERE project_id = ? ORDER BY created_at DESC'
+      : 'SELECT * FROM follow_ups WHERE project_id = ? AND resolved = 0 ORDER BY created_at DESC';
+    const rows = this.db.prepare(query).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToFollowUp(row));
+  }
+
+  resolveFollowUp(followUpId: string): void {
+    this.db.prepare('UPDATE follow_ups SET resolved = 1, resolved_at = ? WHERE id = ?')
+      .run(Date.now(), followUpId);
+  }
+
+  private rowToFollowUp(row: Record<string, unknown>): FollowUp {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      taskId: row.task_id as string | null,
+      title: row.title as string,
+      description: row.description as string,
+      priority: row.priority as 'high' | 'medium' | 'low',
+      resolved: (row.resolved as number) === 1,
+      createdAt: row.created_at as number,
+      resolvedAt: row.resolved_at as number | null,
+      reason: (row.reason as string) || '',
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Safety State Persistence (Phase 09)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  upsertSafetyState(projectId: string, rateLimitState: unknown, circuitBreakerState: unknown): void {
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT OR REPLACE INTO safety_state (project_id, rate_limit_state, circuit_breaker_state, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(projectId, JSON.stringify(rateLimitState), JSON.stringify(circuitBreakerState), now);
+  }
+
+  getSafetyState(projectId: string): { rateLimitState: unknown; circuitBreakerState: unknown } | null {
+    const row = this.db.prepare('SELECT * FROM safety_state WHERE project_id = ?').get(projectId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      rateLimitState: JSON.parse(row.rate_limit_state as string),
+      circuitBreakerState: JSON.parse(row.circuit_breaker_state as string),
     };
   }
 

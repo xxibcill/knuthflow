@@ -50,6 +50,8 @@ export class RalphRuntime extends EventEmitter {
 
   constructor(config: Partial<RalphRuntimeConfig> = {}) {
     super();
+    // Set max listeners to prevent warning with many concurrent runs
+    this.setMaxListeners(100);
     this.config = { ...DEFAULT_RALPH_RUNTIME_CONFIG, ...config };
   }
 
@@ -504,7 +506,7 @@ export function resetRalphRuntime(projectId?: string): void {
   if (projectId) {
     const runtime = runtimeInstances.get(projectId);
     if (runtime) {
-      // Clean up all active runs for this runtime
+      // Clean up all active runs for this runtime by calling cleanupRun
       for (const runId of runtime.getActiveRunIds(projectId)) {
         runtime.cleanupRun(runId);
       }
@@ -513,6 +515,12 @@ export function resetRalphRuntime(projectId?: string): void {
     }
     runtimeInstances.delete(projectId);
   } else {
+    // Clean up ALL active runs across ALL runtimes before clearing
+    for (const [rtProjectId, runtime] of runtimeInstances) {
+      for (const runId of runtime.getActiveRunIds(rtProjectId)) {
+        runtime.cleanupRun(runId);
+      }
+    }
     runtimeInstances.clear();
     runIdToRuntime.clear();
     projectsStarting.clear();

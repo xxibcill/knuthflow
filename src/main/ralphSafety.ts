@@ -102,25 +102,33 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Persist rate limit state to database
-   * TODO (Phase 9): Implement database persistence for rate limit state
-   *       Currently only in-memory; state will not survive app restart
    */
   private persistRateLimitState(projectId: string, state: RateLimitState): void {
-    // Store in database - in a full implementation this would be a dedicated table
-    // For now we rely on in-memory state
     const existing = this.safetyStates.get(projectId);
     if (existing) {
       existing.rateLimit = state;
     }
+    // Persist to database
+    try {
+      const circuitBreaker = existing?.circuitBreaker || this.getCircuitBreakerState(projectId);
+      this.db.upsertSafetyState(projectId, state, circuitBreaker);
+    } catch (err) {
+      console.error('[RalphSafety] Failed to persist rate limit state:', err);
+    }
   }
 
   /**
-   * Load persisted rate limit state
-   * TODO (Phase 9): Implement database persistence for rate limit state
-   *       Currently returns null (no persistence)
+   * Load persisted rate limit state from database
    */
   private loadPersistedRateLimit(projectId: string): RateLimitState | null {
-    // In a full implementation, load from database
+    try {
+      const stored = this.db.getSafetyState(projectId);
+      if (stored) {
+        return stored.rateLimitState as RateLimitState;
+      }
+    } catch (err) {
+      console.error('[RalphSafety] Failed to load persisted rate limit state:', err);
+    }
     return null;
   }
 
@@ -288,23 +296,33 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Persist circuit breaker state to database
-   * TODO (Phase 9): Implement database persistence for circuit breaker state
-   *       Currently only in-memory; state will not survive app restart
    */
   private persistCircuitBreakerState(projectId: string, state: CircuitBreakerState): void {
     const existing = this.safetyStates.get(projectId);
     if (existing) {
       existing.circuitBreaker = state;
     }
+    // Persist to database
+    try {
+      const rateLimit = existing?.rateLimit || this.getRateLimitState(projectId);
+      this.db.upsertSafetyState(projectId, rateLimit, state);
+    } catch (err) {
+      console.error('[RalphSafety] Failed to persist circuit breaker state:', err);
+    }
   }
 
   /**
-   * Load persisted circuit breaker state
-   * TODO (Phase 9): Implement database persistence for circuit breaker state
-   *       Currently returns null (no persistence)
+   * Load persisted circuit breaker state from database
    */
   private loadPersistedCircuitBreaker(projectId: string): CircuitBreakerState | null {
-    // In a full implementation, load from database
+    try {
+      const stored = this.db.getSafetyState(projectId);
+      if (stored) {
+        return stored.circuitBreakerState as CircuitBreakerState;
+      }
+    } catch (err) {
+      console.error('[RalphSafety] Failed to load persisted circuit breaker state:', err);
+    }
     return null;
   }
 
