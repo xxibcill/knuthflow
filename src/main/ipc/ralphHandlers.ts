@@ -1,0 +1,113 @@
+import { ipcMain } from 'electron';
+import * as path from 'path';
+import { getRalphBootstrap } from '../ralphBootstrap';
+import { getRalphValidator } from '../ralphValidator';
+import { getDatabase } from '../database';
+
+export function registerRalphHandlers(): void {
+  const ralphBootstrap = getRalphBootstrap();
+  const ralphValidator = getRalphValidator();
+
+  ipcMain.handle('ralph:bootstrap', async (_event, workspaceId: string, workspacePath: string, force?: boolean) => {
+    return ralphBootstrap.bootstrap({ workspaceId, workspacePath, force: force ?? false });
+  });
+
+  ipcMain.handle('ralph:getReadinessReport', async (_event, workspaceId: string, workspacePath: string) => {
+    return ralphValidator.generateReadinessReport(workspaceId, workspacePath);
+  });
+
+  ipcMain.handle('ralph:validateBeforeStart', async (_event, workspaceId: string, workspacePath: string) => {
+    return ralphValidator.validateBeforeStart(workspaceId, workspacePath);
+  });
+
+  ipcMain.handle('ralph:validateBeforeResume', async (_event, workspaceId: string, workspacePath: string) => {
+    return ralphValidator.validateBeforeResume(workspaceId, workspacePath);
+  });
+
+  ipcMain.handle('ralph:validateBeforeRepair', async (_event, workspacePath: string) => {
+    return ralphValidator.validateBeforeRepair(workspacePath);
+  });
+
+  ipcMain.handle('ralph:isRalphEnabled', async (_event, workspacePath: string) => {
+    return ralphBootstrap.isRalphEnabled(workspacePath);
+  });
+
+  ipcMain.handle('ralph:isFreshWorkspace', async (_event, workspaceId: string, workspacePath: string) => {
+    return ralphValidator.isFreshWorkspace(workspaceId, workspacePath);
+  });
+
+  ipcMain.handle('ralph:readControlFiles', async (_event, workspacePath: string) => {
+    // Security: validate workspace path is within allowed workspaces
+    const db = getDatabase();
+    const workspaces = db.listWorkspaces();
+    const normalizedPath = path.normalize(workspacePath);
+    const isAllowed = workspaces.some(ws => {
+      const normalizedWsPath = path.normalize(ws.path);
+      return normalizedPath === normalizedWsPath || normalizedPath.startsWith(normalizedWsPath + path.sep);
+    });
+    if (!isAllowed) {
+      throw new Error('Access denied: workspace path is not registered');
+    }
+    return ralphBootstrap.readControlFiles(workspacePath);
+  });
+
+  ipcMain.handle('ralph:getProject', async (_event, workspaceId: string) => {
+    const db = getDatabase();
+    return db.getRalphProjectByWorkspaceId(workspaceId);
+  });
+
+  ipcMain.handle('ralph:getProjectRuns', async (_event, projectId: string, limit?: number) => {
+    const db = getDatabase();
+    return db.listLoopRuns(projectId, limit ?? 50);
+  });
+
+  ipcMain.handle('ralph:getActiveRuns', async (_event, projectId: string) => {
+    const db = getDatabase();
+    return db.listActiveLoopRuns(projectId);
+  });
+
+  ipcMain.handle('ralph:createRun', async (_event, projectId: string, name: string) => {
+    const db = getDatabase();
+    return db.createLoopRun(projectId, name);
+  });
+
+  ipcMain.handle('ralph:startRun', async (_event, runId: string, sessionId: string, ptySessionId: string) => {
+    const db = getDatabase();
+    db.startLoopRun(runId, sessionId, ptySessionId);
+  });
+
+  ipcMain.handle('ralph:endRun', async (_event, runId: string, status: 'completed' | 'failed' | 'cancelled', exitCode: number | null, signal: number | null, error: string | null) => {
+    const db = getDatabase();
+    db.endLoopRun(runId, status, exitCode, signal, error);
+  });
+
+  ipcMain.handle('ralph:incrementRunIteration', async (_event, runId: string) => {
+    const db = getDatabase();
+    db.incrementLoopRunIteration(runId);
+  });
+
+  ipcMain.handle('ralph:getRunSummaries', async (_event, runId: string) => {
+    const db = getDatabase();
+    return db.listLoopSummaries(runId);
+  });
+
+  ipcMain.handle('ralph:addRunSummary', async (_event, projectId: string, runId: string, iteration: number, prompt: string, response: string, selectedFiles: string[]) => {
+    const db = getDatabase();
+    return db.createLoopSummary(projectId, runId, iteration, prompt, response, selectedFiles);
+  });
+
+  ipcMain.handle('ralph:getRunSnapshots', async (_event, runId: string) => {
+    const db = getDatabase();
+    return db.listPlanSnapshots(runId);
+  });
+
+  ipcMain.handle('ralph:addRunSnapshot', async (_event, projectId: string, runId: string, iteration: number, planContent: string) => {
+    const db = getDatabase();
+    return db.createPlanSnapshot(projectId, runId, iteration, planContent);
+  });
+
+  ipcMain.handle('ralph:deleteProject', async (_event, projectId: string) => {
+    const db = getDatabase();
+    db.deleteRalphProject(projectId);
+  });
+}
