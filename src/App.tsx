@@ -6,9 +6,10 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { EditorPane } from './components/EditorPane';
 import { DiffViewer, type DiffFile } from './components/DiffViewer';
 import { SplitPane } from './components/SplitPane';
+import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel';
 import type { ClaudeCodeStatus, ClaudeRunState, Workspace, Session, SessionCrashedEvent, RecoveryNeededEvent, UpdateInfo } from './preload';
 
-type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor';
+type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console';
 
 interface ActiveRun {
   runId: string;
@@ -361,6 +362,16 @@ export default function App() {
               >
                 Editor
               </button>
+              <button
+                onClick={() => setViewMode('console')}
+                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                  viewMode === 'console'
+                    ? 'bg-gray-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Console
+              </button>
             </div>
 
             {/* Quick file open button */}
@@ -669,6 +680,26 @@ export default function App() {
               </SplitPane>
             )}
           </>
+        )}
+
+        {viewMode === 'console' && (
+          <RalphConsolePanel
+            workspacePath={selectedWorkspace?.path ?? null}
+            onOpenWorkspace={(path) => {
+              // Navigate to the workspace
+              window.knuthflow.workspace.list().then(workspaces => {
+                const ws = workspaces.find(w => w.path === path);
+                if (ws) {
+                  setSelectedWorkspace(ws);
+                  setViewMode('terminal');
+                }
+              });
+            }}
+            onOpenFile={(filePath, lineNumber) => {
+              setEditorFilePath(filePath);
+              setViewMode('editor');
+            }}
+          />
         )}
       </main>
 
