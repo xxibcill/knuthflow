@@ -11,7 +11,7 @@ Recover interrupted Ralph runs on startup or resume and clean up stale runtime s
 ## Deliverables
 
 - Startup recovery for in-progress Ralph runs
-- Resume rules for stale session IDs, half-written status files, and abandoned locks
+- Resume rules for stale session IDs, partially persisted runtime records, and abandoned locks
 - Cleanup paths for orphaned artifacts and invalid runtime state
 - Recovery messaging that distinguishes recoverable from unrecoverable failure modes
 
@@ -24,6 +24,6 @@ Recover interrupted Ralph runs on startup or resume and clean up stale runtime s
 ## Acceptance Criteria
 
 - App restart can resume or fail a Ralph run cleanly with no hidden manual cleanup
-- Stale locks and stale session files do not prevent future runs indefinitely
+- Stale locks and stale session metadata do not prevent future runs indefinitely
 - Recovery decisions are recorded for later debugging
 - Unrecoverable states fail loudly enough for the operator to repair them
