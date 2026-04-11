@@ -140,11 +140,9 @@ export class RalphScheduler {
     let hash = 0;
     // Include line number in hash to avoid collisions
     hash = ((hash << 5) - hash) + lineNumber;
-    hash = hash & hash;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
     }
     return Math.abs(hash).toString(36);
   }
@@ -352,6 +350,7 @@ export class RalphScheduler {
 
   /**
    * Determine acceptance gate for a selected item
+   * TODO: Make commands configurable per project (npm, yarn, pnpm, etc.)
    */
   determineAcceptanceGate(item: ScheduledItem): AcceptanceGate | null {
     const titleLower = item.title.toLowerCase();

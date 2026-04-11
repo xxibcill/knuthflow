@@ -26,6 +26,7 @@ export type RalphRuntimeEvent = keyof RalphRuntimeEvents;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Runtime
+// TODO: Add unit tests for state transitions, timeout handling, and concurrency
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RalphRuntime extends EventEmitter {
@@ -160,7 +161,8 @@ export class RalphRuntime extends EventEmitter {
   forceStop(runId: string): void {
     const activeRun = this.activeRuns.get(runId);
     if (!activeRun) {
-      return; // Already cleaned up
+      console.warn(`[RalphRuntime] forceStop called on non-existent run: ${runId}`);
+      return;
     }
 
     this.db.endLoopRun(runId, 'cancelled', null, null, 'Force stopped');

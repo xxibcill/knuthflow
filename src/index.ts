@@ -977,6 +977,24 @@ import {
   resetRalphExecution,
   resetRalphSafety,
 } from './main/index';
+import { StopReason } from './shared/ralphTypes';
+
+const VALID_STOP_REASONS: StopReason[] = [
+  'user_stopped',
+  'rate_limit',
+  'circuit_open',
+  'timeout_idle',
+  'timeout_iteration',
+  'no_progress',
+  'permission_denied',
+  'session_expired',
+  'validation_failed',
+  'error',
+];
+
+function isValidStopReason(reason: string): reason is StopReason {
+  return VALID_STOP_REASONS.includes(reason as StopReason);
+}
 
 ipcMain.handle('ralphRuntime:start', async (_event, projectId: string, name: string, sessionId: string, ptySessionId: string) => {
   try {
@@ -1016,9 +1034,12 @@ ipcMain.handle('ralphRuntime:resume', async (_event, runId: string) => {
 
 ipcMain.handle('ralphRuntime:stop', async (_event, runId: string, reason: string, message: string, canResume?: boolean) => {
   try {
+    if (!isValidStopReason(reason)) {
+      return { success: false, error: `Invalid stop reason: ${reason}` };
+    }
     const runtime = getRuntimeForRunId(runId);
     if (runtime && runtime.ownsRun(runId)) {
-      runtime.stop(runId, reason as any, message, canResume ?? false);
+      runtime.stop(runId, reason, message, canResume ?? false);
       return { success: true };
     }
     return { success: false, error: 'Run not found' };
@@ -1046,9 +1067,9 @@ ipcMain.handle('ralphRuntime:getState', async (_event, runId: string) => {
 ipcMain.handle('ralphRuntime:getActiveRun', async (_event, projectId: string) => {
   try {
     const runtime = getRalphRuntime(projectId);
-    return runtime.getActiveRunForProject(projectId);
+    return { success: true, run: runtime.getActiveRunForProject(projectId) };
   } catch (error) {
-    return null;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 
@@ -1177,27 +1198,27 @@ ipcMain.handle('ralphSafety:recordPermissionDenial', async (_event, projectId: s
 ipcMain.handle('ralphSafety:getRateLimitState', async (_event, projectId: string) => {
   try {
     const safety = getRalphSafety(projectId);
-    return safety.getRateLimitState(projectId);
+    return { success: true, state: safety.getRateLimitState(projectId) };
   } catch (error) {
-    return null;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 
 ipcMain.handle('ralphSafety:getCircuitBreakerState', async (_event, projectId: string) => {
   try {
     const safety = getRalphSafety(projectId);
-    return safety.getCircuitBreakerState(projectId);
+    return { success: true, state: safety.getCircuitBreakerState(projectId) };
   } catch (error) {
-    return null;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 
 ipcMain.handle('ralphSafety:isCircuitOpen', async (_event, projectId: string) => {
   try {
     const safety = getRalphSafety(projectId);
-    return safety.isCircuitOpen(projectId);
+    return { success: true, isOpen: safety.isCircuitOpen(projectId) };
   } catch (error) {
-    return false;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 
@@ -1214,9 +1235,9 @@ ipcMain.handle('ralphSafety:resetCircuit', async (_event, projectId: string) => 
 ipcMain.handle('ralphSafety:getSafetyState', async (_event, projectId: string) => {
   try {
     const safety = getRalphSafety(projectId);
-    return safety.getSafetyState(projectId);
+    return { success: true, state: safety.getSafetyState(projectId) };
   } catch (error) {
-    return null;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 

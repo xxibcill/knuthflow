@@ -3,8 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { getPtyManager } from './ptyManager';
-import { getDatabase } from './database';
-import { getRalphBootstrap } from './ralphBootstrap';
 import { LoopIterationContext, ScheduledItem, AcceptanceGate } from '../shared/ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,6 +32,7 @@ interface SessionState {
 }
 
 // Session expiration time (24 hours)
+// TODO: Make configurable via RalphRuntimeConfig
 const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,8 +41,6 @@ const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
 
 export class RalphExecutionAdapter extends EventEmitter {
   private ptyManager = getPtyManager();
-  private db = getDatabase();
-  private bootstrap = getRalphBootstrap();
 
   private workspacePath: string;
   private currentSession: SessionState | null = null;
@@ -186,6 +183,8 @@ export class RalphExecutionAdapter extends EventEmitter {
 
     this.sessionExitHandler = ({ sessionId }) => {
       if (sessionId === session.ptySessionId) {
+        // TODO: Implement auto-recovery logic when session expires
+        // e.g., create new session and resume the loop
         this.emit('sessionExpired');
       }
     };
@@ -234,8 +233,9 @@ export class RalphExecutionAdapter extends EventEmitter {
 
           return { installed: true, executablePath: execPath, version };
         }
-      } catch {
-        // Continue searching
+      } catch (err) {
+        // Continue searching - log debug info if needed
+        console.debug(`[RalphExecution] Claude Code detection failed for ${execPath}:`, err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -357,18 +357,22 @@ export class RalphExecutionAdapter extends EventEmitter {
 
     // Write the prompt to the PTY
     const fullPrompt = `${prompt}\n\n`;
-    this.ptyManager.write(this.currentSession.ptySessionId, fullPrompt);
+    const writeSuccess = this.ptyManager.write(this.currentSession.ptySessionId, fullPrompt);
+    if (!writeSuccess) {
+      throw new Error('Failed to write prompt to PTY session');
+    }
 
     // Wait for execution to complete
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.ptyManager.removeListener('exit', onExit);
+        this.removeSessionHandlers();
         reject(new Error('Execution timeout'));
       }, timeoutMs);
 
       const onExit = ({ sessionId }: { sessionId: string; exitCode: number; signal?: number }) => {
         if (sessionId === this.currentSession?.ptySessionId) {
           clearTimeout(timeout);
+          this.removeSessionHandlers();
           resolve(this.outputBuffer);
         }
       };
