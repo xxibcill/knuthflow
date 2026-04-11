@@ -159,6 +159,93 @@ export interface UpdateInfo {
   isMandatory: boolean;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Ralph Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LoopRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface RalphProject {
+  id: string;
+  workspaceId: string;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface LoopRun {
+  id: string;
+  projectId: string;
+  name: string;
+  status: LoopRunStatus;
+  startTime: number | null;
+  endTime: number | null;
+  exitCode: number | null;
+  signal: number | null;
+  error: string | null;
+  iterationCount: number;
+  sessionId: string | null;
+  ptySessionId: string | null;
+  createdAt: number;
+}
+
+export interface LoopSummary {
+  id: string;
+  projectId: string;
+  runId: string;
+  iteration: number;
+  prompt: string;
+  response: string;
+  selectedFiles: string[];
+  createdAt: number;
+}
+
+export interface PlanSnapshot {
+  id: string;
+  projectId: string;
+  runId: string;
+  iteration: number;
+  planContent: string;
+  createdAt: number;
+}
+
+export type ValidationSeverity = 'error' | 'warning' | 'info';
+
+export interface ValidationIssue {
+  code: string;
+  severity: ValidationSeverity;
+  message: string;
+  recovery: string;
+  path?: string;
+}
+
+export interface ReadinessReport {
+  ready: boolean;
+  isFresh: boolean;
+  isCorrupted: boolean;
+  workspaceId: string;
+  workspacePath: string;
+  projectId: string | null;
+  issues: ValidationIssue[];
+  checkedAt: number;
+}
+
+export interface BootstrapResult {
+  success: boolean;
+  created: string[];
+  skipped: string[];
+  updated: string[];
+  backups: string[];
+  error?: string;
+}
+
+export interface RalphControlFiles {
+  promptMd: string;
+  agentMd: string;
+  fixPlanMd: string;
+  specsDir: string;
+}
+
 export interface AppSettings {
   cliPath: string | null;
   defaultArgs: string[];
@@ -291,6 +378,28 @@ export interface KnuthflowAPI {
   };
   diagnostics: {
     getSystemInfo(): Promise<SystemDiagnostics>;
+  };
+  ralph: {
+    bootstrap(workspaceId: string, workspacePath: string, force?: boolean): Promise<BootstrapResult>;
+    getReadinessReport(workspaceId: string, workspacePath: string): Promise<ReadinessReport>;
+    validateBeforeStart(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; cleaned: number; issues: ValidationIssue[] }>;
+    validateBeforeResume(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; cleaned: number; issues: ValidationIssue[] }>;
+    validateBeforeRepair(workspacePath: string): Promise<{ valid: boolean; cleaned: number; issues: ValidationIssue[] }>;
+    isRalphEnabled(workspacePath: string): Promise<boolean>;
+    isFreshWorkspace(workspaceId: string, workspacePath: string): Promise<boolean>;
+    readControlFiles(workspacePath: string): Promise<RalphControlFiles | null>;
+    getProject(workspaceId: string): Promise<RalphProject | null>;
+    getProjectRuns(projectId: string, limit?: number): Promise<LoopRun[]>;
+    getActiveRuns(projectId: string): Promise<LoopRun[]>;
+    createRun(projectId: string, name: string): Promise<LoopRun>;
+    startRun(runId: string, sessionId: string, ptySessionId: string): Promise<void>;
+    endRun(runId: string, status: 'completed' | 'failed' | 'cancelled', exitCode: number | null, signal: number | null, error: string | null): Promise<void>;
+    incrementRunIteration(runId: string): Promise<void>;
+    getRunSummaries(runId: string): Promise<LoopSummary[]>;
+    addRunSummary(projectId: string, runId: string, iteration: number, prompt: string, response: string, selectedFiles: string[]): Promise<LoopSummary>;
+    getRunSnapshots(runId: string): Promise<PlanSnapshot[]>;
+    addRunSnapshot(projectId: string, runId: string, iteration: number, planContent: string): Promise<PlanSnapshot>;
+    deleteProject(projectId: string): Promise<void>;
   };
 };
 
@@ -488,6 +597,48 @@ const api: KnuthflowAPI = {
   diagnostics: {
     getSystemInfo: () =>
       ipcRenderer.invoke('diagnostics:getSystemInfo') as Promise<SystemDiagnostics>,
+  },
+  ralph: {
+    bootstrap: (workspaceId: string, workspacePath: string, force?: boolean) =>
+      ipcRenderer.invoke('ralph:bootstrap', workspaceId, workspacePath, force),
+    getReadinessReport: (workspaceId: string, workspacePath: string) =>
+      ipcRenderer.invoke('ralph:getReadinessReport', workspaceId, workspacePath),
+    validateBeforeStart: (workspaceId: string, workspacePath: string) =>
+      ipcRenderer.invoke('ralph:validateBeforeStart', workspaceId, workspacePath),
+    validateBeforeResume: (workspaceId: string, workspacePath: string) =>
+      ipcRenderer.invoke('ralph:validateBeforeResume', workspaceId, workspacePath),
+    validateBeforeRepair: (workspacePath: string) =>
+      ipcRenderer.invoke('ralph:validateBeforeRepair', workspacePath),
+    isRalphEnabled: (workspacePath: string) =>
+      ipcRenderer.invoke('ralph:isRalphEnabled', workspacePath),
+    isFreshWorkspace: (workspaceId: string, workspacePath: string) =>
+      ipcRenderer.invoke('ralph:isFreshWorkspace', workspaceId, workspacePath),
+    readControlFiles: (workspacePath: string) =>
+      ipcRenderer.invoke('ralph:readControlFiles', workspacePath) as Promise<RalphControlFiles | null>,
+    getProject: (workspaceId: string) =>
+      ipcRenderer.invoke('ralph:getProject', workspaceId) as Promise<RalphProject | null>,
+    getProjectRuns: (projectId: string, limit?: number) =>
+      ipcRenderer.invoke('ralph:getProjectRuns', projectId, limit) as Promise<LoopRun[]>,
+    getActiveRuns: (projectId: string) =>
+      ipcRenderer.invoke('ralph:getActiveRuns', projectId) as Promise<LoopRun[]>,
+    createRun: (projectId: string, name: string) =>
+      ipcRenderer.invoke('ralph:createRun', projectId, name) as Promise<LoopRun>,
+    startRun: (runId: string, sessionId: string, ptySessionId: string) =>
+      ipcRenderer.invoke('ralph:startRun', runId, sessionId, ptySessionId),
+    endRun: (runId: string, status: 'completed' | 'failed' | 'cancelled', exitCode: number | null, signal: number | null, error: string | null) =>
+      ipcRenderer.invoke('ralph:endRun', runId, status, exitCode, signal, error),
+    incrementRunIteration: (runId: string) =>
+      ipcRenderer.invoke('ralph:incrementRunIteration', runId),
+    getRunSummaries: (runId: string) =>
+      ipcRenderer.invoke('ralph:getRunSummaries', runId) as Promise<LoopSummary[]>,
+    addRunSummary: (projectId: string, runId: string, iteration: number, prompt: string, response: string, selectedFiles: string[]) =>
+      ipcRenderer.invoke('ralph:addRunSummary', projectId, runId, iteration, prompt, response, selectedFiles) as Promise<LoopSummary>,
+    getRunSnapshots: (runId: string) =>
+      ipcRenderer.invoke('ralph:getRunSnapshots', runId) as Promise<PlanSnapshot[]>,
+    addRunSnapshot: (projectId: string, runId: string, iteration: number, planContent: string) =>
+      ipcRenderer.invoke('ralph:addRunSnapshot', projectId, runId, iteration, planContent) as Promise<PlanSnapshot>,
+    deleteProject: (projectId: string) =>
+      ipcRenderer.invoke('ralph:deleteProject', projectId),
   },
 };
 
