@@ -49,6 +49,8 @@ export class RalphExecutionAdapter extends EventEmitter {
   private currentSession: SessionState | null = null;
   private outputBuffer: string = '';
   private responseBuffer: string = '';
+  private sessionDataHandler: ((data: { sessionId: string; data: string }) => void) | null = null;
+  private sessionExitHandler: ((exit: { sessionId: string; exitCode: number; signal?: number }) => void) | null = null;
 
   constructor(workspacePath: string) {
     super();
@@ -88,8 +90,11 @@ export class RalphExecutionAdapter extends EventEmitter {
       rows: 40,
     });
 
-    // Create a unique session ID
-    const sessionId = `ralph-session-${crypto.randomUUID()}`;
+    // Create a unique session ID with fallback for environments without crypto.randomUUID
+    const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const sessionId = `ralph-session-${randomPart}`;
 
     const session: SessionState = {
       sessionId,
@@ -110,10 +115,12 @@ export class RalphExecutionAdapter extends EventEmitter {
 
   /**
    * Get session state from storage
+   * NOTE: This is a stub - session persistence is not yet implemented.
+   * Sessions are only tracked in-memory and will not survive app restart.
    */
   private getStoredSession(sessionId: string): SessionState | null {
-    // In a full implementation, this would load from persistent storage
-    // For now, we track in-memory
+    // TODO: Implement persistent session storage
+    // For now, we only track sessions in-memory and cannot resume across restarts
     return null;
   }
 
@@ -142,6 +149,9 @@ export class RalphExecutionAdapter extends EventEmitter {
    * Start Claude Code in a PTY session
    */
   private startClaudeInSession(session: SessionState): void {
+    // Clean up any previous handlers first
+    this.removeSessionHandlers();
+
     const detection = this.detectClaudeCode();
     if (!detection.installed || !detection.executablePath) {
       this.emit('error', 'Claude Code not installed');
@@ -158,7 +168,7 @@ export class RalphExecutionAdapter extends EventEmitter {
       }
     }, 3000);
 
-    this.ptyManager.on('data', ({ sessionId, data }) => {
+    this.sessionDataHandler = ({ sessionId, data }) => {
       if (sessionId === session.ptySessionId && !shellReady) {
         if (data.includes('$') || data.includes('#')) {
           shellReady = true;
@@ -172,13 +182,30 @@ export class RalphExecutionAdapter extends EventEmitter {
         this.outputBuffer += data;
         this.emit('output', data);
       }
-    });
+    };
 
-    this.ptyManager.on('exit', ({ sessionId }) => {
+    this.sessionExitHandler = ({ sessionId }) => {
       if (sessionId === session.ptySessionId) {
         this.emit('sessionExpired');
       }
-    });
+    };
+
+    this.ptyManager.on('data', this.sessionDataHandler);
+    this.ptyManager.on('exit', this.sessionExitHandler);
+  }
+
+  /**
+   * Remove session event handlers
+   */
+  private removeSessionHandlers(): void {
+    if (this.sessionDataHandler) {
+      this.ptyManager.removeListener('data', this.sessionDataHandler);
+      this.sessionDataHandler = null;
+    }
+    if (this.sessionExitHandler) {
+      this.ptyManager.removeListener('exit', this.sessionExitHandler);
+      this.sessionExitHandler = null;
+    }
   }
 
   /**
@@ -400,6 +427,9 @@ export class RalphExecutionAdapter extends EventEmitter {
       this.currentSession = null;
     }
 
+    // Remove old event handlers
+    this.removeSessionHandlers();
+
     // Create fresh session
     return this.createNewSession();
   }
@@ -426,6 +456,8 @@ export class RalphExecutionAdapter extends EventEmitter {
       this.ptyManager.kill(this.currentSession.ptySessionId);
       this.currentSession = null;
     }
+    // Remove event handlers to prevent accumulation
+    this.removeSessionHandlers();
     this.outputBuffer = '';
     this.responseBuffer = '';
   }
