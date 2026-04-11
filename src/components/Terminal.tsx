@@ -8,6 +8,10 @@ interface TerminalProps {
   onSessionExit?: (exitCode: number, signal?: number) => void;
   onResize?: (cols: number, rows: number) => void;
   className?: string;
+  themeVariant?: 'dark' | 'light';
+  fontFamily?: string;
+  fontSize?: number;
+  cursorStyle?: 'block' | 'underline' | 'bar';
 }
 
 interface PtyDataEvent {
@@ -21,41 +25,75 @@ interface PtyExitEvent {
   signal?: number;
 }
 
-const DEFAULT_THEME = {
-  background: '#1e1e1e',
-  foreground: '#d4d4d4',
-  cursor: '#ffffff',
-  cursorAccent: '#000000',
-  selectionBackground: '#264f78',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#2472c8',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d18b',
-  brightYellow: '#f5f543',
-  brightBlue: '#3b8eea',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
+const DARK_THEME = {
+  background: '#101826',
+  foreground: '#d7deeb',
+  cursor: '#72a8ff',
+  cursorAccent: '#101826',
+  selectionBackground: '#22467d',
+  black: '#18202c',
+  red: '#ec6d73',
+  green: '#79d2a6',
+  yellow: '#f2be6a',
+  blue: '#72a8ff',
+  magenta: '#bb9af7',
+  cyan: '#67d4f1',
+  white: '#c9d5e9',
+  brightBlack: '#66758f',
+  brightRed: '#ff8990',
+  brightGreen: '#8be1b5',
+  brightYellow: '#ffcf82',
+  brightBlue: '#8ebcff',
+  brightMagenta: '#cab2ff',
+  brightCyan: '#8be7ff',
+  brightWhite: '#f3f7ff',
+};
+
+const LIGHT_THEME = {
+  background: '#f7fbff',
+  foreground: '#203042',
+  cursor: '#2354b7',
+  cursorAccent: '#f7fbff',
+  selectionBackground: '#cae0ff',
+  black: '#1d2b3f',
+  red: '#be3b48',
+  green: '#297a52',
+  yellow: '#996200',
+  blue: '#2354b7',
+  magenta: '#8245c6',
+  cyan: '#0d7492',
+  white: '#eef4fb',
+  brightBlack: '#607189',
+  brightRed: '#d95863',
+  brightGreen: '#328f61',
+  brightYellow: '#b27300',
+  brightBlue: '#3d67c6',
+  brightMagenta: '#9b61d9',
+  brightCyan: '#1a88a8',
   brightWhite: '#ffffff',
 };
 
-export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSessionExit, onResize, className = '' }: TerminalProps) {
+export function Terminal({
+  sessionId,
+  onSessionCreated,
+  onSessionExit,
+  onResize,
+  className = '',
+  themeVariant = 'dark',
+  fontFamily = 'IBM Plex Mono, SFMono-Regular, Consolas, monospace',
+  fontSize = 14,
+  cursorStyle = 'block',
+}: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const sessionIdRef = useRef<string | null>(initialSessionId || null);
+  const sessionIdRef = useRef<string | null>(sessionId || null);
+  const ownedSessionRef = useRef(!sessionId);
   const onSessionExitRef = useRef(onSessionExit);
   const onResizeRef = useRef(onResize);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Keep refs up to date
   useEffect(() => {
     onSessionExitRef.current = onSessionExit;
   }, [onSessionExit]);
@@ -64,44 +102,46 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
     onResizeRef.current = onResize;
   }, [onResize]);
 
-  // Initialize xterm
+  useEffect(() => {
+    sessionIdRef.current = sessionId || null;
+    ownedSessionRef.current = !sessionId;
+  }, [sessionId]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
     const xterm = new XTerm({
-      theme: DEFAULT_THEME,
-      fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
-      fontSize: 14,
-      lineHeight: 1.2,
+      theme: themeVariant === 'light' ? LIGHT_THEME : DARK_THEME,
+      fontFamily,
+      fontSize,
+      lineHeight: 1.24,
       cursorBlink: true,
-      cursorStyle: 'block',
+      cursorStyle,
       scrollback: 10000,
       allowProposedApi: true,
     });
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
-
     xterm.open(containerRef.current);
-
-    // Use requestAnimationFrame to ensure the terminal is rendered before fitting
-    // Retry a few times in case container becomes visible after a frame
-    let fitAttempts = 0;
-    const fitTerminal = () => {
-      if (fitAddonRef.current && containerRef.current &&
-          containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
-        fitAddonRef.current.fit();
-      } else if (fitAttempts < 3) {
-        fitAttempts++;
-        requestAnimationFrame(fitTerminal);
-      }
-    };
-    requestAnimationFrame(fitTerminal);
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    // Initial resize callback
+    let fitAttempts = 0;
+    const fitTerminal = () => {
+      if (!fitAddonRef.current || !containerRef.current) return;
+
+      if (containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
+        fitAddonRef.current.fit();
+      } else if (fitAttempts < 3) {
+        fitAttempts += 1;
+        requestAnimationFrame(fitTerminal);
+      }
+    };
+
+    requestAnimationFrame(fitTerminal);
+
     if (onResizeRef.current) {
       onResizeRef.current(xterm.cols, xterm.rows);
     }
@@ -113,107 +153,86 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
     };
   }, []);
 
-  // Create PTY session
+  useEffect(() => {
+    if (!xtermRef.current) return;
+
+    xtermRef.current.options.theme = themeVariant === 'light' ? LIGHT_THEME : DARK_THEME;
+    xtermRef.current.options.fontFamily = fontFamily;
+    xtermRef.current.options.fontSize = fontSize;
+    xtermRef.current.options.cursorStyle = cursorStyle;
+    fitAddonRef.current?.fit();
+  }, [cursorStyle, fontFamily, fontSize, themeVariant]);
+
   useEffect(() => {
     if (sessionIdRef.current || loading) return;
 
     setLoading(true);
-    window.knuthflow.pty.create().then((id: string) => {
-      sessionIdRef.current = id;
-      setLoading(false);
-      if (onSessionCreated) {
-        onSessionCreated(id);
-      }
-    }).catch((err: Error) => {
-      setError(err.message);
-      setLoading(false);
-    });
-  }, [loading]);
+    window.knuthflow.pty.create()
+      .then((id: string) => {
+        sessionIdRef.current = id;
+        ownedSessionRef.current = true;
+        setLoading(false);
+        onSessionCreated?.(id);
+      })
+      .catch((err: Error) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [loading, onSessionCreated]);
 
-  // Wire PTY data -> xterm
   useEffect(() => {
-    if (!sessionIdRef.current || !xtermRef.current) return;
+    if (!xtermRef.current) return;
 
-    const currentSessionId = sessionIdRef.current;
-    const handleData = (event: PtyDataEvent) => {
-      if (event.sessionId === currentSessionId && xtermRef.current) {
-        xtermRef.current.write(event.data);
+    const unsubscribe = window.knuthflow.pty.onData((event: PtyDataEvent) => {
+      if (event.sessionId === sessionIdRef.current) {
+        xtermRef.current?.write(event.data);
       }
-    };
-
-    const unsubscribe = window.knuthflow.pty.onData(handleData);
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  // Wire xterm data -> PTY
-  useEffect(() => {
-    if (!sessionIdRef.current || !xtermRef.current) return;
-
-    const currentSessionId = sessionIdRef.current;
-    const xterm = xtermRef.current;
-    const dataDisposable = xterm.onData((data: string) => {
-      window.knuthflow.pty.write(currentSessionId, data);
     });
 
-    return () => {
-      dataDisposable.dispose();
-    };
+    return () => unsubscribe();
   }, []);
 
-  // Wire PTY exit event
   useEffect(() => {
-    if (!sessionIdRef.current) return;
+    if (!xtermRef.current) return;
 
-    const currentSessionId = sessionIdRef.current;
-    const handleExit = (event: PtyExitEvent) => {
-      if (event.sessionId === currentSessionId) {
-        if (onSessionExitRef.current) {
-          onSessionExitRef.current(event.exitCode, event.signal);
-        }
-        xtermRef.current?.write('\r\n\x1b[33m[Session exited with code ' + event.exitCode + ']\x1b[0m\r\n');
+    const dataDisposable = xtermRef.current.onData((data: string) => {
+      if (sessionIdRef.current) {
+        window.knuthflow.pty.write(sessionIdRef.current, data);
       }
-    };
+    });
 
-    const unsubscribe = window.knuthflow.pty.onExit(handleExit);
-
-    return () => {
-      unsubscribe();
-    };
+    return () => dataDisposable.dispose();
   }, []);
 
-  // Handle resize - sync xterm dimensions to PTY
   useEffect(() => {
-    if (!sessionIdRef.current || !fitAddonRef.current || !xtermRef.current) return;
+    const unsubscribe = window.knuthflow.pty.onExit((event: PtyExitEvent) => {
+      if (event.sessionId !== sessionIdRef.current) return;
 
-    const currentSessionId = sessionIdRef.current;
+      onSessionExitRef.current?.(event.exitCode, event.signal);
+      xtermRef.current?.write(`\r\n\x1b[33m[Session exited with code ${event.exitCode}]\x1b[0m\r\n`);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
-      if (fitAddonRef.current && xtermRef.current && containerRef.current) {
-        // Only fit if container has actual dimensions
-        if (containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
-          fitAddonRef.current.fit();
-        }
-        const { cols, rows } = xtermRef.current;
-        window.knuthflow.pty.resize(currentSessionId, cols, rows);
-        if (onResizeRef.current) {
-          onResizeRef.current(cols, rows);
-        }
+      if (!sessionIdRef.current || !fitAddonRef.current || !xtermRef.current || !containerRef.current) return;
+      if (containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
+        fitAddonRef.current.fit();
       }
+      const { cols, rows } = xtermRef.current;
+      window.knuthflow.pty.resize(sessionIdRef.current, cols, rows);
+      onResizeRef.current?.(cols, rows);
     };
 
     window.addEventListener('resize', handleResize);
-
-    const resizeObserver = new ResizeObserver(() => {
-      handleResize();
-    });
+    const resizeObserver = new ResizeObserver(() => handleResize());
 
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
 
-    // Initial resize
     handleResize();
 
     return () => {
@@ -222,75 +241,52 @@ export function Terminal({ sessionId: initialSessionId, onSessionCreated, onSess
     };
   }, []);
 
-  // Cleanup PTY session on unmount
   useEffect(() => {
     return () => {
-      if (sessionIdRef.current) {
-        window.knuthflow.pty.kill(sessionIdRef.current).catch(() => {
-          // Ignore cleanup errors
-        });
+      if (sessionIdRef.current && ownedSessionRef.current) {
+        window.knuthflow.pty.kill(sessionIdRef.current).catch(() => undefined);
       }
     };
   }, []);
 
   return (
-    <div className={`terminal-wrapper ${className}`}>
+    <div className={`terminal-wrapper ${themeVariant} ${className}`}>
       {loading && (
-        <div className="terminal-loading">
-          <div className="text-center text-gray-500">
-            <div className="text-lg mb-2">Initializing terminal...</div>
+        <div className="absolute inset-0 z-10 grid place-items-center">
+          <div className="surface-panel-inset px-5 py-4 text-center">
+            <p className="m-0 text-sm font-semibold">Initializing terminal</p>
+            <p className="mt-1 text-xs text-muted">Preparing interactive session state.</p>
           </div>
         </div>
       )}
+
       {error && (
-        <div className="terminal-error">
-          <div className="text-center text-red-500">
-            <div className="text-lg mb-2">Error</div>
-            <div className="text-sm">{error}</div>
+        <div className="absolute inset-0 z-10 grid place-items-center px-4">
+          <div className="surface-panel-inset max-w-sm px-5 py-4 text-center">
+            <p className="m-0 text-sm font-semibold text-red-300">Terminal Error</p>
+            <p className="mt-1 text-xs leading-5 text-red-400">{error}</p>
           </div>
         </div>
       )}
-      <div
-        ref={containerRef}
-        className="terminal-container"
-        style={{
-          display: (loading || error) ? 'none' : 'block',
-          height: '100%',
-          width: '100%',
-        }}
-      />
+
+      <div className="terminal-shell">
+        <div
+          ref={containerRef}
+          className="terminal-container h-full w-full"
+          style={{ display: loading || error ? 'none' : 'block' }}
+        />
+      </div>
     </div>
   );
 }
 
-// Styles
 const style = document.createElement('style');
 style.textContent = `
-  .terminal-wrapper {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: #1e1e1e;
-  }
-  .terminal-error {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #1e1e1e;
-    z-index: 10;
-  }
-  .terminal-container {
-    width: 100%;
-    height: 100%;
-  }
   .terminal-container .xterm {
-    padding: 8px;
+    height: 100%;
+    padding: 14px 12px 12px;
   }
+
   .terminal-container .xterm-viewport {
     overflow-y: auto !important;
   }

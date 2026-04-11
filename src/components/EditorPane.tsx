@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Editor, type OnMount } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 interface EditorPaneProps {
   filePath?: string | null;
@@ -12,6 +12,7 @@ interface EditorPaneProps {
   onContentChange?: (content: string) => void;
   onSave?: (path: string, content: string) => Promise<void>;
   className?: string;
+  themeVariant?: 'dark' | 'light';
 }
 
 interface FileInfo {
@@ -48,8 +49,8 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
-  return LANGUAGE_MAP[ext] || 'plaintext';
+  const extension = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+  return LANGUAGE_MAP[extension] || 'plaintext';
 }
 
 function getFileName(filePath: string): string {
@@ -65,13 +66,13 @@ export function EditorPane({
   onContentChange,
   onSave,
   className = '',
+  themeVariant = 'dark',
 }: EditorPaneProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const [currentFile, setCurrentFile] = useState<FileInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Load file content when filePath changes
   useEffect(() => {
     if (!filePath) {
       setCurrentFile(null);
@@ -85,32 +86,27 @@ export function EditorPane({
       try {
         const exists = await window.knuthflow.filesystem.exists(filePath);
         if (!exists) {
-          setError(`File not found: ${filePath}`);
           setCurrentFile(null);
+          setError(`File not found: ${filePath}`);
           return;
         }
 
         const fileContent = await window.knuthflow.filesystem.readFile(filePath);
-
-        // Check file size limit
         if (new Blob([fileContent]).size > MAX_FILE_SIZE) {
-          setError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`);
           setCurrentFile(null);
+          setError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`);
           return;
         }
 
-        const fileName = getFileName(filePath);
-        const detectedLanguage = language || getLanguageFromPath(filePath);
-
         setCurrentFile({
           path: filePath,
-          name: fileName,
-          language: detectedLanguage,
+          name: getFileName(filePath),
+          language: language || getLanguageFromPath(filePath),
           content: fileContent,
         });
       } catch (err) {
-        setError(`Failed to load file: ${err instanceof Error ? err.message : 'Unknown error'}`);
         setCurrentFile(null);
+        setError(`Failed to load file: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
         setLoading(false);
       }
@@ -119,26 +115,17 @@ export function EditorPane({
     loadFile();
   }, [filePath, language]);
 
-  // Update content when prop changes (for diff viewer)
   useEffect(() => {
-    if (content !== undefined && content !== null && currentFile) {
-      setCurrentFile(prev => prev ? { ...prev, content } : null);
+    if (content !== undefined && content !== null) {
+      setCurrentFile(prev => (prev && prev.content !== content ? { ...prev, content } : prev));
     }
   }, [content]);
 
   const handleEditorMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
-
-    // Configure editor for read-only mode
-    if (readOnly) {
-      editor.updateOptions({
-        readOnly: true,
-        domReadOnly: true,
-      });
-    }
-
-    // Configure editor settings
     editor.updateOptions({
+      readOnly,
+      domReadOnly: readOnly,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       lineNumbers: 'on',
@@ -149,12 +136,14 @@ export function EditorPane({
       lineNumbersMinChars: 3,
       wordWrap: 'off',
       automaticLayout: true,
+      fontFamily: 'IBM Plex Mono, SFMono-Regular, Consolas, monospace',
+      fontLigatures: false,
     });
   }, [readOnly]);
 
   const handleContentChange = useCallback((value: string | undefined) => {
-    if (value !== undefined && onContentChange) {
-      onContentChange(value);
+    if (value !== undefined) {
+      onContentChange?.(value);
     }
   }, [onContentChange]);
 
@@ -166,109 +155,96 @@ export function EditorPane({
     } catch (err) {
       setError(`Failed to save file: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  }, [onSave, currentFile, filePath]);
+  }, [currentFile, filePath, onSave]);
 
-  // Empty state
   if (!currentFile && !loading && !error) {
     return (
-      <div className={`flex flex-col items-center justify-center h-full bg-gray-900 text-gray-400 ${className}`}>
-        <svg className="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <p className="text-sm">No file open</p>
-        <p className="text-xs mt-1 text-gray-500">Select a file to view its contents</p>
+      <div className={`empty-state ${className}`}>
+        <div>
+          <svg className="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <h3 className="text-lg font-semibold">No file selected</h3>
+          <p className="mt-2 text-sm text-muted">Open a file from the workspace to inspect source in-place.</p>
+        </div>
       </div>
     );
   }
 
-  // Loading state
   if (loading) {
     return (
-      <div className={`flex flex-col items-center justify-center h-full bg-gray-900 text-gray-400 ${className}`}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-        <p className="text-sm">Loading file...</p>
+      <div className={`empty-state ${className}`}>
+        <div>
+          <svg className="empty-state-icon animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <h3 className="text-lg font-semibold">Loading file</h3>
+          <p className="mt-2 text-sm text-muted">Reading editor content and preparing syntax highlighting.</p>
+        </div>
       </div>
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <div className={`flex flex-col items-center justify-center h-full bg-gray-900 text-red-400 ${className}`}>
-        <svg className="w-12 h-12 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <p className="text-sm font-medium">Error</p>
-        <p className="text-xs mt-1 text-red-500 max-w-xs text-center">{error}</p>
+      <div className={`empty-state ${className}`}>
+        <div>
+          <svg className="empty-state-icon text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-lg font-semibold text-red-300">Unable to open file</h3>
+          <p className="mt-2 text-sm text-red-400">{error}</p>
+        </div>
       </div>
     );
   }
 
-  // Editor with file
   return (
-    <div className={`flex flex-col h-full bg-gray-900 ${className}`}>
-      {/* File header */}
+    <div className={`section-shell ${className}`}>
       {currentFile && (
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
-          <div className="flex items-center gap-2 min-w-0">
-            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span className="text-sm text-gray-300 truncate" title={currentFile.path}>
-              {currentFile.name}
-            </span>
-            {readOnly && (
-              <span className="text-xs text-gray-500 px-1.5 py-0.5 bg-gray-700 rounded">
-                Read-only
-              </span>
-            )}
+        <div className="section-header !items-center">
+          <div className="min-w-0">
+            <h2 className="section-title truncate">{currentFile.name}</h2>
+            <p className="section-lead text-mono" title={currentFile.path}>
+              {currentFile.path}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">{currentFile.language}</span>
+          <div className="toolbar-inline">
+            <span className="badge badge-neutral">{currentFile.language}</span>
+            {readOnly && <span className="badge badge-info">Read Only</span>}
             {!readOnly && onSave && (
-              <button
-                onClick={handleSave}
-                className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1"
-              >
-                Save
-              </button>
+              <button onClick={handleSave} className="btn btn-primary">Save</button>
             )}
           </div>
         </div>
       )}
 
-      {/* Monaco Editor */}
       {currentFile && (
-        <div className="flex-1 min-h-0">
-          <Editor
-            height="100%"
-            language={currentFile.language}
-            value={currentFile.content}
-            theme="vs-dark"
-            onMount={handleEditorMount}
-            onChange={handleContentChange}
-            options={{
-              readOnly,
-              domReadOnly: readOnly,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              lineNumbers: 'on',
-              renderLineHighlight: 'line',
-              glyphMargin: false,
-              folding: true,
-              lineDecorationsWidth: 10,
-              lineNumbersMinChars: 3,
-              wordWrap: 'off',
-              automaticLayout: true,
-              fontSize: 14,
-              fontFamily: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
-            }}
-            loading={
-              <div className="flex items-center justify-center h-full bg-gray-900 text-gray-400">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-              </div>
-            }
-          />
+        <div className="list-pane !p-3">
+          <div className="h-full code-surface overflow-hidden">
+            <Editor
+              height="100%"
+              language={currentFile.language}
+              value={currentFile.content}
+              theme={themeVariant === 'light' ? 'vs' : 'vs-dark'}
+              onMount={handleEditorMount}
+              onChange={handleContentChange}
+              options={{
+                readOnly,
+                domReadOnly: readOnly,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                lineNumbers: 'on',
+                renderLineHighlight: 'line',
+                glyphMargin: false,
+                folding: true,
+                lineDecorationsWidth: 10,
+                lineNumbersMinChars: 3,
+                wordWrap: 'off',
+                automaticLayout: true,
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
