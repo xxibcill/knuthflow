@@ -202,15 +202,23 @@ export class RalphScheduler {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Singleton cache
+// Note: All paths are normalized before being used as keys.
+// The cache key contract requires paths to be normalized via path.normalize().
 // ─────────────────────────────────────────────────────────────────────────────
 
 const schedulerInstances: Map<string, RalphScheduler> = new Map();
 
+/**
+ * Get or create a RalphScheduler for the given workspace path.
+ * Path is normalized before lookup to ensure consistent cache keys.
+ */
 export function getRalphScheduler(workspacePath: string): RalphScheduler {
-  let scheduler = schedulerInstances.get(workspacePath);
+  // Normalize path on every access to ensure consistent cache keys
+  const normalizedPath = path.normalize(workspacePath);
+  let scheduler = schedulerInstances.get(normalizedPath);
   if (!scheduler) {
-    scheduler = new RalphScheduler(workspacePath);
-    schedulerInstances.set(workspacePath, scheduler);
+    scheduler = new RalphScheduler(normalizedPath);
+    schedulerInstances.set(normalizedPath, scheduler);
   }
   return scheduler;
 }
@@ -221,7 +229,8 @@ export function getAllRalphSchedulers(): Map<string, RalphScheduler> {
 
 export function resetRalphScheduler(workspacePath?: string): void {
   if (workspacePath) {
-    schedulerInstances.delete(workspacePath);
+    const normalizedPath = path.normalize(workspacePath);
+    schedulerInstances.delete(normalizedPath);
   } else {
     schedulerInstances.clear();
   }
