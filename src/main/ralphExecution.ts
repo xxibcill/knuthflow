@@ -1,0 +1,469 @@
+import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
+import { getPtyManager } from './ptyManager';
+import { getDatabase } from './database';
+import { getRalphBootstrap } from './ralphBootstrap';
+import { LoopIterationContext, ScheduledItem, AcceptanceGate } from '../shared/ralphTypes';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ralph Execution Events
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RalphExecutionEvents {
+  output: (data: string) => void;
+  error: (error: string) => void;
+  sessionExpired: () => void;
+  completed: (response: string) => void;
+}
+
+export type RalphExecutionEvent = keyof RalphExecutionEvents;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Claude Session State
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SessionState {
+  sessionId: string;
+  ptySessionId: string;
+  createdAt: number;
+  lastUsedAt: number;
+  expiresAt: number;
+  isValid: boolean;
+}
+
+// Session expiration time (24 hours)
+const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ralph Execution Adapter
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class RalphExecutionAdapter extends EventEmitter {
+  private ptyManager = getPtyManager();
+  private db = getDatabase();
+  private bootstrap = getRalphBootstrap();
+
+  private workspacePath: string;
+  private currentSession: SessionState | null = null;
+  private outputBuffer: string = '';
+  private responseBuffer: string = '';
+
+  constructor(workspacePath: string) {
+    super();
+    this.workspacePath = workspacePath;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Session Management
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Get or create a Claude session for Ralph execution
+   */
+  getOrCreateSession(previousSessionId?: string | null): SessionState {
+    // Check if we can reuse the previous session
+    if (previousSessionId) {
+      const existingSession = this.getStoredSession(previousSessionId);
+      if (existingSession && this.isSessionValid(existingSession)) {
+        existingSession.lastUsedAt = Date.now();
+        this.currentSession = existingSession;
+        return existingSession;
+      }
+    }
+
+    // Create new session
+    return this.createNewSession();
+  }
+
+  /**
+   * Create a new Claude session
+   */
+  private createNewSession(): SessionState {
+    // Create PTY session
+    const ptySessionId = this.ptyManager.create({
+      cwd: this.workspacePath,
+      cols: 120,
+      rows: 40,
+    });
+
+    // Create a unique session ID
+    const sessionId = `ralph-session-${crypto.randomUUID()}`;
+
+    const session: SessionState = {
+      sessionId,
+      ptySessionId,
+      createdAt: Date.now(),
+      lastUsedAt: Date.now(),
+      expiresAt: Date.now() + SESSION_EXPIRATION_MS,
+      isValid: true,
+    };
+
+    this.currentSession = session;
+
+    // Detect Claude Code and start it
+    this.startClaudeInSession(session);
+
+    return session;
+  }
+
+  /**
+   * Get session state from storage
+   */
+  private getStoredSession(sessionId: string): SessionState | null {
+    // In a full implementation, this would load from persistent storage
+    // For now, we track in-memory
+    return null;
+  }
+
+  /**
+   * Check if a session is still valid
+   */
+  private isSessionValid(session: SessionState): boolean {
+    if (!session.isValid) {
+      return false;
+    }
+
+    if (Date.now() > session.expiresAt) {
+      return false;
+    }
+
+    // Check if PTY session is still alive
+    const ptySession = this.ptyManager.get(session.ptySessionId);
+    if (!ptySession) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Start Claude Code in a PTY session
+   */
+  private startClaudeInSession(session: SessionState): void {
+    const detection = this.detectClaudeCode();
+    if (!detection.installed || !detection.executablePath) {
+      this.emit('error', 'Claude Code not installed');
+      return;
+    }
+
+    // Wait for shell to be ready, then send Claude command
+    let shellReady = false;
+    const timeout = setTimeout(() => {
+      if (!shellReady) {
+        shellReady = true;
+        const cmd = `"${detection.executablePath}" --no-input\r`;
+        this.ptyManager.write(session.ptySessionId, cmd);
+      }
+    }, 3000);
+
+    this.ptyManager.on('data', ({ sessionId, data }) => {
+      if (sessionId === session.ptySessionId && !shellReady) {
+        if (data.includes('$') || data.includes('#')) {
+          shellReady = true;
+          clearTimeout(timeout);
+          const cmd = `"${detection.executablePath}" --no-input\r`;
+          this.ptyManager.write(session.ptySessionId, cmd);
+        }
+      }
+
+      if (sessionId === session.ptySessionId) {
+        this.outputBuffer += data;
+        this.emit('output', data);
+      }
+    });
+
+    this.ptyManager.on('exit', ({ sessionId }) => {
+      if (sessionId === session.ptySessionId) {
+        this.emit('sessionExpired');
+      }
+    });
+  }
+
+  /**
+   * Detect Claude Code installation
+   */
+  private detectClaudeCode(): { installed: boolean; executablePath: string | null; version: string | null } {
+    const possiblePaths = process.platform === 'darwin'
+      ? ['/usr/local/bin/claude', '/opt/homebrew/bin/claude', '/usr/bin/claude']
+      : ['/usr/local/bin/claude', '/usr/bin/claude'];
+
+    const pathEnv = process.env.PATH || '';
+    const pathDirs = pathEnv.split(path.delimiter);
+    const allPaths = [...new Set([...possiblePaths, ...pathDirs.map(p => path.join(p, 'claude'))])];
+
+    for (const execPath of allPaths) {
+      try {
+        if (fs.existsSync(execPath)) {
+          const versionOutput = execSync(`"${execPath}" --version`, {
+            encoding: 'utf-8',
+            timeout: 5000,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
+
+          const versionMatch = versionOutput.match(/(\d+\.\d+\.\d+)/);
+          const version = versionMatch ? versionMatch[1] : null;
+
+          return { installed: true, executablePath: execPath, version };
+        }
+      } catch {
+        // Continue searching
+      }
+    }
+
+    return { installed: false, executablePath: null, version: null };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Prompt Construction
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Build the Ralph loop prompt with pinned context
+   */
+  buildLoopPrompt(context: LoopIterationContext, controlFiles: {
+    promptMd: string;
+    agentMd: string;
+    fixPlanMd: string;
+  }): string {
+    const parts: string[] = [];
+
+    // Stack summary header
+    parts.push('=== RALPH LOOP CONTEXT ===');
+    parts.push(`Iteration: ${context.iteration}`);
+    parts.push(`Started: ${new Date(context.startedAt).toISOString()}`);
+
+    // Selected item
+    if (context.selectedItem) {
+      parts.push('');
+      parts.push('=== CURRENT TASK ===');
+      parts.push(`Item: ${context.selectedItem.title}`);
+      parts.push(`Status: ${context.selectedItem.status}`);
+      if (context.acceptanceGate) {
+        parts.push(`Acceptance Gate: ${context.acceptanceGate.type} - ${context.acceptanceGate.description}`);
+      }
+    }
+
+    // Control file content
+    parts.push('');
+    parts.push('=== OPERATOR PROMPT ===');
+    parts.push(controlFiles.promptMd);
+
+    // Agent configuration
+    parts.push('');
+    parts.push('=== AGENT CONFIG ===');
+    parts.push(controlFiles.agentMd);
+
+    // Current fix plan excerpt (relevant section)
+    parts.push('');
+    parts.push('=== FIX PLAN ===');
+    parts.push(this.extractRelevantPlanSection(controlFiles.fixPlanMd, context.selectedItem));
+
+    // Previous loop summary if available
+    if (context.iteration > 1) {
+      parts.push('');
+      parts.push('=== PREVIOUS ITERATION ===');
+      parts.push('Review the terminal output from the previous iteration.');
+    }
+
+    parts.push('');
+    parts.push('=== INSTRUCTIONS ===');
+    parts.push('1. Focus ONLY on the current task item');
+    parts.push('2. Make minimal, targeted changes');
+    parts.push('3. Run acceptance gate verification when complete');
+    parts.push('4. Report progress and any blockers');
+    parts.push('5. Exit cleanly when done');
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Extract the relevant section of fix_plan.md for the selected item
+   */
+  private extractRelevantPlanSection(fixPlanMd: string, selectedItem: ScheduledItem | null): string {
+    if (!selectedItem) {
+      // Return first 50 lines of plan
+      return fixPlanMd.split('\n').slice(0, 50).join('\n');
+    }
+
+    const lines = fixPlanMd.split('\n');
+    const selectedTitle = selectedItem.title;
+
+    // Find the line with the selected item
+    let startLine = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(selectedTitle)) {
+        startLine = i;
+        break;
+      }
+    }
+
+    if (startLine === -1) {
+      return fixPlanMd;
+    }
+
+    // Extract context around the selected item (20 lines before and after)
+    const start = Math.max(0, startLine - 20);
+    const end = Math.min(lines.length, startLine + 40);
+    return lines.slice(start, end).join('\n');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Execution
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Execute a Ralph iteration
+   */
+  async executeIteration(
+    context: LoopIterationContext,
+    prompt: string,
+    timeoutMs: number = 300000
+  ): Promise<string> {
+    if (!this.currentSession) {
+      throw new Error('No active session');
+    }
+
+    this.outputBuffer = '';
+    this.responseBuffer = '';
+
+    // Write the prompt to the PTY
+    const fullPrompt = `${prompt}\n\n`;
+    this.ptyManager.write(this.currentSession.ptySessionId, fullPrompt);
+
+    // Wait for execution to complete
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.ptyManager.removeListener('exit', onExit);
+        reject(new Error('Execution timeout'));
+      }, timeoutMs);
+
+      const onExit = ({ sessionId }: { sessionId: string; exitCode: number; signal?: number }) => {
+        if (sessionId === this.currentSession?.ptySessionId) {
+          clearTimeout(timeout);
+          resolve(this.outputBuffer);
+        }
+      };
+
+      this.ptyManager.once('exit', onExit);
+    });
+  }
+
+  /**
+   * Send a command directly to the session
+   */
+  writeCommand(command: string): boolean {
+    if (!this.currentSession) {
+      return false;
+    }
+    return this.ptyManager.write(this.currentSession.ptySessionId, `${command}\r`);
+  }
+
+  /**
+   * Get accumulated output
+   */
+  getOutput(): string {
+    return this.outputBuffer;
+  }
+
+  /**
+   * Get last response (Claude's output)
+   */
+  getLastResponse(): string {
+    return this.responseBuffer;
+  }
+
+  /**
+   * Resize the PTY terminal
+   */
+  resize(cols: number, rows: number): boolean {
+    if (!this.currentSession) {
+      return false;
+    }
+    return this.ptyManager.resize(this.currentSession.ptySessionId, cols, rows);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Resume Behavior
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Handle resume when stored session is missing or stale
+   */
+  handleResumeFailure(reason: 'missing' | 'stale' | 'invalid'): SessionState {
+    this.emit('sessionExpired');
+
+    // Clean up old session if exists
+    if (this.currentSession) {
+      this.ptyManager.kill(this.currentSession.ptySessionId);
+      this.currentSession = null;
+    }
+
+    // Create fresh session
+    return this.createNewSession();
+  }
+
+  /**
+   * Check if current session can resume
+   */
+  canResume(): boolean {
+    if (!this.currentSession) {
+      return false;
+    }
+    return this.isSessionValid(this.currentSession);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Cleanup
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * End the current session
+   */
+  endSession(): void {
+    if (this.currentSession) {
+      this.ptyManager.kill(this.currentSession.ptySessionId);
+      this.currentSession = null;
+    }
+    this.outputBuffer = '';
+    this.responseBuffer = '';
+  }
+
+  /**
+   * Get current session info
+   */
+  getCurrentSession(): SessionState | null {
+    return this.currentSession;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Singleton management
+// ─────────────────────────────────────────────────────────────────────────────
+
+let executionInstances: Map<string, RalphExecutionAdapter> = new Map();
+
+export function getRalphExecution(workspacePath: string): RalphExecutionAdapter {
+  let execution = executionInstances.get(workspacePath);
+  if (!execution) {
+    execution = new RalphExecutionAdapter(workspacePath);
+    executionInstances.set(workspacePath, execution);
+  }
+  return execution;
+}
+
+export function resetRalphExecution(workspacePath?: string): void {
+  if (workspacePath) {
+    const execution = executionInstances.get(workspacePath);
+    if (execution) {
+      execution.endSession();
+    }
+    executionInstances.delete(workspacePath);
+  } else {
+    for (const [, exec] of executionInstances) {
+      exec.endSession();
+    }
+    executionInstances.clear();
+  }
+}
