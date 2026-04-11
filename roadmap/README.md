@@ -1,4 +1,4 @@
-# Knuthflow Roadmap
+# Roadmap
 
 This roadmap turns the current PRD direction into an execution plan for a desktop wrapper around Claude Code CLI.
 
@@ -38,6 +38,32 @@ Current product bias:
 10. Expose operator-facing controls and observability once the loop can make grounded decisions.
 11. Finish with checkpointing, crash recovery, dry-run testing, and release documentation for autonomous mode.
 
+## Creating a New Phase
+
+### 1. Create the Phase Document
+
+Copy `phases/PHASE-TEMPLATE.md` to `phases/phase-XX-[slug].md` and fill in:
+
+- **Phase number and name** — Sequential number based on current phases
+- **Functional Feature Outcome** — One sentence describing user value
+- **Why This Phase Exists** — Motivation paragraph
+- **Scope** — Bullet list of major areas
+- **Tasks** — Table linking to task documents
+- **Dependencies** — Prerequisites for starting
+- **Exit Criteria** — Observable outcomes that mark completion
+
+### 2. Create Task Documents
+
+For each task in the phase:
+
+1. Create `tasks/phase-XX/pX-tX-[slug].md` from the template
+2. Fill in the task details
+3. Update the phase document's task table
+
+### 3. Update Roadmap README
+
+Add the new phase to the Phase Overview table and Sequencing Logic if needed.
+
 ## Task Structure
 
 Each phase has:
@@ -49,3 +75,74 @@ Task naming convention:
 
 - `P1-T1` means Phase 01, Task 01
 - `P4-T3` means Phase 04, Task 03
+
+## Phase and Task Templates
+
+### Phase Template
+
+```markdown
+# Phase XX - [Phase Name]
+
+## Functional Feature Outcome
+
+[One sentence describing what the user gets when this phase is complete]
+
+## Why This Phase Exists
+
+[One paragraph explaining the motivation and why this phase matters to the product]
+
+## Scope
+
+- [Bullet point]
+- [Bullet point]
+
+## Tasks
+
+| Task | Summary |
+| --- | --- |
+| [PX-T1](../tasks/phase-XX/pX-t1-[task-slug].md) | [Task summary] |
+| [PX-T2](../tasks/phase-XX/pX-t2-[task-slug].md) | [Task summary] |
+| [PX-T3](../tasks/phase-XX/pX-t3-[task-slug].md) | [Task summary] |
+
+## Dependencies
+
+- [What must be true before this phase starts]
+- [Any external requirements]
+
+## Exit Criteria
+
+- [Observable outcome 1]
+- [Observable outcome 2]
+- [Observable outcome 3]
+```
+
+### Task Template
+
+```markdown
+# PX-TX - [Task Title]
+
+## Phase
+
+[Phase Name](../phases/phase-XX-name.md)
+
+## Objective
+
+[One sentence describing the deliverable]
+
+## Deliverables
+
+- [Deliverable 1]
+- [Deliverable 2]
+- [Deliverable 3]
+
+## Dependencies
+
+- [What must exist or be completed first]
+- [Any external constraints]
+
+## Acceptance Criteria
+
+- [Observable outcome 1]
+- [Observable outcome 2]
+- [Observable outcome 3]
+```
