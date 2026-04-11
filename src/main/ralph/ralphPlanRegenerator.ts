@@ -83,7 +83,12 @@ export async function regeneratePlan(params: {
 
   // Write new plan
   const fixPlanPath = path.join(workspacePath, 'fix_plan.md');
-  fs.writeFileSync(fixPlanPath, newContent, 'utf-8');
+  try {
+    fs.writeFileSync(fixPlanPath, newContent, 'utf-8');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to write plan file: ${message}`);
+  }
 
   // Create new snapshot
   const newSnapshot = db.createPlanSnapshot(projectId, runId, iteration, newContent);

@@ -5,8 +5,6 @@ import * as crypto from 'crypto';
 // Mistake Pattern Detection
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PATTERN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-
 export interface MistakePattern {
   type: 'repeated_error' | 'same_fix_failed' | 'path_wrong' | 'timeout_pattern';
   description: string;
@@ -21,12 +19,22 @@ interface PatternOccurrence {
   timestamp: number;
 }
 
+export interface MistakeTrackerOptions {
+  /** Time window in ms to track pattern occurrences. Default: 10 minutes */
+  patternWindowMs?: number;
+}
+
 /**
  * Track mistake patterns across iterations.
  * Exportable for injection in tests or custom implementations.
  */
 export class MistakeTracker {
   private patterns: Map<string, PatternOccurrence[]> = new Map();
+  private readonly patternWindowMs: number;
+
+  constructor(options: MistakeTrackerOptions = {}) {
+    this.patternWindowMs = options.patternWindowMs ?? (10 * 60 * 1000); // Default: 10 minutes
+  }
 
   /**
    * Record an occurrence of a potential mistake pattern.
@@ -41,7 +49,7 @@ export class MistakeTracker {
     const occurrences = this.patterns.get(patternKey)!;
 
     // Clean old occurrences
-    const validOccurrences = occurrences.filter(o => now - o.timestamp < PATTERN_WINDOW_MS);
+    const validOccurrences = occurrences.filter(o => now - o.timestamp < this.patternWindowMs);
 
     validOccurrences.push({
       iteration,
@@ -60,7 +68,7 @@ export class MistakeTracker {
     const patterns: MistakePattern[] = [];
 
     for (const [key, occurrences] of this.patterns) {
-      const validOccurrences = occurrences.filter(o => now - o.timestamp < PATTERN_WINDOW_MS);
+      const validOccurrences = occurrences.filter(o => now - o.timestamp < this.patternWindowMs);
 
       if (validOccurrences.length >= 2) {
         const [type, ...descParts] = key.split(':');
@@ -83,7 +91,7 @@ export class MistakeTracker {
   cleanup(): void {
     const now = Date.now();
     for (const [key, occurrences] of this.patterns) {
-      const validOccurrences = occurrences.filter(o => now - o.timestamp < PATTERN_WINDOW_MS);
+      const validOccurrences = occurrences.filter(o => now - o.timestamp < this.patternWindowMs);
       if (validOccurrences.length === 0) {
         this.patterns.delete(key);
       } else {
@@ -175,18 +183,24 @@ export function detectMistakePatterns(params: {
 
 /**
  * Find errors that appear in current output and recent outputs.
+ * Uses line-based matching to identify repeated compiler/runtime errors.
  */
 function findRepeatedErrors(currentOutput: string, previousOutputs: string[]): string[] {
   const errors: string[] = [];
 
-  // Extract error lines
-  const errorRegex = /error\s+.*|Error:\s*.*|failed.*/gi;
-  const currentErrors = (currentOutput.match(errorRegex) || []).map(e => e.toLowerCase().trim());
+  // Extract error lines using line-based regex for more accurate matching
+  // Matches patterns like: "error TS2304", "Error: Cannot find module", "failed to compile"
+  const errorRegex = /^.*(?:error|Error|failed|FAIL).*$/gim;
+  const currentErrors = (currentOutput.match(errorRegex) || [])
+    .map(e => e.toLowerCase().trim())
+    .filter(e => e.length > 0);
 
   for (const prevOutput of previousOutputs) {
-    const prevErrors = (prevOutput.match(errorRegex) || []).map(e => e.toLowerCase().trim());
+    const prevErrors = (prevOutput.match(errorRegex) || [])
+      .map(e => e.toLowerCase().trim())
+      .filter(e => e.length > 0);
 
-    // Find intersection
+    // Find intersection - errors that appear in both current and previous outputs
     for (const err of currentErrors) {
       if (prevErrors.some(pe => pe.includes(err) || err.includes(pe))) {
         if (!errors.includes(err)) {

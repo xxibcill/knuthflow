@@ -4,6 +4,9 @@ import { AcceptanceGate } from '../../shared/ralphTypes';
 // Re-export types from database for convenience
 export { RalphArtifact, ArtifactType, ArtifactSeverity };
 
+// Maximum bytes to store for generated file artifacts
+const MAX_GENERATED_FILE_CONTENT_BYTES = 10000;
+
 export interface ValidationResult {
   passed: boolean;
   gate: AcceptanceGate;
@@ -196,8 +199,7 @@ export function captureGeneratedFile(params: {
   content: string;
   metadata?: Record<string, unknown>;
 }): RalphArtifact {
-  const MAX_CONTENT_SIZE = 10000;
-  const isTruncated = params.content.length > MAX_CONTENT_SIZE;
+  const isTruncated = params.content.length > MAX_GENERATED_FILE_CONTENT_BYTES;
 
   return createArtifact({
     projectId: params.projectId,
@@ -205,7 +207,7 @@ export function captureGeneratedFile(params: {
     iteration: params.iteration,
     itemId: params.itemId,
     type: 'generated_file',
-    content: isTruncated ? params.content.substring(0, MAX_CONTENT_SIZE) : params.content,
+    content: isTruncated ? params.content.substring(0, MAX_GENERATED_FILE_CONTENT_BYTES) : params.content,
     exitCode: null,
     durationMs: null,
     severity: 'info',

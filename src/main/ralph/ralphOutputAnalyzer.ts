@@ -205,6 +205,7 @@ export function analyzeOutput(
   }
 
   // Check for stuck in loop (iteration data suggests same outcome)
+  // Threshold of 0.85 means 85% word overlap - indicates likely repeated content
   if (context.previousOutputs && context.previousOutputs.length >= 2) {
     const similarity = calculateTextSimilarity(
       context.previousOutputs[context.previousOutputs.length - 1],
