@@ -243,7 +243,7 @@ export interface RalphControlFiles {
   promptMd: string;
   agentMd: string;
   fixPlanMd: string;
-  specsDir: string;
+  specsDir: string | null;
 }
 
 export interface AppSettings {
@@ -382,9 +382,9 @@ export interface KnuthflowAPI {
   ralph: {
     bootstrap(workspaceId: string, workspacePath: string, force?: boolean): Promise<BootstrapResult>;
     getReadinessReport(workspaceId: string, workspacePath: string): Promise<ReadinessReport>;
-    validateBeforeStart(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; cleaned: number; issues: ValidationIssue[] }>;
-    validateBeforeResume(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; cleaned: number; issues: ValidationIssue[] }>;
-    validateBeforeRepair(workspacePath: string): Promise<{ valid: boolean; cleaned: number; issues: ValidationIssue[] }>;
+    validateBeforeStart(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;
+    validateBeforeResume(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;
+    validateBeforeRepair(workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;
     isRalphEnabled(workspacePath: string): Promise<boolean>;
     isFreshWorkspace(workspaceId: string, workspacePath: string): Promise<boolean>;
     readControlFiles(workspacePath: string): Promise<RalphControlFiles | null>;

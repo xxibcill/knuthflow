@@ -126,7 +126,7 @@ export interface RalphControlFiles {
   promptMd: string;
   agentMd: string;
   fixPlanMd: string;
-  specsDir: string;
+  specsDir: string | null;
 }
 
 // Schema version for migrations

@@ -886,7 +886,11 @@ ipcMain.handle('ralph:readControlFiles', async (_event, workspacePath: string) =
   // Security: validate workspace path is within allowed workspaces
   const db = getDatabase();
   const workspaces = db.listWorkspaces();
-  const isAllowed = workspaces.some(ws => workspacePath.startsWith(ws.path));
+  const normalizedPath = path.normalize(workspacePath);
+  const isAllowed = workspaces.some(ws => {
+    const normalizedWsPath = path.normalize(ws.path);
+    return normalizedPath === normalizedWsPath || normalizedPath.startsWith(normalizedWsPath + path.sep);
+  });
   if (!isAllowed) {
     throw new Error('Access denied: workspace path is not registered');
   }

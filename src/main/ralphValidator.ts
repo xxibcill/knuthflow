@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDatabase, LoopRun } from './database';
+import { getDatabase } from './database';
 import { getRalphBootstrap } from './ralphBootstrap';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,7 +30,6 @@ export interface ReadinessReport {
 
 export interface ValidationResult {
   valid: boolean;
-  cleaned: number;
   issues: ValidationIssue[];
 }
 
@@ -257,7 +256,6 @@ export class RalphValidator {
     const report = this.generateReadinessReport(workspaceId, workspacePath);
     return {
       valid: report.ready,
-      cleaned: 0,
       issues: report.issues,
     };
   }
@@ -272,7 +270,6 @@ export class RalphValidator {
     if (!report.projectId) {
       return {
         valid: false,
-        cleaned: 0,
         issues: [{
           code: 'NO_PROJECT_TO_RESUME',
           severity: 'error',
@@ -289,7 +286,6 @@ export class RalphValidator {
       if (activeRuns.length > 0) {
         return {
           valid: false,
-          cleaned: 0,
           issues: [{
             code: 'ACTIVE_RUN_EXISTS',
             severity: 'error',
@@ -302,7 +298,6 @@ export class RalphValidator {
 
     return {
       valid: report.ready,
-      cleaned: 0,
       issues: report.issues,
     };
   }
@@ -332,7 +327,6 @@ export class RalphValidator {
 
     return {
       valid: issues.length === 0,
-      cleaned: 0,
       issues,
     };
   }

@@ -126,7 +126,14 @@ export interface BootstrapOptions {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RalphBootstrap {
-  private db = getDatabase();
+  private db: ReturnType<typeof getDatabase> | null = null;
+
+  private getDatabase(): ReturnType<typeof getDatabase> {
+    if (!this.db) {
+      this.db = getDatabase();
+    }
+    return this.db;
+  }
 
   /**
    * Bootstrap a workspace as a Ralph project
@@ -144,7 +151,7 @@ export class RalphBootstrap {
     }
 
     // Check if workspace already has Ralph project
-    let project = this.db.getRalphProjectByWorkspaceId(workspaceId);
+    let project = this.getDatabase().getRalphProjectByWorkspaceId(workspaceId);
     const created: string[] = [];
     const skipped: string[] = [];
     const updated: string[] = [];
@@ -163,7 +170,7 @@ export class RalphBootstrap {
 
     // Get or create Ralph project
     if (!project) {
-      project = this.db.createRalphProject(workspaceId);
+      project = this.getDatabase().createRalphProject(workspaceId);
     }
 
     // Bootstrap control files
@@ -311,7 +318,7 @@ export class RalphBootstrap {
       promptMd: fs.existsSync(promptPath) ? fs.readFileSync(promptPath, 'utf-8') : '',
       agentMd: fs.existsSync(agentPath) ? fs.readFileSync(agentPath, 'utf-8') : '',
       fixPlanMd: fs.existsSync(fixPlanPath) ? fs.readFileSync(fixPlanPath, 'utf-8') : '',
-      specsDir: fs.existsSync(specsDir) ? specsDir : '',
+      specsDir: fs.existsSync(specsDir) ? specsDir : null,
     };
   }
 
