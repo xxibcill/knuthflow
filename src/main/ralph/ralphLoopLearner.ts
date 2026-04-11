@@ -23,8 +23,9 @@ interface PatternOccurrence {
 
 /**
  * Track mistake patterns across iterations.
+ * Exportable for injection in tests or custom implementations.
  */
-class MistakeTracker {
+export class MistakeTracker {
   private patterns: Map<string, PatternOccurrence[]> = new Map();
 
   /**
@@ -99,9 +100,28 @@ class MistakeTracker {
   }
 }
 
-// Module-level tracker
-// Exported for testing - allows tests to reset state between runs
-export const mistakeTracker = new MistakeTracker();
+// Default instance for production use
+const defaultMistakeTracker = new MistakeTracker();
+
+/**
+ * Get the default MistakeTracker instance.
+ * Override with setMistakeTracker() for testing.
+ */
+let activeTracker: MistakeTracker = defaultMistakeTracker;
+
+/**
+ * Set a custom MistakeTracker instance (useful for testing).
+ */
+export function setMistakeTracker(tracker: MistakeTracker): void {
+  activeTracker = tracker;
+}
+
+/**
+ * Get the active MistakeTracker instance.
+ */
+export function getMistakeTracker(): MistakeTracker {
+  return activeTracker;
+}
 
 /**
  * Detect common mistake patterns from output.
@@ -113,6 +133,7 @@ export function detectMistakePatterns(params: {
   previousOutputs: string[];
 }): MistakePattern[] {
   const { projectId, iteration, output, previousOutputs } = params;
+  const tracker = getMistakeTracker();
 
   // Check for repeated errors
   if (previousOutputs.length >= 2) {
@@ -121,17 +142,17 @@ export function detectMistakePatterns(params: {
 
     for (const error of repeatedErrors) {
       const patternKey = `repeated_error:${error}`;
-      mistakeTracker.recordOccurrence(patternKey, iteration, error);
+      tracker.recordOccurrence(patternKey, iteration, error);
     }
   }
 
   // Check for same fix pattern (same diff applied multiple times)
   if (params.output.includes('no files changed') || params.output.includes('nothing to commit')) {
-    mistakeTracker.recordOccurrence(`same_fix_failed:${params.iteration}`, iteration, 'No progress made');
+    tracker.recordOccurrence(`same_fix_failed:${params.iteration}`, iteration, 'No progress made');
   }
 
   // Get all detected patterns
-  const detectedPatterns = mistakeTracker.getPatterns();
+  const detectedPatterns = tracker.getPatterns();
 
   // Persist patterns to database
   if (detectedPatterns.length > 0) {
@@ -147,7 +168,7 @@ export function detectMistakePatterns(params: {
   }
 
   // Cleanup old patterns
-  mistakeTracker.cleanup();
+  tracker.cleanup();
 
   return detectedPatterns;
 }

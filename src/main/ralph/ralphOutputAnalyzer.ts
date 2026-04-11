@@ -182,27 +182,24 @@ export function analyzeOutput(
     });
   }
 
-  // Repeated blocker (same error appearing multiple times)
-  // Detect by checking if error/blocked/cannot phrases appear at least twice
+  // Repeated blocker detection: same error appearing multiple times
+  // Check if error/blocked/cannot phrases appear frequently with low diversity
   const blockerRegex = /(?:error|blocked|cannot)/gi;
   const matches = output.match(blockerRegex) || [];
-  // Count unique positions by getting unique substrings around each match
-  const seenPhrases = new Set<string>();
-  let repeatCount = 0;
-  for (const match of matches) {
-    if (!seenPhrases.has(match.toLowerCase())) {
-      seenPhrases.add(match.toLowerCase());
-      repeatCount++;
-    }
-  }
-  // If same phrase type appears multiple times, it may be a blocker
-  const uniqueCount = seenPhrases.size;
   const totalCount = matches.length;
+
+  // Count unique phrase types (error, blocked, cannot)
+  const uniquePhrases = new Set(matches.map(m => m.toLowerCase()));
+  const uniqueCount = uniquePhrases.size;
+
+  // If we have many matches but only a few unique types, it's likely a blocker
+  // e.g., "error" appearing 6 times = totalCount:6, uniqueCount:1 → blocker
+  // e.g., "error" and "cannot" appearing 6 times = totalCount:6, uniqueCount:2 → blocker
   if (totalCount >= 4 && uniqueCount <= 2) {
     signals.noProgressSignals.push({
       type: 'repeated_blocker',
       confidence: 0.7,
-      evidence: `Detected repeated blocker phrases (${uniqueCount} types, ${totalCount} total occurrences)`,
+      evidence: `Detected repeated blocker phrases (${uniqueCount} unique types: [${[...uniquePhrases].join(', ')}], ${totalCount} total occurrences)`,
       iterationCount: context.iteration,
     });
   }

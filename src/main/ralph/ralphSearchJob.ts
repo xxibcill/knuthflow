@@ -82,8 +82,10 @@ function setCachedSearch(scope: SearchScope, query: string, workspacePath: strin
     const entries = [...searchCache.entries()];
     // Sort by timestamp (oldest first)
     entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-    // Remove oldest entries until we're under the limit
-    const toRemove = entries.slice(0, searchCache.size - MAX_CACHE_SIZE);
+    // Remove oldest entries until we're back under the limit
+    // +1 because we just added an entry that pushed us over
+    const evictCount = searchCache.size - MAX_CACHE_SIZE + 1;
+    const toRemove = entries.slice(0, evictCount);
     for (const [k] of toRemove) {
       searchCache.delete(k);
     }

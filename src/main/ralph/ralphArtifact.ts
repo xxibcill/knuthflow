@@ -1,15 +1,8 @@
 import { getDatabase, RalphArtifact, ArtifactType, ArtifactSeverity } from '../database';
 import { AcceptanceGate } from '../../shared/ralphTypes';
 
-// RalphArtifact is the canonical type defined in database.ts
-// We alias it locally as Artifact for backwards compatibility within this module
-type Artifact = RalphArtifact;
-
-// Re-export RalphArtifact as Artifact for backwards compatibility
-export { RalphArtifact as Artifact };
-
 // Re-export types from database for convenience
-export { ArtifactType, ArtifactSeverity };
+export { RalphArtifact, ArtifactType, ArtifactSeverity };
 
 export interface ValidationResult {
   passed: boolean;
@@ -55,7 +48,7 @@ export function createArtifact(params: {
   durationMs: number | null;
   severity?: ArtifactSeverity;
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   const db = getDatabase();
   const artifact = db.createArtifact({
     projectId: params.projectId,
@@ -84,7 +77,7 @@ export function captureCompilerOutput(params: {
   exitCode: number | null;
   durationMs: number | null;
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   const severity: ArtifactSeverity = params.exitCode === 0 ? 'info' : 'error';
   return createArtifact({
     projectId: params.projectId,
@@ -113,7 +106,7 @@ export function captureTestLog(params: {
   durationMs: number | null;
   testCount?: { passed: number; failed: number; skipped: number };
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   const passed = params.testCount?.passed ?? 0;
   const failed = params.testCount?.failed ?? 0;
   const severity: ArtifactSeverity = failed > 0 ? 'error' : (passed > 0 ? 'info' : 'warning');
@@ -145,7 +138,7 @@ export function captureDiff(params: {
   itemId: string | null;
   diff: string;
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   return createArtifact({
     projectId: params.projectId,
     runId: params.runId,
@@ -173,7 +166,7 @@ export function captureExitMetadata(params: {
   durationMs: number | null;
   reason: string;
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   const severity: ArtifactSeverity = params.exitCode === 0 ? 'info' :
     (params.exitCode !== null ? 'error' : 'warning');
 
@@ -202,7 +195,7 @@ export function captureGeneratedFile(params: {
   filePath: string;
   content: string;
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   const MAX_CONTENT_SIZE = 10000;
   const isTruncated = params.content.length > MAX_CONTENT_SIZE;
 
@@ -236,7 +229,7 @@ export function captureValidationResult(params: {
   result: ValidationResult;
   durationMs: number | null;
   metadata?: Record<string, unknown>;
-}): Artifact {
+}): RalphArtifact {
   const severity: ArtifactSeverity = params.result.passed ? 'info' : 'error';
 
   return createArtifact({
@@ -260,7 +253,7 @@ export function captureValidationResult(params: {
 /**
  * Get all artifacts for a run.
  */
-export function getArtifactsForRun(runId: string): Artifact[] {
+export function getArtifactsForRun(runId: string): RalphArtifact[] {
   const db = getDatabase();
   return db.listArtifacts({ runId });
 }
@@ -268,7 +261,7 @@ export function getArtifactsForRun(runId: string): Artifact[] {
 /**
  * Get artifacts for a specific iteration.
  */
-export function getArtifactsForIteration(runId: string, iteration: number): Artifact[] {
+export function getArtifactsForIteration(runId: string, iteration: number): RalphArtifact[] {
   const db = getDatabase();
   return db.listArtifacts({ runId, iteration });
 }
@@ -276,7 +269,7 @@ export function getArtifactsForIteration(runId: string, iteration: number): Arti
 /**
  * Get artifacts for a specific item.
  */
-export function getArtifactsForItem(runId: string, itemId: string): Artifact[] {
+export function getArtifactsForItem(runId: string, itemId: string): RalphArtifact[] {
   const db = getDatabase();
   return db.listArtifacts({ runId, itemId });
 }
@@ -284,7 +277,7 @@ export function getArtifactsForItem(runId: string, itemId: string): Artifact[] {
 /**
  * Get the latest artifact of a specific type for a run.
  */
-export function getLatestArtifactOfType(runId: string, type: ArtifactType): Artifact | null {
+export function getLatestArtifactOfType(runId: string, type: ArtifactType): RalphArtifact | null {
   const db = getDatabase();
   const artifacts = db.listArtifacts({ runId, type });
   return artifacts.sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
@@ -327,8 +320,8 @@ export function applyRetentionPolicy(
   const artifacts = db.listArtifacts({ projectId });
 
   // Separate errors from other artifacts
-  const errors: Artifact[] = [];
-  const others: Artifact[] = [];
+  const errors: RalphArtifact[] = [];
+  const others: RalphArtifact[] = [];
 
   for (const artifact of artifacts) {
     if (artifact.severity === 'error' && fullPolicy.retainErrors) {
