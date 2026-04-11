@@ -31,11 +31,13 @@ export class RalphScheduler {
   private cachedTasks: PlanTask[] | null = null;
 
   constructor(workspacePath: string) {
+    // Normalize path to prevent duplicates from different path representations
+    const normalizedPath = path.normalize(workspacePath);
     // Validate workspace path to prevent path traversal
-    if (!validateWorkspacePath(workspacePath)) {
-      throw new Error(`Invalid workspace path: ${workspacePath}`);
+    if (!validateWorkspacePath(normalizedPath)) {
+      throw new Error(`Invalid workspace path: ${normalizedPath}`);
     }
-    this.workspacePath = workspacePath;
+    this.workspacePath = normalizedPath;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

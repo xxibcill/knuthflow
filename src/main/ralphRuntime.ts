@@ -94,6 +94,9 @@ export class RalphRuntime extends EventEmitter {
       // Register in global reverse index for O(1) IPC handler lookups
       runIdToRuntime.set(run.id, this);
 
+      // Periodically clean up stale entries to prevent unbounded memory growth
+      this.enforceActiveRunsLimit();
+
       this.emit('stateChanged', 'starting');
       return run;
     } finally {
@@ -402,16 +405,48 @@ export class RalphRuntime extends EventEmitter {
   }
 
   /**
-   * Find runtime by runId using reverse index
+   * Get the number of active runs
+   */
+  getActiveRunCount(): number {
+    return this.activeRuns.size;
+  }
+
+  /**
+   * Clean up stale entries from active memory
+   * Call periodically to prevent unbounded memory growth
+   */
+  cleanupStaleEntries(maxAgeMs = 24 * 60 * 60 * 1000): number {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [runId, activeRun] of this.activeRuns) {
+      // Clean up runs that are in terminal states and older than maxAgeMs
+      if (activeRun.state === 'failed' || activeRun.state === 'completed') {
+        const lastActivity = activeRun.iterationStartTime ?? activeRun.run.createdAt;
+        if (now - lastActivity > maxAgeMs) {
+          this.cleanupRun(runId);
+          cleaned++;
+        }
+      }
+    }
+    return cleaned;
+  }
+
+  /**
+   * Periodically clean up stale entries to prevent unbounded memory growth
+   * Called internally when activeRuns size exceeds threshold
+   */
+  private enforceActiveRunsLimit(): void {
+    // Clean if we have more than 50 entries and it's been a while
+    if (this.activeRuns.size > 50) {
+      this.cleanupStaleEntries();
+    }
+  }
+
+  /**
+   * Find runtime by runId using the module-level reverse index
    */
   findRuntimeByRunId(runId: string): RalphRuntime | null {
-    const projectId = this.runIdToProjectId.get(runId);
-    if (!projectId) {
-      return null;
-    }
-    // Return 'this' since all runtimes are managed via singleton pattern
-    // and we use the reverse index to check if this runtime owns the run
-    return this.activeRuns.has(runId) ? this : null;
+    return getRuntimeForRunId(runId);
   }
 
   /**

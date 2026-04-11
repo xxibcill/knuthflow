@@ -67,6 +67,8 @@ export class RalphExecutionAdapter extends EventEmitter {
     });
 
     // Create a unique session ID with fallback for environments without crypto.randomUUID
+    // Note: Math.random() fallback is not cryptographically secure, but session IDs
+    // only need to be unique within the app, not globally secure
     const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -197,10 +199,11 @@ export class RalphExecutionAdapter extends EventEmitter {
     this.ptyManager.on('data', this.sessionDataHandler);
     this.ptyManager.on('exit', this.sessionExitHandler);
 
-    // Ensure Claude command is sent even if prompt detection fails
-    waitForShellReady.catch(() => {
-      // Prompt timeout - shellReadyTimeoutMs elapsed without detecting prompt
-      // The Claude command was already scheduled via the timeout in waitForShellReady
+    // Handle prompt detection timeout - the Claude command is sent via the
+    // fallback timer in waitForShellReady even if prompt detection fails.
+    // This catch is intentionally empty since the timeout handles the case.
+    void waitForShellReady.catch(() => {
+      // No action needed - the fallback timer ensures Claude command is sent
     });
   }
 
