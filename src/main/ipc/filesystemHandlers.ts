@@ -21,8 +21,11 @@ export function registerFilesystemHandlers(mainWindowGetter: () => BrowserWindow
   });
 
   ipcMain.handle('dialog:openFile', async (_event: IpcMainInvokeEvent, options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const result = await dialog.showOpenDialog(mainWindowGetter()!, {
+    const window = mainWindowGetter();
+    if (!window || window.isDestroyed()) {
+      return { canceled: true, filePath: null, error: 'No main window available' };
+    }
+    const result = await dialog.showOpenDialog(window, {
       defaultPath: options?.defaultPath,
       filters: options?.filters || [
         { name: 'All Files', extensions: ['*'] },
@@ -39,8 +42,11 @@ export function registerFilesystemHandlers(mainWindowGetter: () => BrowserWindow
   });
 
   ipcMain.handle('dialog:openDirectory', async (_event: IpcMainInvokeEvent, options?: { defaultPath?: string }) => {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const result = await dialog.showOpenDialog(mainWindowGetter()!, {
+    const window = mainWindowGetter();
+    if (!window || window.isDestroyed()) {
+      return { canceled: true, directoryPath: null, error: 'No main window available' };
+    }
+    const result = await dialog.showOpenDialog(window, {
       defaultPath: options?.defaultPath,
       properties: ['openDirectory'],
     });
@@ -53,8 +59,11 @@ export function registerFilesystemHandlers(mainWindowGetter: () => BrowserWindow
   });
 
   ipcMain.handle('dialog:saveFile', async (_event: IpcMainInvokeEvent, options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const result = await dialog.showSaveDialog(mainWindowGetter()!, {
+    const window = mainWindowGetter();
+    if (!window || window.isDestroyed()) {
+      return { canceled: true, filePath: null, error: 'No main window available' };
+    }
+    const result = await dialog.showSaveDialog(window, {
       defaultPath: options?.defaultPath,
       filters: options?.filters || [
         { name: 'All Files', extensions: ['*'] },

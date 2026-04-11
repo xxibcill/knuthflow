@@ -16,7 +16,8 @@ const activeRuns: Map<string, ActiveRun> = new Map();
 const MAX_ACTIVE_RUNS = 100;
 
 export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | null): void {
-  const ptyManager = getPtyManager();
+  const ptyMgr = getPtyManager();
+  let handlersAttached = false;
 
   ipcMain.handle('claude:detect', async (_event: IpcMainInvokeEvent) => {
     return detectClaudeCode();
@@ -30,14 +31,14 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     }
 
     const runId = `run-${crypto.randomUUID()}`;
-    const sessionId = ptyManager.create({
+    const sessionId = ptyMgr.create({
       cwd: process.cwd(),
       cols: 80,
       rows: 24,
     });
 
     // Get the PTY session and spawn claude
-    const session = ptyManager.get(sessionId);
+    const session = ptyMgr.get(sessionId);
     if (!session) {
       return { success: false, error: 'Failed to create PTY session' };
     }
@@ -51,46 +52,46 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     // Wait for first data from PTY (shell ready signal), then write the claude command
     const shellReadyHandler = ({ sessionId: id, data }: { sessionId: string; data: string }) => {
       if (id === sessionId && data) {
-        ptyManager.removeListener('data', shellReadyHandler);
+        ptyMgr.removeListener('data', shellReadyHandler);
         clearTimeout(fallbackTimer);
-        ptyManager.removeListener('exit', cleanupHandler);
-        ptyManager.removeListener('error', errorHandler);
+        ptyMgr.removeListener('exit', cleanupHandler);
+        ptyMgr.removeListener('error', errorHandler);
         const cmd = `"${execPath}" ${args.join(' ')}\r`;
-        ptyManager.write(sessionId, cmd);
+        ptyMgr.write(sessionId, cmd);
       }
     };
-    ptyManager.on('data', shellReadyHandler);
+    ptyMgr.on('data', shellReadyHandler);
 
     // Fallback timeout if shell doesn't emit data within 5 seconds
     const fallbackTimer = setTimeout(() => {
-      ptyManager.removeListener('data', shellReadyHandler);
-      ptyManager.removeListener('exit', cleanupHandler);
-      ptyManager.removeListener('error', errorHandler);
+      ptyMgr.removeListener('data', shellReadyHandler);
+      ptyMgr.removeListener('exit', cleanupHandler);
+      ptyMgr.removeListener('error', errorHandler);
       const cmd = `"${execPath}" ${args.join(' ')}\r`;
-      ptyManager.write(sessionId, cmd);
+      ptyMgr.write(sessionId, cmd);
     }, 5000);
 
     // Clean up fallback timer when PTY exits
     const cleanupHandler = ({ sessionId: id }: { sessionId: string; exitCode: number; signal?: number }) => {
       if (id === sessionId) {
         clearTimeout(fallbackTimer);
-        ptyManager.removeListener('data', shellReadyHandler);
-        ptyManager.removeListener('exit', cleanupHandler);
-        ptyManager.removeListener('error', errorHandler);
+        ptyMgr.removeListener('data', shellReadyHandler);
+        ptyMgr.removeListener('exit', cleanupHandler);
+        ptyMgr.removeListener('error', errorHandler);
       }
     };
-    ptyManager.on('exit', cleanupHandler);
+    ptyMgr.on('exit', cleanupHandler);
 
     // Clean up handlers on PTY error
     const errorHandler = ({ sessionId: id }: { sessionId: string; error: Error }) => {
       if (id === sessionId) {
         clearTimeout(fallbackTimer);
-        ptyManager.removeListener('data', shellReadyHandler);
-        ptyManager.removeListener('exit', cleanupHandler);
-        ptyManager.removeListener('error', errorHandler);
+        ptyMgr.removeListener('data', shellReadyHandler);
+        ptyMgr.removeListener('exit', cleanupHandler);
+        ptyMgr.removeListener('error', errorHandler);
       }
     };
-    ptyManager.on('error', errorHandler);
+    ptyMgr.on('error', errorHandler);
 
     return {
       success: true,
@@ -109,7 +110,7 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     }
 
     // Send SIGTERM to the PTY
-    ptyManager.kill(run.sessionId, 'SIGTERM');
+    ptyMgr.kill(run.sessionId, 'SIGTERM');
     run.state = 'exited';
 
     return { success: true };
@@ -140,8 +141,12 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     }));
   });
 
-  // Update run state when PTY exits
-  ptyManager.on('exit', ({ sessionId, exitCode, signal }) => {
+  // Attach PTY event handlers once (idempotent)
+  if (!handlersAttached) {
+    handlersAttached = true;
+
+    // Update run state when PTY exits
+    ptyMgr.on('exit', ({ sessionId, exitCode, signal }) => {
     for (const [runId, run] of activeRuns.entries()) {
       if (run.sessionId === sessionId) {
         run.state = exitCode === 0 ? 'exited' : 'failed';
@@ -187,7 +192,7 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     }
   });
 
-  ptyManager.on('error', ({ sessionId, error }) => {
+  ptyMgr.on('error', ({ sessionId, error }) => {
     for (const [runId, run] of activeRuns.entries()) {
       if (run.sessionId === sessionId) {
         run.state = 'failed';
@@ -205,6 +210,7 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
       }
     }
   });
+  }
 }
 
 export function getActiveRuns(): Map<string, ActiveRun> {

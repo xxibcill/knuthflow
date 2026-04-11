@@ -1,16 +1,22 @@
 import { app, ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { promisify } from 'util';
+
+const readFileAsync = promisify(fs.readFile);
+const writeFileAsync = promisify(fs.writeFile);
+const existsAsync = promisify(fs.existsSync);
 
 const getStoragePath = () => {
   return path.join(app.getPath('userData'), 'storage.json');
 };
 
-const readStorage = (): Record<string, unknown> => {
+const readStorage = async (): Promise<Record<string, unknown>> => {
   const storagePath = getStoragePath();
   try {
-    if (fs.existsSync(storagePath)) {
-      const content = fs.readFileSync(storagePath, 'utf-8');
+    const exists = await existsAsync(storagePath);
+    if (exists) {
+      const content = await readFileAsync(storagePath, 'utf-8');
       return JSON.parse(content);
     }
   } catch {
@@ -19,26 +25,26 @@ const readStorage = (): Record<string, unknown> => {
   return {};
 };
 
-const writeStorage = (data: Record<string, unknown>): void => {
+const writeStorage = async (data: Record<string, unknown>): Promise<void> => {
   const storagePath = getStoragePath();
-  fs.writeFileSync(storagePath, JSON.stringify(data, null, 2), 'utf-8');
+  await writeFileAsync(storagePath, JSON.stringify(data, null, 2), 'utf-8');
 };
 
 export function registerStorageHandlers(): void {
   ipcMain.handle('storage:get', async (_event: IpcMainInvokeEvent, key: string) => {
-    const storage = readStorage();
+    const storage = await readStorage();
     return storage[key];
   });
 
   ipcMain.handle('storage:set', async (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
-    const storage = readStorage();
+    const storage = await readStorage();
     storage[key] = value;
-    writeStorage(storage);
+    await writeStorage(storage);
   });
 
   ipcMain.handle('storage:delete', async (_event: IpcMainInvokeEvent, key: string) => {
-    const storage = readStorage();
+    const storage = await readStorage();
     delete storage[key];
-    writeStorage(storage);
+    await writeStorage(storage);
   });
 }
