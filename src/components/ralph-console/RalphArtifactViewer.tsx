@@ -85,6 +85,7 @@ export function RalphArtifactViewer({
 
 const TRUNCATE_PREVIEW_LENGTH = 300;
 const TRUNCATE_DEFAULT_LENGTH = 200;
+const TRUNCATE_CONTENT_LENGTH = 300;
 
 const truncateContent = (content: string, maxLength = TRUNCATE_DEFAULT_LENGTH) => {
   if (content.length <= maxLength) return content;
@@ -186,18 +187,18 @@ const truncateContent = (content: string, maxLength = TRUNCATE_DEFAULT_LENGTH) =
 
                   {/* Content preview */}
                   <div className={`
-                    rounded bg-gray-900 p-2 border border-gray-700
-                    ${artifact.content.length > 300 && !isExpanded ? 'max-h-20 overflow-hidden relative' : ''}
+                    rounded bg-gray-900 p-2 border border-gray-700 relative
+                    ${artifact.content.length > TRUNCATE_CONTENT_LENGTH && !isExpanded ? 'max-h-20 overflow-hidden' : ''}
                   `}>
                     {renderArtifactContent(artifact, isExpanded)}
 
-                    {artifact.content.length > 300 && !isExpanded && (
+                    {artifact.content.length > TRUNCATE_CONTENT_LENGTH && !isExpanded && (
                       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-900 to-transparent" />
                     )}
                   </div>
 
                   {/* Expand/collapse button */}
-                  {artifact.content.length > 300 && (
+                  {artifact.content.length > TRUNCATE_CONTENT_LENGTH && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

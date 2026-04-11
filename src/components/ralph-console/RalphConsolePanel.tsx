@@ -101,6 +101,15 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Refs for stable callback references in effects
+  const loadRunsRef = useRef(loadRuns);
+  const loadSelectedRunDetailsRef = useRef(loadSelectedRunDetails);
+
+  useEffect(() => {
+    loadRunsRef.current = loadRuns;
+    loadSelectedRunDetailsRef.current = loadSelectedRunDetails;
+  }, [loadRuns, loadSelectedRunDetails]);
+
   useEffect(() => {
     loadRuns();
   }, []);
@@ -256,61 +265,58 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     }
 
     // Execute action via IPC
+    const runId = selectedRun.runId;
     try {
       const ralphAPI = window.knuthflow.ralph;
       switch (action) {
         case 'pause':
-          await ralphAPI.pauseRun(selectedRun.runId);
+          await ralphAPI.pauseRun(runId);
           break;
         case 'resume':
-          await ralphAPI.resumeRun(selectedRun.runId);
+          await ralphAPI.resumeRun(runId);
           break;
         case 'stop':
-          await ralphAPI.stopRun(selectedRun.runId);
+          await ralphAPI.stopRun(runId);
           break;
         case 'replan':
-          await ralphAPI.replanRun(selectedRun.runId);
+          await ralphAPI.replanRun(runId);
           break;
         case 'validate':
-          await ralphAPI.validateRun(selectedRun.runId);
+          await ralphAPI.validateRun(runId);
           break;
       }
       await loadRuns();
       setSelectedRun(currentRuns => {
-        return currentRuns.find(r => r.runId === selectedRun.runId) ?? selectedRun;
+        return currentRuns.find(r => r.runId === runId) ?? selectedRun;
       });
     } catch (error) {
       console.error(`Failed to ${action} run:`, error);
     }
   }, [selectedRun, loadRuns, loadSelectedRunDetails]);
 
-  // Handle confirmation
+  // Handle confirmation (only stop and replan require confirmation)
   const handleConfirm = useCallback(async () => {
     if (!pendingConfirmation || !selectedRun) return;
 
+    const runId = selectedRun.runId;
     try {
       const ralphAPI = window.knuthflow.ralph;
       switch (pendingConfirmation.action) {
-        case 'pause':
-          await ralphAPI.pauseRun(selectedRun.runId);
-          break;
-        case 'resume':
-          await ralphAPI.resumeRun(selectedRun.runId);
-          break;
         case 'stop':
-          await ralphAPI.stopRun(selectedRun.runId);
+          await ralphAPI.stopRun(runId);
           break;
         case 'replan':
-          await ralphAPI.replanRun(selectedRun.runId);
+          await ralphAPI.replanRun(runId);
           break;
-        case 'validate':
-          await ralphAPI.validateRun(selectedRun.runId);
-          break;
+        default:
+          // These actions should not require confirmation
+          console.warn(`Unexpected action requiring confirmation: ${pendingConfirmation.action}`);
+          return;
       }
       setPendingConfirmation(null);
       await loadRuns();
       setSelectedRun(currentRuns => {
-        return currentRuns.find(r => r.runId === selectedRun.runId) ?? selectedRun;
+        return currentRuns.find(r => r.runId === runId) ?? selectedRun;
       });
     } catch (error) {
       console.error(`Failed to ${pendingConfirmation.action}:`, error);
@@ -398,15 +404,15 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   useEffect(() => {
     const interval = setInterval(() => {
       if (selectedRunRef.current?.status === 'running') {
-        loadRuns();
+        loadRunsRef.current();
         if (selectedRunRef.current) {
-          loadSelectedRunDetails(selectedRunRef.current);
+          loadSelectedRunDetailsRef.current(selectedRunRef.current);
         }
       }
     }, POLLING_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [loadRuns, loadSelectedRunDetails]);
+  }, []);
 
   // Tab definitions
   const tabs: { id: ViewTab; label: string; count?: number }[] = [

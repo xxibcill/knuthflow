@@ -39,6 +39,7 @@ export function RalphOperatorControls({
   onConfirm,
   onCancelConfirmation,
 }: RalphOperatorControlsProps) {
+  // Disable controls when the run is not active (idle with no running process)
   const isDisabled = !isRunning && currentPhase === 'idle';
 
   const handleAction = (action: OperatorControlAction) => {
