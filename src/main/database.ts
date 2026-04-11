@@ -9,14 +9,8 @@ import type {
   LoopRun,
   LoopSummary,
   PlanSnapshot,
-  RalphControlFiles,
-  BootstrapError,
-  ValidationSeverity,
-  ValidationIssue,
-  ReadinessReport,
-  STALE_RUN_THRESHOLD_MS,
 } from '../shared/ralphTypes';
-export {
+export type {
   RalphProject,
   LoopRunStatus,
   LoopRun,
@@ -27,6 +21,8 @@ export {
   ValidationSeverity,
   ValidationIssue,
   ReadinessReport,
+} from '../shared/ralphTypes';
+export {
   STALE_RUN_THRESHOLD_MS,
 } from '../shared/ralphTypes';
 
@@ -605,15 +601,16 @@ class SessionDatabase {
   // ─────────────────────────────────────────────────────────────────────────────
 
   createRalphProject(workspaceId: string): RalphProject {
-    const id = `ralph-${crypto.randomUUID()}`;
+    const id = `${SessionDatabase.RALPH_PROJECT_ID_PREFIX}${crypto.randomUUID()}`;
     const now = Date.now();
-    const stmt = this.db.prepare(`
+    this.db.prepare(`
       INSERT INTO ralph_projects (id, workspace_id, version, created_at, updated_at)
       VALUES (?, ?, 1, ?, ?)
-    `);
-    stmt.run(id, workspaceId, now, now);
+    `).run(id, workspaceId, now, now);
     return { id, workspaceId, version: 1, createdAt: now, updatedAt: now };
   }
+
+  private static readonly RALPH_PROJECT_ID_PREFIX = 'ralph-';
 
   getRalphProjectByWorkspaceId(workspaceId: string): RalphProject | null {
     const row = this.db.prepare('SELECT * FROM ralph_projects WHERE workspace_id = ?').get(workspaceId) as Record<string, unknown> | undefined;
@@ -645,15 +642,15 @@ class SessionDatabase {
   }
 
   deleteRalphProject(id: string): void {
-    // Use transaction to ensure atomic deletion
-    const deleteStmt = this.db.transaction((table: string) => {
-      this.db.prepare(`DELETE FROM ${table} WHERE project_id = ?`).run(id);
+    // Delete Ralph state atomically so partial cleanup cannot orphan the project.
+    const deleteProject = this.db.transaction((projectId: string) => {
+      this.db.prepare('DELETE FROM loop_summaries WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM plan_snapshots WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM loop_runs WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM ralph_projects WHERE id = ?').run(projectId);
     });
 
-    deleteStmt('loop_summaries');
-    deleteStmt('plan_snapshots');
-    deleteStmt('loop_runs');
-    deleteStmt('ralph_projects');
+    deleteProject(id);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

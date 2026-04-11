@@ -19,8 +19,22 @@ export interface ValidationResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RalphValidator {
-  private db = getDatabase();
-  private bootstrap = getRalphBootstrap();
+  private _db: ReturnType<typeof getDatabase> | null = null;
+  private _bootstrap: ReturnType<typeof getRalphBootstrap> | null = null;
+
+  private get db() {
+    if (!this._db) {
+      this._db = getDatabase();
+    }
+    return this._db;
+  }
+
+  private get bootstrap() {
+    if (!this._bootstrap) {
+      this._bootstrap = getRalphBootstrap();
+    }
+    return this._bootstrap;
+  }
 
   // Required control files
   private readonly REQUIRED_FILES = ['PROMPT.md', 'AGENT.md', 'fix_plan.md'];

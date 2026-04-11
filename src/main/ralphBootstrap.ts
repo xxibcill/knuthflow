@@ -1,11 +1,27 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDatabase, RalphProject } from './database';
-import type { RalphControlFiles, BootstrapError, SharedBootstrapResult } from '../shared/ralphTypes';
+import { getDatabase, SessionDatabase, RalphProject } from './database';
+import type { RalphControlFiles, SharedBootstrapResult } from '../shared/ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Template Content
+// Template Configuration
 // ─────────────────────────────────────────────────────────────────────────────
+
+const RALPH_METADATA_FILE = '.ralph';
+
+interface RalphTemplateConfig {
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  maxRetries: number;
+}
+
+const RALPH_TEMPLATE_CONFIG: RalphTemplateConfig = {
+  model: 'Claude Sonnet 4',
+  temperature: 0.7,
+  maxTokens: 4096,
+  maxRetries: 3,
+};
 
 const DEFAULT_PROMPT_MD = `# Ralph Prompt
 
@@ -32,9 +48,9 @@ This file configures Ralph's agent behavior.
 
 ## Model Settings
 
-- Model: Claude Sonnet 4
-- Temperature: 0.7
-- Max tokens: 4096
+- Model: ${RALPH_TEMPLATE_CONFIG.model}
+- Temperature: ${RALPH_TEMPLATE_CONFIG.temperature}
+- Max tokens: ${RALPH_TEMPLATE_CONFIG.maxTokens}
 
 ## Tool Configuration
 
@@ -44,7 +60,7 @@ This file configures Ralph's agent behavior.
 
 ## Error Handling
 
-- Max retries per iteration: 3
+- Max retries per iteration: ${RALPH_TEMPLATE_CONFIG.maxRetries}
 - Fallback strategy: report and pause
 `;
 
@@ -100,8 +116,6 @@ Brief description of what this specification covers.
 - [ ] Criterion 2
 `;
 
-const RALPH_METADATA_FILE = '.ralph';
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Bootstrap Result Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,9 +135,9 @@ export interface BootstrapOptions {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RalphBootstrap {
-  private db: ReturnType<typeof getDatabase> | null = null;
+  private db: SessionDatabase | null = null;
 
-  private getDatabase(): ReturnType<typeof getDatabase> {
+  private getDatabase(): SessionDatabase {
     if (!this.db) {
       this.db = getDatabase();
     }
@@ -152,38 +166,38 @@ export class RalphBootstrap {
 
     // Check if workspace already has Ralph project
     let project = this.getDatabase().getRalphProjectByWorkspaceId(workspaceId);
-    const created: string[] = [];
-    const skipped: string[] = [];
-    const updated: string[] = [];
-    const backups: string[] = [];
+    let backups: string[] = [];
 
-    // If force is true and project exists, create backups of existing files
-    if (force && project) {
-      const existingFiles = this.getRalphControlFiles(workspacePath);
-      for (const file of existingFiles) {
-        const backupPath = this.createBackup(file);
-        if (backupPath) {
-          backups.push(backupPath);
-        }
+    try {
+      if (force) {
+        backups = this.createBackups(this.getRalphControlFiles(workspacePath));
       }
+
+      const result = this.bootstrapControlFiles(workspacePath, force);
+
+      // Persist the Ralph project only after the filesystem bootstrap succeeds.
+      if (!project) {
+        project = this.getDatabase().createRalphProject(workspaceId);
+      }
+
+      return {
+        success: true,
+        project,
+        created: result.created,
+        skipped: result.skipped,
+        updated: result.updated,
+        backups,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.getErrorMessage(error),
+        created: [],
+        skipped: [],
+        updated: [],
+        backups,
+      };
     }
-
-    // Get or create Ralph project
-    if (!project) {
-      project = this.getDatabase().createRalphProject(workspaceId);
-    }
-
-    // Bootstrap control files
-    const result = this.bootstrapControlFiles(workspacePath, force);
-
-    return {
-      success: true,
-      project,
-      created: result.created,
-      skipped: result.skipped,
-      updated: result.updated,
-      backups,
-    };
   }
 
   /**
@@ -323,10 +337,25 @@ export class RalphBootstrap {
   }
 
   /**
+   * Create backups for files that will be overwritten during a forced bootstrap.
+   */
+  private createBackups(filePaths: string[]): string[] {
+    const backups: string[] = [];
+
+    for (const filePath of filePaths) {
+      backups.push(this.createBackup(filePath));
+    }
+
+    return backups;
+  }
+
+  /**
    * Create a timestamped backup of a file
    */
-  private createBackup(filePath: string): string | null {
-    if (!fs.existsSync(filePath)) return null;
+  private createBackup(filePath: string): string {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Cannot back up missing file: ${filePath}`);
+    }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const dir = path.dirname(filePath);
@@ -337,9 +366,16 @@ export class RalphBootstrap {
     try {
       fs.copyFileSync(filePath, backupPath);
       return backupPath;
-    } catch {
-      return null;
+    } catch (error) {
+      throw new Error(`Failed to create backup for ${filePath}: ${this.getErrorMessage(error)}`);
     }
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return String(error);
   }
 
   /**
@@ -355,7 +391,8 @@ export class RalphBootstrap {
       const content = fs.readFileSync(metadataPath, 'utf-8');
       JSON.parse(content);
       return true;
-    } catch {
+    } catch (err) {
+      console.error(`[RalphBootstrap] Failed to parse metadata file ${metadataPath}:`, err);
       return false;
     }
   }
