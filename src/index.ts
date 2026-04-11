@@ -1096,6 +1096,10 @@ ipcMain.handle('ralphScheduler:getPendingItems', async (_event, workspacePath: s
 
 ipcMain.handle('ralphScheduler:completeItem', async (_event, workspacePath: string, itemId: string) => {
   try {
+    // Validate inputs
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return { success: false, error: 'Invalid itemId' };
+    }
     const scheduler = getRalphScheduler(workspacePath);
     const success = scheduler.completeItem(itemId);
     return { success };
@@ -1106,6 +1110,10 @@ ipcMain.handle('ralphScheduler:completeItem', async (_event, workspacePath: stri
 
 ipcMain.handle('ralphScheduler:deferItem', async (_event, workspacePath: string, itemId: string, reason?: string) => {
   try {
+    // Validate inputs
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return { success: false, error: 'Invalid itemId' };
+    }
     const scheduler = getRalphScheduler(workspacePath);
     const success = scheduler.deferItem(itemId, reason);
     return { success };
@@ -1116,6 +1124,10 @@ ipcMain.handle('ralphScheduler:deferItem', async (_event, workspacePath: string,
 
 ipcMain.handle('ralphScheduler:determineAcceptanceGate', async (_event, workspacePath: string, itemId: string) => {
   try {
+    // Validate inputs
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return { success: false, error: 'Invalid itemId' };
+    }
     const scheduler = getRalphScheduler(workspacePath);
     const pendingItems = scheduler.getPendingItems();
     const item = pendingItems.find(i => i.id === itemId);

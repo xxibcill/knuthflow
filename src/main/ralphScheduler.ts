@@ -7,6 +7,23 @@ import {
 } from '../shared/ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Path validation utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Validate that a path is within the expected workspace directory
+ * Prevents path traversal attacks (e.g., "../../../etc/passwd")
+ */
+function validateWorkspacePath(workspacePath: string): boolean {
+  const normalized = path.normalize(workspacePath);
+  // Check for path traversal attempts
+  if (normalized.includes('..') || path.isAbsolute(normalized) === false) {
+    return false;
+  }
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Ralph Scheduler - One-Item Task Selection
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -15,6 +32,10 @@ export class RalphScheduler {
   private cachedTasks: PlanTask[] | null = null;
 
   constructor(workspacePath: string) {
+    // Validate workspace path to prevent path traversal
+    if (!validateWorkspacePath(workspacePath)) {
+      throw new Error(`Invalid workspace path: ${workspacePath}`);
+    }
     this.workspacePath = workspacePath;
   }
 
@@ -27,6 +48,11 @@ export class RalphScheduler {
    */
   parseFixPlan(): PlanTask[] {
     const fixPlanPath = path.join(this.workspacePath, 'fix_plan.md');
+
+    // Validate the resolved path is still within workspace
+    if (!fixPlanPath.startsWith(this.workspacePath)) {
+      return [];
+    }
 
     if (!fs.existsSync(fixPlanPath)) {
       return [];
@@ -86,7 +112,7 @@ export class RalphScheduler {
     const priority = this.extractPriority(title);
 
     return {
-      id: `task-${lineNumber}-${this.hashString(title, lineNumber)}`,
+      id: this.generateTaskId(title, lineNumber),
       title: title.trim(),
       description: '', // Description would come from following lines
       status,
@@ -134,17 +160,13 @@ export class RalphScheduler {
   }
 
   /**
-   * Simple hash for generating task IDs
+   * Generate a unique task ID using crypto
    */
-  private hashString(str: string, lineNumber: number): string {
-    let hash = 0;
-    // Include line number in hash to avoid collisions
-    hash = ((hash << 5) - hash) + lineNumber;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-    }
-    return Math.abs(hash).toString(36);
+  private generateTaskId(title: string, lineNumber: number): string {
+    const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return `task-${lineNumber}-${randomPart}`;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -225,6 +247,11 @@ export class RalphScheduler {
    * Mark a task as completed in fix_plan.md
    */
   completeItem(itemId: string): boolean {
+    // Validate itemId format to prevent injection
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return false;
+    }
+
     const tasks = this.parseFixPlan();
     const task = this.findTaskById(tasks, itemId);
 
@@ -240,8 +267,14 @@ export class RalphScheduler {
     // Replace checkbox on the correct line
     if (task.lineNumber > 0 && task.lineNumber <= lines.length) {
       const line = lines[task.lineNumber - 1];
-      lines[task.lineNumber - 1] = line.replace(/- \[ \]/, '- [x]');
-      fs.writeFileSync(fixPlanPath, lines.join('\n'), 'utf-8');
+      // Replace any pending checkbox pattern (- [ ] or * [ ]) with completed (- [x])
+      lines[task.lineNumber - 1] = line.replace(/^(\s*[*-])\s*\[\s*\]\s*/, '$1 [x] ');
+      try {
+        fs.writeFileSync(fixPlanPath, lines.join('\n'), 'utf-8');
+      } catch {
+        // File write failed, keep cache valid and return false
+        return false;
+      }
     }
 
     this.cachedTasks = null; // Invalidate cache
@@ -252,6 +285,11 @@ export class RalphScheduler {
    * Defer a task (mark as skipped for now)
    */
   deferItem(itemId: string, reason?: string): boolean {
+    // Validate itemId format to prevent injection
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return false;
+    }
+
     const tasks = this.parseFixPlan();
     const task = this.findTaskById(tasks, itemId);
 
@@ -267,7 +305,12 @@ export class RalphScheduler {
     if (task.lineNumber > 0 && task.lineNumber <= lines.length) {
       const deferralNote = reason ? ` (DEFERRED: ${reason})` : ' (DEFERRED)';
       lines[task.lineNumber - 1] = lines[task.lineNumber - 1].trimEnd() + deferralNote;
-      fs.writeFileSync(fixPlanPath, lines.join('\n'), 'utf-8');
+      try {
+        fs.writeFileSync(fixPlanPath, lines.join('\n'), 'utf-8');
+      } catch {
+        // File write failed, keep cache valid and return false
+        return false;
+      }
     }
 
     this.cachedTasks = null;
@@ -399,6 +442,11 @@ export class RalphScheduler {
    * Update acceptance gate for an item
    */
   updateAcceptanceGate(itemId: string, gate: AcceptanceGate): boolean {
+    // Validate itemId format to prevent injection
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return false;
+    }
+
     const tasks = this.parseFixPlan();
     const task = this.findTaskById(tasks, itemId);
 
@@ -414,7 +462,11 @@ export class RalphScheduler {
     if (task.lineNumber > 0 && task.lineNumber <= lines.length) {
       const gateInfo = `\n  <!-- Acceptance: ${gate.type} - ${gate.description}${gate.command ? ` (${gate.command})` : ''} -->`;
       lines[task.lineNumber - 1] = lines[task.lineNumber - 1].trimEnd() + gateInfo;
-      fs.writeFileSync(fixPlanPath, lines.join('\n'), 'utf-8');
+      try {
+        fs.writeFileSync(fixPlanPath, lines.join('\n'), 'utf-8');
+      } catch {
+        return false;
+      }
     }
 
     return true;

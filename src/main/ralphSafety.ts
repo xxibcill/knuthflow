@@ -113,6 +113,8 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Persist rate limit state to database
+   * TODO: Implement database persistence for rate limit state
+   *       Currently only in-memory; state will not survive app restart
    */
   private persistRateLimitState(projectId: string, state: RateLimitState): void {
     // Store in database - in a full implementation this would be a dedicated table
@@ -125,6 +127,8 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Load persisted rate limit state
+   * TODO: Implement database persistence for rate limit state
+   *       Currently returns null (no persistence)
    */
   private loadPersistedRateLimit(projectId: string): RateLimitState | null {
     // In a full implementation, load from database
@@ -295,6 +299,8 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Persist circuit breaker state to database
+   * TODO: Implement database persistence for circuit breaker state
+   *       Currently only in-memory; state will not survive app restart
    */
   private persistCircuitBreakerState(projectId: string, state: CircuitBreakerState): void {
     const existing = this.safetyStates.get(projectId);
@@ -305,6 +311,8 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Load persisted circuit breaker state
+   * TODO: Implement database persistence for circuit breaker state
+   *       Currently returns null (no persistence)
    */
   private loadPersistedCircuitBreaker(projectId: string): CircuitBreakerState | null {
     // In a full implementation, load from database
@@ -470,6 +478,22 @@ export class RalphSafetyMonitor extends EventEmitter {
    */
   resetProject(projectId: string): void {
     this.safetyStates.delete(projectId);
+  }
+
+  /**
+   * Clean up stale safety states (entries with no recent activity)
+   * Call periodically to prevent unbounded memory growth
+   */
+  cleanupStaleEntries(maxAgeMs = 24 * 60 * 60 * 1000): number {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [projectId, state] of this.safetyStates) {
+      if (now - state.lastActivityAt > maxAgeMs) {
+        this.safetyStates.delete(projectId);
+        cleaned++;
+      }
+    }
+    return cleaned;
   }
 
   /**

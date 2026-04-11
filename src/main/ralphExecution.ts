@@ -218,17 +218,16 @@ export class RalphExecutionAdapter extends EventEmitter {
 
   /**
    * Detect Claude Code installation
+   * Only checks known safe paths to prevent command injection
    */
   private detectClaudeCode(): { installed: boolean; executablePath: string | null; version: string | null } {
     const possiblePaths = process.platform === 'darwin'
       ? ['/usr/local/bin/claude', '/opt/homebrew/bin/claude', '/usr/bin/claude']
       : ['/usr/local/bin/claude', '/usr/bin/claude'];
 
-    const pathEnv = process.env.PATH || '';
-    const pathDirs = pathEnv.split(path.delimiter);
-    const allPaths = [...new Set([...possiblePaths, ...pathDirs.map(p => path.join(p, 'claude'))])];
-
-    for (const execPath of allPaths) {
+    // Only check known safe paths - do NOT iterate through PATH directories
+    // This prevents potential command injection attacks
+    for (const execPath of possiblePaths) {
       try {
         if (fs.existsSync(execPath)) {
           const versionOutput = execSync(`"${execPath}" --version`, {
