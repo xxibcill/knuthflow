@@ -86,12 +86,13 @@ export class RalphScheduler {
     const priority = this.extractPriority(title);
 
     return {
-      id: `task-${lineNumber}-${this.hashString(title)}`,
+      id: `task-${lineNumber}-${this.hashString(title, lineNumber)}`,
       title: title.trim(),
       description: '', // Description would come from following lines
       status,
       checkbox: checkboxMatch[0],
       lineNumber,
+      indentLevel: indent.length,
       priority,
       children: [],
       parentId: null,
@@ -102,8 +103,9 @@ export class RalphScheduler {
    * Get indentation level of a task line
    */
   private getIndent(lineNumber: number): number {
-    // This is a simplified approach - in practice you'd track actual indentation
-    return 0;
+    const tasks = this.cachedTasks || this.parseFixPlan();
+    const task = tasks.find(t => t.lineNumber === lineNumber);
+    return task?.indentLevel ?? 0;
   }
 
   /**
@@ -134,8 +136,11 @@ export class RalphScheduler {
   /**
    * Simple hash for generating task IDs
    */
-  private hashString(str: string): string {
+  private hashString(str: string, lineNumber: number): string {
     let hash = 0;
+    // Include line number in hash to avoid collisions
+    hash = ((hash << 5) - hash) + lineNumber;
+    hash = hash & hash;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;

@@ -166,6 +166,7 @@ export interface PlanTask {
   status: 'pending' | 'in_progress' | 'completed' | 'deferred';
   checkbox: string;
   lineNumber: number;
+  indentLevel: number;
   priority: number;
   children: PlanTask[];
   parentId: string | null;
