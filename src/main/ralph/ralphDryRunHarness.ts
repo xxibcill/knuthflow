@@ -2,6 +2,30 @@ import type { SafetyStop } from '../../shared/ralphTypes';
 import type { OutputAnalysis, LoopDecision } from './ralphOutputAnalyzer';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Decision Function Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DecisionFnContext {
+  iteration: number;
+  noProgressCount: number;
+  validationPassed?: boolean;
+  safetyStop?: SafetyStop | null;
+  pendingTaskCount?: number;
+}
+
+export interface DecisionFnOptions {
+  maxIterations: number;
+  maxNoProgressIterations: number;
+  allowReplan: boolean;
+}
+
+export type RalphDecisionFn = (
+  analysis: OutputAnalysis,
+  options: DecisionFnOptions,
+  context: DecisionFnContext
+) => { decision: LoopDecision; confidence: number; reasoning: string; evidence: string[] };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Fixture Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -366,11 +390,7 @@ export interface DryRunResult {
  */
 export async function runDryRun(
   scenario: DryRunScenario,
-  decisionFn: (
-    analysis: OutputAnalysis,
-    options: { maxIterations: number; maxNoProgressIterations: number; allowReplan: boolean },
-    context: { iteration: number; noProgressCount: number; validationPassed?: boolean; safetyStop?: SafetyStop | null; pendingTaskCount?: number }
-  ) => { decision: LoopDecision; confidence: number; reasoning: string; evidence: string[] }
+  decisionFn: RalphDecisionFn
 ): Promise<DryRunResult> {
   const steps: DryRunResult['steps'] = [];
   const errors: string[] = [];
@@ -568,9 +588,7 @@ export function buildQAMatrix(): QAMatrixEntry[] {
  * Run all QA matrix scenarios (dry-run mode).
  */
 export async function runQAMatrix(
-  decisionFn: DryRunScenario['fixtures'] extends RalphLoopFixture[] ?
-    (analysis: OutputAnalysis, options: any, context: any) => { decision: LoopDecision; confidence: number; reasoning: string; evidence: string[] } :
-    never
+  decisionFn: RalphDecisionFn
 ): Promise<{ passed: number; failed: number; results: DryRunResult[] }> {
   const scenarios: DryRunScenario[] = [
     buildHappyPathScenario(3, 'Implement feature'),

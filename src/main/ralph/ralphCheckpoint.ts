@@ -1,4 +1,6 @@
-import { spawn } from 'child_process';
+import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import { getDatabase } from '../database';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15,6 +17,8 @@ export interface CheckpointResult {
   stagedFiles?: string[];
   /** Whether unrelated changes were detected and excluded */
   unrelatedChangesExcluded?: boolean;
+  /** Indicates this was a dry-run - no actual commit was created */
+  isDryRun?: boolean;
 }
 
 export interface PreflightCheckResult {
@@ -67,6 +71,23 @@ export function validateGitCommand(command: string): { valid: boolean; reason?: 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Workspace Path Validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Validate that a workspace path exists and is a directory.
+ * Prevents cryptic errors from git commands when given invalid paths.
+ */
+function isValidWorkspacePath(workspacePath: string): boolean {
+  try {
+    const stats = fs.statSync(workspacePath);
+    return stats.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Preflight Checks
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -86,6 +107,13 @@ export function checkWorkspaceCleanState(
     unrelatedChanges: [],
     message: 'Workspace is clean',
   };
+
+  // Validate workspace path
+  if (!isValidWorkspacePath(workspacePath)) {
+    result.clean = false;
+    result.message = 'Invalid workspace path';
+    return result;
+  }
 
   // Get all modified files
   const statusResult = runGitCommand(workspacePath, ['status', '--porcelain']);
@@ -158,6 +186,11 @@ export function stageRalphFiles(
   workspacePath: string,
   files: string[] = ['PROMPT.md', 'AGENT.md', 'fix_plan.md', 'specs/']
 ): { success: boolean; stagedFiles: string[]; error?: string } {
+  // Validate workspace path
+  if (!isValidWorkspacePath(workspacePath)) {
+    return { success: false, stagedFiles: [], error: 'Invalid workspace path' };
+  }
+
   // First check which files actually exist and are modified
   const statusResult = runGitCommand(workspacePath, ['status', '--porcelain']);
   if (!statusResult.success) {
@@ -207,6 +240,15 @@ export function createCheckpoint(
 ): CheckpointResult {
   const { tagPattern, dryRun = false } = options;
 
+  // Validate workspace path
+  if (!isValidWorkspacePath(workspacePath)) {
+    return {
+      success: false,
+      error: 'Invalid workspace path',
+      code: 'INVALID_WORKSPACE_PATH',
+    };
+  }
+
   // Stage Ralph control files
   const stageResult = stageRalphFiles(workspacePath);
   if (!stageResult.success) {
@@ -240,8 +282,11 @@ export function createCheckpoint(
   ].join('\n');
 
   if (dryRun) {
+    // Dry-run mode: simulate success without creating actual commit
+    // Callers should check isDryRun flag to distinguish from real commits
     return {
       success: true,
+      isDryRun: true,
       message: `Dry-run: would create commit with message: ${commitMessage}`,
       stagedFiles: stageResult.stagedFiles,
       unrelatedChangesExcluded: false,
@@ -347,59 +392,33 @@ function runGitCommand(
   cwd: string,
   args: string[]
 ): GitCommandResult {
-  let settled = false;
-  let result: GitCommandResult | null = null;
+  const timeoutMs = 30000;
 
-  const proc = spawn('git', args, {
+  const result = spawnSync('git', args, {
     cwd,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-    timeout: 30000,
+    timeout: timeoutMs,
+    encoding: 'utf-8',
   });
 
-  let stdout = '';
-  let stderr = '';
+  const exitCode = result.status ?? 1;
+  const stdout = result.stdout ?? '';
+  const stderr = result.stderr ?? '';
 
-  proc.stdout?.on('data', (data) => {
-    stdout += data.toString();
-  });
-
-  proc.stderr?.on('data', (data) => {
-    stderr += data.toString();
-  });
-
-  proc.on('close', (code) => {
-    if (settled) return;
-    settled = true;
-    result = {
-      success: code === 0,
+  if (exitCode === 0) {
+    return {
+      success: true,
       output: stdout,
-      error: code !== 0 ? (stderr || `Git command exited with code ${code}`) : undefined,
-      exitCode: code ?? 1,
+      exitCode: 0,
     };
-  });
-
-  proc.on('error', (err) => {
-    if (settled) return;
-    settled = true;
-    result = {
-      success: false,
-      error: err.message,
-      exitCode: 1,
-    };
-  });
-
-  // Wait synchronously for result (blocking but with timeout)
-  const startTime = Date.now();
-  while (!settled && Date.now() - startTime < 30000) {
-    // Use setTimeout to avoid CPU spin
-    const waitTime = Math.min(50, 30000 - (Date.now() - startTime));
-    const end = Date.now() + waitTime;
-    while (!settled && Date.now() < end) {
-      // busy wait
-    }
   }
 
-  return result ?? { success: false, error: 'Timeout', exitCode: 1 };
+  return {
+    success: false,
+    output: stdout,
+    error: stderr || `Git command exited with code ${exitCode}`,
+    exitCode,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -77,7 +77,7 @@ export async function recoverRun(
   // Check if runtime still has this run active
   const runtimeState = runtime.getRuntimeState(run.id);
 
-  if (runtimeState && ['starting', 'planning', 'executing', 'validating'].includes(runtimeState)) {
+  if (runtimeState && ['starting', 'planning', 'executing', 'validating', 'paused'].includes(runtimeState)) {
     // Run is active in runtime - check if session is still alive
     if (hasSession) {
       // Run is alive and session is valid - can resume
