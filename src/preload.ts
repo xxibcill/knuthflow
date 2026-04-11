@@ -32,6 +32,7 @@ import type {
   ReadinessReport,
   BootstrapResult,
   RalphControlFiles,
+  ArtifactType,
 } from './shared/preloadTypes';
 
 // Re-export all types from shared module
@@ -68,6 +69,7 @@ export type {
   ReadinessReport,
   BootstrapResult,
   RalphControlFiles,
+  ArtifactType,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -306,6 +308,36 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('ralph:addRunSnapshot', projectId, runId, iteration, planContent) as Promise<PlanSnapshot>,
     deleteProject: (projectId: string) =>
       ipcRenderer.invoke('ralph:deleteProject', projectId),
+    // Extended APIs for Ralph Console
+    listArtifacts: (options: { runId: string }) =>
+      ipcRenderer.invoke('ralph:listArtifacts', options) as Promise<Array<{
+        id: string;
+        projectId: string;
+        runId: string;
+        iteration: number;
+        itemId: string | null;
+        type: ArtifactType;
+        content: string;
+        exitCode: number | null;
+        durationMs: number | null;
+        severity: 'error' | 'warning' | 'info';
+        createdAt: number;
+        metadata: Record<string, unknown>;
+      }>>,
+    pauseRun: (runId: string) =>
+      ipcRenderer.invoke('ralphRuntime:pause', runId),
+    resumeRun: (runId: string) =>
+      ipcRenderer.invoke('ralphRuntime:resume', runId),
+    stopRun: (runId: string) =>
+      ipcRenderer.invoke('ralphRuntime:stop', runId),
+    replanRun: (runId: string) =>
+      ipcRenderer.invoke('ralph:replanRun', runId),
+    validateRun: (runId: string) =>
+      ipcRenderer.invoke('ralph:validateRun', runId),
+  },
+  ralphRuntime: {
+    getState: (runId: string) =>
+      ipcRenderer.invoke('ralphRuntime:getState', runId),
   },
 };
 

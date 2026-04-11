@@ -20,47 +20,6 @@ import { RalphSafetyAlerts } from './RalphSafetyAlerts';
 
 export type { RalphRunDashboardItem } from './RalphConsole.types';
 
-// Extended types for IPC calls not yet in preload
-interface RalphRuntime {
-  getState(runId: string): Promise<{ success: boolean; state?: RalphPhase }>;
-}
-
-interface RalphAPI {
-  getProjectRuns(projectId: string): Promise<Array<{
-    id: string;
-    projectId: string;
-    name: string;
-    status: string;
-    iterationCount: number;
-    startTime: number | null;
-    endTime: number | null;
-    error: string | null;
-  }>>;
-  getRunSummaries(runId: string): Promise<LoopSummary[]>;
-  getRunSnapshots(runId: string): Promise<PlanSnapshot[]>;
-  listArtifacts(options: { runId: string }): Promise<RalphArtifact[]>;
-  pauseRun(runId: string): Promise<void>;
-  resumeRun(runId: string): Promise<void>;
-  stopRun(runId: string): Promise<void>;
-  replanRun(runId: string): Promise<void>;
-  validateRun(runId: string): Promise<void>;
-}
-
-declare global {
-  interface Window {
-    knuthflow: {
-      workspace: {
-        list(): Promise<Array<{ id: string; name: string; path: string }>>;
-      };
-      ralph: RalphAPI;
-      ralphRuntime?: RalphRuntime;
-      filesystem?: {
-        readFile(path: string): Promise<string>;
-      };
-    };
-  }
-}
-
 interface RalphConsolePanelProps {
   workspacePath: string | null;
   onOpenWorkspace: (workspacePath: string) => void;
@@ -101,17 +60,13 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Refs for stable callback references in effects
-  const loadRunsRef = useRef(loadRuns);
-  const loadSelectedRunDetailsRef = useRef(loadSelectedRunDetails);
+  // Refs for stable callback references in effects (initialized after functions are defined below)
+  const loadRunsRef = useRef<(() => Promise<void>) | null>(null);
+  const loadSelectedRunDetailsRef = useRef<((run: RalphRunDashboardItem) => Promise<void>) | null>(null);
 
   useEffect(() => {
-    loadRunsRef.current = loadRuns;
-    loadSelectedRunDetailsRef.current = loadSelectedRunDetails;
-  }, [loadRuns, loadSelectedRunDetails]);
-
-  useEffect(() => {
-    loadRuns();
+    // Initial load on mount
+    loadRunsRef.current?.();
   }, []);
 
   // Load runs from the main process
@@ -281,13 +236,12 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
         // stop and replan are handled via confirmation flow
       }
       await loadRuns();
-      setSelectedRun(currentRuns => {
-        return currentRuns.find(r => r.runId === runId) ?? selectedRun;
-      });
+      // Keep the selected run if it still exists, otherwise keep the current selection
+      setSelectedRun(selectedRun);
     } catch (error) {
       console.error(`Failed to ${action} run:`, error);
     }
-  }, [selectedRun, loadRuns, loadSelectedRunDetails]);
+  }, [selectedRun, loadRuns]);
 
   // Handle confirmation (only stop and replan require confirmation)
   const handleConfirm = useCallback(async () => {
@@ -310,9 +264,8 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
       }
       setPendingConfirmation(null);
       await loadRuns();
-      setSelectedRun(currentRuns => {
-        return currentRuns.find(r => r.runId === runId) ?? selectedRun;
-      });
+      // Keep the selected run (it's still valid after reload)
+      setSelectedRun(selectedRun);
     } catch (error) {
       console.error(`Failed to ${pendingConfirmation.action}:`, error);
     }
@@ -322,6 +275,12 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   const handleCancelConfirmation = useCallback(() => {
     setPendingConfirmation(null);
   }, []);
+
+  // Set up refs after callbacks are defined
+  useEffect(() => {
+    loadRunsRef.current = loadRuns;
+    loadSelectedRunDetailsRef.current = loadSelectedRunDetails;
+  }, [loadRuns, loadSelectedRunDetails]);
 
   // Parse fix_plan.md content into tasks
   const parseFixPlanTasks = (content: string): PlanTask[] => {
@@ -402,17 +361,16 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     const interval = setInterval(async () => {
       const currentRunId = selectedRunIdRef.current;
       if (currentRunId && selectedRunRef.current?.status === 'running') {
-        await loadRunsRef.current();
-        // Find the updated run after state refresh
-        const updatedRun = runs.find(r => r.runId === currentRunId);
-        if (updatedRun && selectedRunIdRef.current === currentRunId) {
-          await loadSelectedRunDetailsRef.current(updatedRun);
+        await loadRunsRef.current?.();
+        // Reload details for the selected run after state refresh
+        if (currentRunId === selectedRunIdRef.current && selectedRunRef.current) {
+          await loadSelectedRunDetailsRef.current?.(selectedRunRef.current);
         }
       }
     }, POLLING_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [runs]);
+  }, []);
 
   // Tab definitions
   const tabs: { id: ViewTab; label: string; count?: number }[] = [
