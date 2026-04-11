@@ -1,13 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { getDatabase } from '../database';
+import { getDatabase, LoopLearning, FollowUp } from '../database';
 import { PlanTask } from '../../shared/ralphTypes';
 import { validateWorkspacePath } from './planPathValidator';
 import {
   parsePlanContent,
 } from './planParser';
 import { gatherContextForItem } from './ralphSearchJob';
+
+// Re-export LoopLearning for backwards compatibility
+export { LoopLearning };
+
+// FollowUpItem is the type for creating follow-ups (before DB adds projectId, resolved, resolvedAt)
+export type FollowUpItem = Omit<FollowUp, 'projectId' | 'resolved' | 'resolvedAt'>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan Regeneration Types
@@ -31,27 +37,6 @@ export interface PlanChange {
   taskTitle: string;
   before: string | null;
   after: string | null;
-  reason: string;
-}
-
-export interface LoopLearning {
-  id: string;
-  projectId: string;
-  pattern: string;          // What was the mistake pattern?
-  countermeasure: string;   // What did we do to address it?
-  successCount: number;     // How many times did this pattern appear?
-  lastSeenAt: number;
-  createdAt: number;
-  metadata: Record<string, unknown>;
-}
-
-export interface FollowUpItem {
-  id: string;
-  taskId: string | null;
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  createdAt: number;
   reason: string;
 }
 

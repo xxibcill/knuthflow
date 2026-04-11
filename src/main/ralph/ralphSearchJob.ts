@@ -49,6 +49,7 @@ interface CachedSearch {
 
 const searchCache: Map<string, CachedSearch> = new Map();
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 100; // Maximum number of cached searches
 
 function getSearchCacheKey(scope: SearchScope, query: string, workspacePath: string): string {
   return `${workspacePath}:${scope}:${query.toLowerCase().trim()}`;
@@ -75,6 +76,18 @@ function setCachedSearch(scope: SearchScope, query: string, workspacePath: strin
     results,
     timestamp: Date.now(),
   });
+
+  // Evict oldest entries if cache exceeds max size
+  if (searchCache.size > MAX_CACHE_SIZE) {
+    const entries = [...searchCache.entries()];
+    // Sort by timestamp (oldest first)
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    // Remove oldest entries until we're under the limit
+    const toRemove = entries.slice(0, searchCache.size - MAX_CACHE_SIZE);
+    for (const [k] of toRemove) {
+      searchCache.delete(k);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,7 +157,13 @@ async function searchCode(workspacePath: string, query: string): Promise<SearchR
     if (!extensions.includes(ext)) return false;
     if (filePath.includes('node_modules') || filePath.includes('.git')) return false;
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      // Skip files that can't be read (permissions, binary, etc.)
+      return false;
+    }
     const lines = content.split('\n');
     const lowerQuery = query.toLowerCase();
 
@@ -195,7 +214,13 @@ async function searchTests(workspacePath: string, query: string): Promise<Search
     if (!isTestFile) return false;
     if (filePath.includes('node_modules') || filePath.includes('.git')) return false;
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      // Skip files that can't be read (permissions, binary, etc.)
+      return false;
+    }
     const lines = content.split('\n');
     const lowerQuery = query.toLowerCase();
 
@@ -230,7 +255,13 @@ async function searchDocs(workspacePath: string, query: string): Promise<SearchR
     if (!docExtensions.includes(ext)) return false;
     if (filePath.includes('node_modules') || filePath.includes('.git')) return false;
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      // Skip files that can't be read (permissions, binary, etc.)
+      return false;
+    }
     const lines = content.split('\n');
     const lowerQuery = query.toLowerCase();
 
@@ -267,7 +298,13 @@ async function searchSpecs(workspacePath: string, query: string): Promise<Search
   await traverseDirectory(specsPath, async (filePath) => {
     if (!filePath.endsWith('.md')) return false;
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      // Skip files that can't be read (permissions, binary, etc.)
+      return false;
+    }
     const lines = content.split('\n');
     const lowerQuery = query.toLowerCase();
 

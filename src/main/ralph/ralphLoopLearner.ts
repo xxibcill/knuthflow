@@ -4,6 +4,8 @@ import { getDatabase, LoopLearning, FollowUp } from '../database';
 // Mistake Pattern Detection
 // ─────────────────────────────────────────────────────────────────────────────
 
+const PATTERN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
 export interface MistakePattern {
   type: 'repeated_error' | 'same_fix_failed' | 'path_wrong' | 'timeout_pattern';
   description: string;
@@ -23,7 +25,6 @@ interface PatternOccurrence {
  */
 class MistakeTracker {
   private patterns: Map<string, PatternOccurrence[]> = new Map();
-  private readonly PATTERN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
   /**
    * Record an occurrence of a potential mistake pattern.
@@ -38,7 +39,7 @@ class MistakeTracker {
     const occurrences = this.patterns.get(patternKey)!;
 
     // Clean old occurrences
-    const validOccurrences = occurrences.filter(o => now - o.timestamp < this.PATTERN_WINDOW_MS);
+    const validOccurrences = occurrences.filter(o => now - o.timestamp < PATTERN_WINDOW_MS);
 
     validOccurrences.push({
       iteration,
@@ -57,7 +58,7 @@ class MistakeTracker {
     const patterns: MistakePattern[] = [];
 
     for (const [key, occurrences] of this.patterns) {
-      const validOccurrences = occurrences.filter(o => now - o.timestamp < this.PATTERN_WINDOW_MS);
+      const validOccurrences = occurrences.filter(o => now - o.timestamp < PATTERN_WINDOW_MS);
 
       if (validOccurrences.length >= 2) {
         const [type, ...descParts] = key.split(':');
@@ -80,7 +81,7 @@ class MistakeTracker {
   cleanup(): void {
     const now = Date.now();
     for (const [key, occurrences] of this.patterns) {
-      const validOccurrences = occurrences.filter(o => now - o.timestamp < this.PATTERN_WINDOW_MS);
+      const validOccurrences = occurrences.filter(o => now - o.timestamp < PATTERN_WINDOW_MS);
       if (validOccurrences.length === 0) {
         this.patterns.delete(key);
       } else {
@@ -280,9 +281,9 @@ export function generateFollowUpReport(projectId: string): string {
   lines.push('');
 
   for (const followUp of followUps) {
-    const priorityIcon = followUp.priority === 'high' ? '🔴' :
-                         followUp.priority === 'medium' ? '🟡' : '🟢';
-    lines.push(`${priorityIcon} **${followUp.title}**`);
+    const priorityMarker = followUp.priority === 'high' ? '[HIGH]' :
+                           followUp.priority === 'medium' ? '[MED]' : '[LOW]';
+    lines.push(`${priorityMarker} **${followUp.title}**`);
     lines.push(`   ${followUp.description}`);
     lines.push('');
   }

@@ -183,12 +183,26 @@ export function analyzeOutput(
   }
 
   // Repeated blocker (same error appearing multiple times)
-  const blockerPatterns = output.match(/(error|blocked?|cannot).{0,50}\1/i);
-  if (blockerPatterns && blockerPatterns.length >= 2) {
+  // Detect by checking if error/blocked/cannot phrases appear at least twice
+  const blockerRegex = /(?:error|blocked|cannot)/gi;
+  const matches = output.match(blockerRegex) || [];
+  // Count unique positions by getting unique substrings around each match
+  const seenPhrases = new Set<string>();
+  let repeatCount = 0;
+  for (const match of matches) {
+    if (!seenPhrases.has(match.toLowerCase())) {
+      seenPhrases.add(match.toLowerCase());
+      repeatCount++;
+    }
+  }
+  // If same phrase type appears multiple times, it may be a blocker
+  const uniqueCount = seenPhrases.size;
+  const totalCount = matches.length;
+  if (totalCount >= 4 && uniqueCount <= 2) {
     signals.noProgressSignals.push({
       type: 'repeated_blocker',
       confidence: 0.7,
-      evidence: 'Same error appears multiple times',
+      evidence: `Detected repeated blocker phrases (${uniqueCount} types, ${totalCount} total occurrences)`,
       iterationCount: context.iteration,
     });
   }

@@ -1,5 +1,12 @@
-import { getDatabase } from '../database';
+import { getDatabase, RalphArtifact } from '../database';
 import { AcceptanceGate } from '../../shared/ralphTypes';
+
+// RalphArtifact is the canonical type defined in database.ts
+// We alias it locally as Artifact for backwards compatibility within this module
+type Artifact = RalphArtifact;
+
+// Re-export RalphArtifact as Artifact for backwards compatibility
+export { RalphArtifact as Artifact };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact Types
@@ -15,21 +22,6 @@ export type ArtifactType =
   | 'loop_summary';
 
 export type ArtifactSeverity = 'error' | 'warning' | 'info';
-
-export interface Artifact {
-  id: string;
-  projectId: string;
-  runId: string;
-  iteration: number;
-  itemId: string | null; // Selected item that produced this artifact
-  type: ArtifactType;
-  content: string;
-  exitCode: number | null;
-  durationMs: number | null;
-  severity: ArtifactSeverity;
-  createdAt: number;
-  metadata: Record<string, unknown>;
-}
 
 export interface ValidationResult {
   passed: boolean;
@@ -223,19 +215,23 @@ export function captureGeneratedFile(params: {
   content: string;
   metadata?: Record<string, unknown>;
 }): Artifact {
+  const MAX_CONTENT_SIZE = 10000;
+  const isTruncated = params.content.length > MAX_CONTENT_SIZE;
+
   return createArtifact({
     projectId: params.projectId,
     runId: params.runId,
     iteration: params.iteration,
     itemId: params.itemId,
     type: 'generated_file',
-    content: params.content.substring(0, 10000), // Limit content size
+    content: isTruncated ? params.content.substring(0, MAX_CONTENT_SIZE) : params.content,
     exitCode: null,
     durationMs: null,
     severity: 'info',
     metadata: {
       filePath: params.filePath,
       size: params.content.length,
+      truncated: isTruncated,
       ...(params.metadata ?? {}),
     },
   });
@@ -366,10 +362,8 @@ export function applyRetentionPolicy(
 
   for (const artifact of artifacts) {
     if (!toKeep.has(artifact.id)) {
-      // Check age - errors are retained regardless
-      if (artifact.severity === 'error' && fullPolicy.retainErrors) {
-        continue;
-      }
+      // Errors are already in toKeep when retainErrors is true, so we only
+      // reach here for non-error artifacts. Check age before deletion.
       if (now - artifact.createdAt < maxAgeMs) {
         continue; // Within retention window
       }
@@ -405,7 +399,7 @@ declare module '../database' {
       durationMs: number | null;
       severity: ArtifactSeverity;
       metadata: Record<string, unknown>;
-    }): Artifact;
+    }): RalphArtifact;
 
     listArtifacts(params: {
       projectId?: string;
@@ -413,9 +407,9 @@ declare module '../database' {
       iteration?: number;
       itemId?: string | null;
       type?: ArtifactType;
-    }): Artifact[];
+    }): RalphArtifact[];
 
-    getArtifact(id: string): Artifact | null;
+    getArtifact(id: string): RalphArtifact | null;
 
     deleteArtifact(id: string): void;
 
