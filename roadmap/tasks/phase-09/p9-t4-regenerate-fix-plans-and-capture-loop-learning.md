@@ -27,3 +27,21 @@ Repair stale `fix_plan.md` files from observed evidence and write back the rules
 - Replanning decisions are grounded in search and validation artifacts
 - New rules or follow-ups are captured as explicit files or state, not hidden in raw logs
 - Operators can tell why the backlog changed between iterations
+
+## Deferred from PR #8 Review
+
+The following infrastructure items from Phase 08 were identified during code review and should be addressed as part of Phase 09:
+
+### High Priority
+
+- **Add unit tests for RalphRuntime state transitions** — Test state machine validity, timeout handling, and concurrency guards. The `@TODO(Phase 10)` comment at line 29 of `ralphRuntime.ts` should be addressed in coordination with P10-T1 (Ralph run dashboard).
+
+- **Set max listeners on EventEmitter** — RalphRuntime extends EventEmitter but doesn't call `setMaxListeners()`. With many runs created, listener accumulation could trigger warnings.
+
+- **Call cleanupRun for all active runs on reset** — `resetRalphRuntime()` clears the `runtimeInstances` Map without calling `cleanupRun` for each active run. This leaves stale entries in `runIdToRuntime`.
+
+### Medium Priority
+
+- **Make path normalization explicit in RalphScheduler** — The singleton cache in `RalphScheduler` (line 207-216 of `ralphScheduler.ts`) uses raw workspace paths as keys. Add internal normalization on every access, or document the contract explicitly.
+
+- **Persist rate limit and circuit breaker state to database** — Currently only in-memory; state will not survive app restart. Multiple TODO comments in `ralphSafety.ts` reference Phase 09 for this implementation.
