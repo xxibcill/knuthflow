@@ -7,7 +7,10 @@ import type {
   ReadinessReport,
   BootstrapResult,
   RalphControlFiles,
+  LoopState,
 } from './ralphTypes';
+import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
+export type { ArtifactType };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Process Types
@@ -367,5 +370,28 @@ export interface KnuthflowAPI {
     getRunSnapshots(runId: string): Promise<PlanSnapshot[]>;
     addRunSnapshot(projectId: string, runId: string, iteration: number, planContent: string): Promise<PlanSnapshot>;
     deleteProject(projectId: string): Promise<void>;
+    // Extended APIs for Ralph Console
+    listArtifacts(options: { runId: string }): Promise<Array<{
+      id: string;
+      projectId: string;
+      runId: string;
+      iteration: number;
+      itemId: string | null;
+      type: ArtifactType;
+      content: string;
+      exitCode: number | null;
+      durationMs: number | null;
+      severity: 'error' | 'warning' | 'info';
+      createdAt: number;
+      metadata: Record<string, unknown>;
+    }>>;
+    pauseRun(runId: string): Promise<void>;
+    resumeRun(runId: string): Promise<void>;
+    stopRun(runId: string): Promise<void>;
+    replanRun(runId: string): Promise<void>;
+    validateRun(runId: string): Promise<void>;
+  };
+  ralphRuntime?: {
+    getState(runId: string): Promise<{ success: boolean; state?: LoopState }>;
   };
 }
