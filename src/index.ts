@@ -977,20 +977,7 @@ import {
   resetRalphExecution,
   resetRalphSafety,
 } from './main/index';
-import { StopReason } from './shared/ralphTypes';
-
-const VALID_STOP_REASONS: StopReason[] = [
-  'user_stopped',
-  'rate_limit',
-  'circuit_open',
-  'timeout_idle',
-  'timeout_iteration',
-  'no_progress',
-  'permission_denied',
-  'session_expired',
-  'validation_failed',
-  'error',
-];
+import { StopReason, VALID_STOP_REASONS } from './shared/ralphTypes';
 
 function isValidStopReason(reason: string): reason is StopReason {
   return VALID_STOP_REASONS.includes(reason as StopReason);

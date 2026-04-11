@@ -350,13 +350,13 @@ export class RalphScheduler {
 
   /**
    * Determine acceptance gate for a selected item
-   * TODO: Make commands configurable per project (npm, yarn, pnpm, etc.)
+   * Uses word boundary matching for more accurate detection
    */
   determineAcceptanceGate(item: ScheduledItem): AcceptanceGate | null {
     const titleLower = item.title.toLowerCase();
 
-    // Test-related tasks
-    if (titleLower.includes('test') || titleLower.includes('spec')) {
+    // Test-related tasks - match "test", "tests", "testing", "spec", "specs", "specs"
+    if (/\b(test(?:s|ing)?|spec(?:s)?)\b/.test(titleLower)) {
       return {
         type: 'test',
         description: `Run tests for: ${item.title}`,
@@ -366,8 +366,8 @@ export class RalphScheduler {
       };
     }
 
-    // Build-related tasks
-    if (titleLower.includes('build') || titleLower.includes('compile')) {
+    // Build-related tasks - match "build", "building", "compile", "compiling", "compilation"
+    if (/\b(build(?:ing)?|compile[ds]?|compilation)\b/.test(titleLower)) {
       return {
         type: 'build',
         description: `Build project: ${item.title}`,
@@ -377,8 +377,8 @@ export class RalphScheduler {
       };
     }
 
-    // Lint-related tasks
-    if (titleLower.includes('lint') || titleLower.includes('format')) {
+    // Lint-related tasks - match "lint", "linting", "format", "formatting", "formatting"
+    if (/\b(lint(?:ing)?|format(?:ting)?)\b/.test(titleLower)) {
       return {
         type: 'lint',
         description: `Lint code: ${item.title}`,

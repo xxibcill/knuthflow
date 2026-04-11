@@ -119,17 +119,24 @@ export type LoopState =
   | 'failed'
   | 'completed';
 
-export type StopReason =
-  | 'user_stopped'
-  | 'rate_limit'
-  | 'circuit_open'
-  | 'timeout_idle'
-  | 'timeout_iteration'
-  | 'no_progress'
-  | 'permission_denied'
-  | 'session_expired'
-  | 'validation_failed'
-  | 'error';
+// Stop reasons - derived from array to ensure type/array stay in sync
+const STOP_REASONS = [
+  'user_stopped',
+  'rate_limit',
+  'circuit_open',
+  'timeout_idle',
+  'timeout_iteration',
+  'no_progress',
+  'permission_denied',
+  'session_expired',
+  'validation_failed',
+  'error',
+] as const;
+
+export type StopReason = typeof STOP_REASONS[number];
+
+// Array of valid stop reasons for validation
+export const VALID_STOP_REASONS: StopReason[] = [...STOP_REASONS];
 
 export interface LoopIterationContext {
   iteration: number;
@@ -210,6 +217,7 @@ export interface RalphRuntimeConfig {
   circuitBreakerFailureThreshold?: number;
   circuitBreakerNoProgressThreshold?: number;
   circuitBreakerCooldownMs?: number;
+  shellReadyTimeoutMs?: number;
 }
 
 export const DEFAULT_RALPH_RUNTIME_CONFIG: Required<RalphRuntimeConfig> = {
@@ -222,4 +230,5 @@ export const DEFAULT_RALPH_RUNTIME_CONFIG: Required<RalphRuntimeConfig> = {
   circuitBreakerFailureThreshold: 5,
   circuitBreakerNoProgressThreshold: 3,
   circuitBreakerCooldownMs: 15 * 60 * 1000,
+  shellReadyTimeoutMs: 3000,
 };

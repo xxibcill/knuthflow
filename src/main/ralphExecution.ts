@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { getPtyManager } from './ptyManager';
-import { LoopIterationContext, ScheduledItem, AcceptanceGate } from '../shared/ralphTypes';
+import { LoopIterationContext, ScheduledItem, AcceptanceGate, RalphRuntimeConfig, DEFAULT_RALPH_RUNTIME_CONFIG } from '../shared/ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Execution Events
@@ -43,15 +43,17 @@ export class RalphExecutionAdapter extends EventEmitter {
   private ptyManager = getPtyManager();
 
   private workspacePath: string;
+  private config: Required<RalphRuntimeConfig>;
   private currentSession: SessionState | null = null;
   private outputBuffer: string = '';
   private responseBuffer: string = '';
   private sessionDataHandler: ((data: { sessionId: string; data: string }) => void) | null = null;
   private sessionExitHandler: ((exit: { sessionId: string; exitCode: number; signal?: number }) => void) | null = null;
 
-  constructor(workspacePath: string) {
+  constructor(workspacePath: string, config: Partial<RalphRuntimeConfig> = {}) {
     super();
     this.workspacePath = workspacePath;
+    this.config = { ...DEFAULT_RALPH_RUNTIME_CONFIG, ...config };
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -163,7 +165,7 @@ export class RalphExecutionAdapter extends EventEmitter {
         const cmd = `"${detection.executablePath}" --no-input\r`;
         this.ptyManager.write(session.ptySessionId, cmd);
       }
-    }, 3000);
+    }, this.config.shellReadyTimeoutMs);
 
     this.sessionDataHandler = ({ sessionId, data }) => {
       if (sessionId === session.ptySessionId && !shellReady) {
@@ -183,6 +185,11 @@ export class RalphExecutionAdapter extends EventEmitter {
 
     this.sessionExitHandler = ({ sessionId }) => {
       if (sessionId === session.ptySessionId) {
+        // Clean up data handler when session exits to prevent memory leaks
+        if (this.sessionDataHandler) {
+          this.ptyManager.removeListener('data', this.sessionDataHandler);
+          this.sessionDataHandler = null;
+        }
         // TODO: Implement auto-recovery logic when session expires
         // e.g., create new session and resume the loop
         this.emit('sessionExpired');
@@ -369,6 +376,7 @@ export class RalphExecutionAdapter extends EventEmitter {
         reject(new Error('Execution timeout'));
       }, timeoutMs);
 
+      // Use once for the exit handler so it auto-removes when PTY exits
       const onExit = ({ sessionId }: { sessionId: string; exitCode: number; signal?: number }) => {
         if (sessionId === this.currentSession?.ptySessionId) {
           clearTimeout(timeout);
@@ -377,7 +385,13 @@ export class RalphExecutionAdapter extends EventEmitter {
         }
       };
 
-      this.ptyManager.once('exit', onExit);
+      try {
+        this.ptyManager.once('exit', onExit);
+      } catch (err) {
+        clearTimeout(timeout);
+        this.removeSessionHandlers();
+        reject(err);
+      }
     });
   }
 

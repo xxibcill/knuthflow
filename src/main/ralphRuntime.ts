@@ -58,32 +58,43 @@ export class RalphRuntime extends EventEmitter {
    * Start a new Ralph loop run for a workspace
    */
   start(projectId: string, name: string, sessionId: string, ptySessionId: string): LoopRun {
-    // Check for existing active run in this workspace
-    const existingRun = this.getActiveRunForProject(projectId);
-    if (existingRun) {
-      throw new Error(`Active run already exists for project ${projectId}: ${existingRun.run.name}`);
+    // Check if a start is already in progress for this project (race condition prevention)
+    if (projectsStarting.has(projectId)) {
+      throw new Error(`Start already in progress for project ${projectId}`);
     }
 
-    // Create new loop run in database
-    const run = this.db.createLoopRun(projectId, name);
-    this.db.startLoopRun(run.id, sessionId, ptySessionId);
+    // Mark start as in progress
+    projectsStarting.add(projectId);
+    try {
+      // Check for existing active run in this workspace
+      const existingRun = this.getActiveRunForProject(projectId);
+      if (existingRun) {
+        throw new Error(`Active run already exists for project ${projectId}: ${existingRun.run.name}`);
+      }
 
-    // Initialize runtime state
-    this.activeRuns.set(run.id, {
-      run: { ...run, status: 'running' },
-      state: 'starting',
-      currentContext: null,
-      safetyStop: null,
-      iterationStartTime: null,
-    });
+      // Create new loop run in database
+      const run = this.db.createLoopRun(projectId, name);
+      this.db.startLoopRun(run.id, sessionId, ptySessionId);
 
-    // Update reverse index
-    this.runIdToProjectId.set(run.id, projectId);
-    // Register in global reverse index for O(1) IPC handler lookups
-    runIdToRuntime.set(run.id, this);
+      // Initialize runtime state
+      this.activeRuns.set(run.id, {
+        run: { ...run, status: 'running' },
+        state: 'starting',
+        currentContext: null,
+        safetyStop: null,
+        iterationStartTime: null,
+      });
 
-    this.emit('stateChanged', 'starting');
-    return run;
+      // Update reverse index
+      this.runIdToProjectId.set(run.id, projectId);
+      // Register in global reverse index for O(1) IPC handler lookups
+      runIdToRuntime.set(run.id, this);
+
+      this.emit('stateChanged', 'starting');
+      return run;
+    } finally {
+      projectsStarting.delete(projectId);
+    }
   }
 
   /**
@@ -421,6 +432,8 @@ export class RalphRuntime extends EventEmitter {
 let runtimeInstances: Map<string, RalphRuntime> = new Map();
 // Global reverse index: runId -> RalphRuntime for O(1) lookups
 let runIdToRuntime: Map<string, RalphRuntime> = new Map();
+// Projects currently executing start() - prevents race conditions
+const projectsStarting: Set<string> = new Set();
 
 export function getRalphRuntime(projectId: string): RalphRuntime {
   let runtime = runtimeInstances.get(projectId);
@@ -456,12 +469,14 @@ export function resetRalphRuntime(projectId?: string): void {
       // Clean up all active runs for this runtime
       for (const runId of runtime.getActiveRunIds(projectId)) {
         runtime.cleanupRun(runId);
-        runIdToRuntime.delete(runId);
       }
+      // Clear the starting flag if set
+      projectsStarting.delete(projectId);
     }
     runtimeInstances.delete(projectId);
   } else {
     runtimeInstances.clear();
     runIdToRuntime.clear();
+    projectsStarting.clear();
   }
 }
