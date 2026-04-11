@@ -10,7 +10,6 @@ import {
 } from '../shared/ralphTypes';
 
 export type { RalphSafetyEvents, RalphSafetyEvent } from './ralph/ralphSafetyEvents';
-import type { RalphSafetyEvents, RalphSafetyEvent } from './ralph/ralphSafetyEvents';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Safety Monitor

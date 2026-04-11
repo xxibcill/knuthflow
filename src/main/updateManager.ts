@@ -1,6 +1,4 @@
-import { app, ipcMain } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
+import { app, ipcMain, shell } from 'electron';
 import { execSync } from 'child_process';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,7 +130,6 @@ export class UpdateManager {
    * Open the download URL in the default browser
    */
   openDownloadPage(downloadUrl: string): void {
-    const { shell } = require('electron');
     shell.openExternal(downloadUrl);
   }
 
@@ -164,9 +161,6 @@ export class UpdateManager {
    * Get the platform-specific download URL
    */
   getPlatformDownloadUrl(baseUrl: string): string {
-    const platform = process.platform;
-    const arch = process.arch;
-
     // GitHub releases page - user can download appropriate asset
     return baseUrl;
   }

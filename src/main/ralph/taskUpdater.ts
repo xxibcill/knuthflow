@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PlanTask } from '../../shared/ralphTypes';
-import { findTaskById } from './taskFinder';
 
 /**
  * Mark a task as completed in fix_plan.md

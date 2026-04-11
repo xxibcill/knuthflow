@@ -9,11 +9,6 @@ import { validateWorkspacePath } from './ralph/planPathValidator';
 import {
   parseFixPlan,
   parsePlanContent,
-  parseTaskLine,
-  getIndent,
-  checkboxToStatus,
-  extractPriority,
-  generateTaskId,
   flattenTasks,
 } from './ralph/planParser';
 import { findTaskById } from './ralph/taskFinder';

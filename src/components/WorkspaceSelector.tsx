@@ -64,6 +64,13 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
     await loadWorkspaces();
   };
 
+  const handleBrowsePath = async () => {
+    const result = await window.knuthflow.dialog.openDirectory({ defaultPath: newPath || undefined });
+    if (result && !result.canceled && result.filePaths.length > 0) {
+      setNewPath(result.filePaths[0]);
+    }
+  };
+
   const handleSelectWorkspace = (workspace: Workspace) => {
     onSelect(workspace);
   };
@@ -98,13 +105,24 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
               onChange={e => setNewName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 mb-2"
             />
-            <input
-              type="text"
-              placeholder="Directory path (e.g., /Users/jjae/projects/myapp)"
-              value={newPath}
-              onChange={e => setNewPath(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 mb-2"
-            />
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="Directory path (e.g., /Users/jjae/projects/myapp)"
+                value={newPath}
+                onChange={e => setNewPath(e.target.value)}
+                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={handleBrowsePath}
+                className="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                title="Browse"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+              </button>
+            </div>
             {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
             <button
               onClick={handleAddWorkspace}

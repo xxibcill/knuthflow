@@ -3,13 +3,12 @@ import { getPtyManager } from './ptyManager';
 import { LoopIterationContext, RalphRuntimeConfig, DEFAULT_RALPH_RUNTIME_CONFIG } from '../shared/ralphTypes';
 
 export type { RalphExecutionEvents, RalphExecutionEvent } from './ralph/ralphExecutionEvents';
-import type { RalphExecutionEvents, RalphExecutionEvent } from './ralph/ralphExecutionEvents';
 
 export type { SessionState, SESSION_EXPIRATION_MS } from './ralph/ralphSessionState';
 import { SESSION_EXPIRATION_MS } from './ralph/ralphSessionState';
 import type { SessionState } from './ralph/ralphSessionState';
 
-import { buildLoopPrompt, extractRelevantPlanSection } from './ralph/ralphPromptBuilder';
+import { buildLoopPrompt } from './ralph/ralphPromptBuilder';
 import { detectClaudeCode } from './ralph/claudeDetection';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,7 +95,8 @@ export class RalphExecutionAdapter extends EventEmitter {
    * NOTE: This is a stub - session persistence is not yet implemented.
    * Sessions are only tracked in-memory and will not survive app restart.
    */
-  private getStoredSession(sessionId: string): SessionState | null {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private getStoredSession(_sessionId: string): SessionState | null {
     // TODO (Phase 9): Implement persistent session storage
     // For now, we only track sessions in-memory and cannot resume across restarts
     return null;
@@ -331,6 +331,7 @@ export class RalphExecutionAdapter extends EventEmitter {
   /**
    * Handle resume when stored session is missing or stale
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handleResumeFailure(_reason: 'missing' | 'stale' | 'invalid'): SessionState {
     this.emit('sessionExpired');
 

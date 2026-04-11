@@ -292,7 +292,8 @@ export default function App() {
     }
   }, [selectedWorkspace]);
 
-  const handleOpenDiff = useCallback((files: DiffFile[]) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleOpenDiff = useCallback((files: DiffFile[]) => {
     setDiffFiles(files);
     setShowDiffViewer(true);
     setViewMode('editor');
@@ -426,6 +427,7 @@ export default function App() {
               )}
               {updateInfo?.available && updateInfo.downloadUrl && (
                 <button
+                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                   onClick={() => window.knuthflow.update.openDownload(updateInfo.downloadUrl!)}
                   className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors flex items-center gap-1"
                 >

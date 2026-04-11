@@ -39,8 +39,11 @@ const config: ForgeConfig = {
       }),
     },
     osxNotarize: process.env.APPLE_ID ? {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       appleId: process.env.APPLE_ID!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       appleIdPassword: process.env.APPLE_APP_PASSWORD!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       teamId: process.env.APPLE_TEAM_ID!,
     } : undefined,
     // Windows-specific

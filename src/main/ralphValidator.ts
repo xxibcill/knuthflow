@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getDatabase } from './database';
 import { getRalphBootstrap } from './ralphBootstrap';
-import type { ValidationSeverity, ValidationIssue, ReadinessReport } from '../shared/ralphTypes';
+import type { ValidationIssue, ReadinessReport } from '../shared/ralphTypes';
 export type { ValidationSeverity, ValidationIssue, ReadinessReport } from '../shared/ralphTypes';
 import { STALE_RUN_THRESHOLD_MS } from '../shared/ralphTypes';
 

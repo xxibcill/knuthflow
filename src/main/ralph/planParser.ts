@@ -5,7 +5,8 @@ import type { PlanTask } from '../../shared/ralphTypes';
 /**
  * Parse fix_plan.md and extract tasks
  */
-export function parseFixPlan(workspacePath: string, cachedTasks: PlanTask[] | null): { tasks: PlanTask[]; cachedTasks: PlanTask[] | null } {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function parseFixPlan(workspacePath: string, _cachedTasks: PlanTask[] | null): { tasks: PlanTask[]; cachedTasks: PlanTask[] | null } {
   const fixPlanPath = path.join(workspacePath, 'fix_plan.md');
 
   // Validate the resolved path is still within workspace

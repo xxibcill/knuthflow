@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import { Editor, type OnMount } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit

@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ScheduledItem, AcceptanceGate, PlanTask } from '../../shared/ralphTypes';
-import { findTaskById } from './taskFinder';
 
 /**
  * Determine acceptance gate for a selected item

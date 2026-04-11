@@ -96,6 +96,7 @@ export function Header({
             )}
             {updateInfo?.available && updateInfo.downloadUrl && (
               <button
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 onClick={() => window.knuthflow.update.openDownload(updateInfo.downloadUrl!)}
                 className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors flex items-center gap-1"
               >

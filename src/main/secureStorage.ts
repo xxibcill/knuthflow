@@ -1,6 +1,8 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
+import * as crypto from 'crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Secure Storage Interface
@@ -34,7 +36,6 @@ class KeychainBackend implements SecureStorageBackend {
 
     try {
       // Use security command-line tool to retrieve from keychain
-      const { execSync } = require('child_process');
       // Use null-byte separator to avoid shell injection issues
       const cmd = [
         'security', 'find-generic-password',
@@ -60,8 +61,6 @@ class KeychainBackend implements SecureStorageBackend {
     if (!this.isAvailable()) return false;
 
     try {
-      const { execSync } = require('child_process');
-
       // First try to delete existing item
       try {
         execSync([
@@ -99,7 +98,6 @@ class KeychainBackend implements SecureStorageBackend {
     if (!this.isAvailable()) return false;
 
     try {
-      const { execSync } = require('child_process');
       execSync([
         'security', 'delete-generic-password',
         '-s', this.serviceName,
@@ -138,13 +136,11 @@ class EncryptedFileBackend implements SecureStorageBackend {
     // Use a combination of app-specific data to derive an encryption key
     // In production, you'd want to use a proper key derivation function
     const machineId = process.platform + '-' + process.arch + '-' + app.getPath('userData');
-    const crypto = require('crypto');
     return crypto.scryptSync(machineId, 'knuthflow-salt', 32);
   }
 
   private getFilePath(key: string): string {
     // Hash the key to get a safe filename
-    const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update(key).digest('hex');
     return path.join(this.storageDir, hash + '.secret');
   }
@@ -159,7 +155,7 @@ class EncryptedFileBackend implements SecureStorageBackend {
       if (!fs.existsSync(filePath)) return null;
 
       const encrypted = fs.readFileSync(filePath);
-      const decipher = require('crypto').createDecipheriv('aes-256-gcm', this.encryptionKey, encrypted.slice(0, 12));
+      const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, encrypted.slice(0, 12));
       decipher.setAuthTag(encrypted.slice(-16));
       const decrypted = Buffer.concat([decipher.update(encrypted.slice(12, -16)), decipher.final()]);
       return decrypted.toString('utf-8');
@@ -172,7 +168,6 @@ class EncryptedFileBackend implements SecureStorageBackend {
   set(key: string, value: string): boolean {
     try {
       const filePath = this.getFilePath(key);
-      const crypto = require('crypto');
       const iv = crypto.randomBytes(12);
       const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
       const encrypted = Buffer.concat([iv, cipher.update(value, 'utf-8'), cipher.final()]);

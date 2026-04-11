@@ -46,6 +46,7 @@ export class MistakeTracker {
       this.patterns.set(patternKey, []);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const occurrences = this.patterns.get(patternKey)!;
 
     // Clean old occurrences

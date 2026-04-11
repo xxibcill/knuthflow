@@ -36,28 +36,6 @@ export type {
   RalphControlFiles,
 } from './shared/preloadTypes';
 
-import type {
-  PtyOptions,
-  PtyDataEvent,
-  PtyExitEvent,
-  AppSettings,
-  LaunchProfile,
-  Session,
-  Workspace,
-  LogEntry,
-  SystemDiagnostics,
-  SessionCrashedEvent,
-  RecoveryNeededEvent,
-  UpdateInfo,
-  ClaudeRunState,
-  LoopRun,
-  LoopSummary,
-  PlanSnapshot,
-  RalphControlFiles,
-  RalphProject,
-  KnuthflowAPI,
-} from './shared/preloadTypes';
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Preload API - Secure IPC bridge
 // ─────────────────────────────────────────────────────────────────────────────

@@ -3,23 +3,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { getPtyManager, PtyOptions } from './main/ptyManager';
-import { getDatabase, closeDatabase, Workspace, Session, AppSettings, LaunchProfile } from './main/database';
+import { getDatabase, closeDatabase, AppSettings, LaunchProfile } from './main/database';
 import { getSupervisor, resetSupervisor } from './main/supervisor';
 import { registerUpdateHandlers } from './main/updateManager';
 import { getSecureStorage } from './main/secureStorage';
-import { getLogManager, LogLevel, LogEntry } from './main/logManager';
-import { getRalphBootstrap, resetRalphBootstrap, RalphBootstrap } from './main/ralphBootstrap';
-import { getRalphValidator, resetRalphValidator, RalphValidator } from './main/ralphValidator';
+import { getLogManager, LogLevel } from './main/logManager';
+import { getRalphBootstrap, resetRalphBootstrap } from './main/ralphBootstrap';
+import { getRalphValidator, resetRalphValidator } from './main/ralphValidator';
 import {
-  RalphRuntime,
-  RalphScheduler,
-  RalphExecutionAdapter,
-  RalphSafetyMonitor,
   getRalphRuntime,
-  getAllRalphRuntimes,
   getRuntimeForRunId,
   getRalphScheduler,
-  getRalphExecution,
   getRalphSafety,
   resetRalphRuntime,
   resetRalphScheduler,
@@ -100,13 +94,16 @@ ipcMain.handle('process:spawn', async (_event, args: string[], cwd?: string) => 
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   activeProcesses.set(spawned.pid!, spawned);
 
   // Clean up when process exits
   spawned.on('exit', () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     activeProcesses.delete(spawned.pid!);
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   return { pid: spawned.pid! };
 });
 
@@ -446,6 +443,7 @@ ipcMain.handle('filesystem:exists', async (_event, filePath: string) => {
 });
 
 ipcMain.handle('dialog:openFile', async (_event, options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const result = await dialog.showOpenDialog(mainWindow!, {
     defaultPath: options?.defaultPath,
     filters: options?.filters || [
@@ -463,6 +461,7 @@ ipcMain.handle('dialog:openFile', async (_event, options?: { defaultPath?: strin
 });
 
 ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: string }) => {
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const result = await dialog.showOpenDialog(mainWindow!, {
     defaultPath: options?.defaultPath,
     properties: ['openDirectory'],
@@ -476,6 +475,7 @@ ipcMain.handle('dialog:openDirectory', async (_event, options?: { defaultPath?: 
 });
 
 ipcMain.handle('dialog:saveFile', async (_event, options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const result = await dialog.showSaveDialog(mainWindow!, {
     defaultPath: options?.defaultPath,
     filters: options?.filters || [
