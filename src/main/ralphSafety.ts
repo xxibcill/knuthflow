@@ -9,19 +9,8 @@ import {
   DEFAULT_RALPH_RUNTIME_CONFIG,
 } from '../shared/ralphTypes';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Ralph Safety Events
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface RalphSafetyEvents {
-  rateLimitHit: (state: RateLimitState) => void;
-  circuitOpened: (state: CircuitBreakerState) => void;
-  circuitClosed: () => void;
-  timeoutHit: (type: 'idle' | 'iteration', elapsedMs: number) => void;
-  safetyStopTriggered: (stop: SafetyStop) => void;
-}
-
-export type RalphSafetyEvent = keyof RalphSafetyEvents;
+export type { RalphSafetyEvents, RalphSafetyEvent } from './ralph/ralphSafetyEvents';
+import type { RalphSafetyEvents, RalphSafetyEvent } from './ralph/ralphSafetyEvents';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Safety Monitor

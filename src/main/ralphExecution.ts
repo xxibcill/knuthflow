@@ -1,39 +1,16 @@
 import { EventEmitter } from 'events';
-import * as fs from 'fs';
-import * as path from 'path';
-import { execSync } from 'child_process';
 import { getPtyManager } from './ptyManager';
-import { LoopIterationContext, ScheduledItem, AcceptanceGate, RalphRuntimeConfig, DEFAULT_RALPH_RUNTIME_CONFIG } from '../shared/ralphTypes';
+import { LoopIterationContext, RalphRuntimeConfig, DEFAULT_RALPH_RUNTIME_CONFIG } from '../shared/ralphTypes';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Ralph Execution Events
-// ─────────────────────────────────────────────────────────────────────────────
+export type { RalphExecutionEvents, RalphExecutionEvent } from './ralph/ralphExecutionEvents';
+import type { RalphExecutionEvents, RalphExecutionEvent } from './ralph/ralphExecutionEvents';
 
-export interface RalphExecutionEvents {
-  output: (data: string) => void;
-  error: (error: string) => void;
-  sessionExpired: () => void;
-  completed: (response: string) => void;
-}
+export type { SessionState, SESSION_EXPIRATION_MS } from './ralph/ralphSessionState';
+import { SESSION_EXPIRATION_MS } from './ralph/ralphSessionState';
+import type { SessionState } from './ralph/ralphSessionState';
 
-export type RalphExecutionEvent = keyof RalphExecutionEvents;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Claude Session State
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface SessionState {
-  sessionId: string;
-  ptySessionId: string;
-  createdAt: number;
-  lastUsedAt: number;
-  expiresAt: number;
-  isValid: boolean;
-}
-
-// Session expiration time (24 hours)
-// TODO: Make configurable via RalphRuntimeConfig
-const SESSION_EXPIRATION_MS = 24 * 60 * 60 * 1000;
+import { buildLoopPrompt, extractRelevantPlanSection } from './ralph/ralphPromptBuilder';
+import { detectClaudeCode } from './ralph/claudeDetection';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Execution Adapter
@@ -151,7 +128,7 @@ export class RalphExecutionAdapter extends EventEmitter {
     // Clean up any previous handlers first
     this.removeSessionHandlers();
 
-    const detection = this.detectClaudeCode();
+    const detection = detectClaudeCode();
     if (!detection.installed || !detection.executablePath) {
       this.emit('error', 'Claude Code not installed');
       return;
@@ -242,44 +219,6 @@ export class RalphExecutionAdapter extends EventEmitter {
   }
 
   /**
-   * Detect Claude Code installation
-   * Only checks known safe paths to prevent command injection
-   */
-  private detectClaudeCode(): { installed: boolean; executablePath: string | null; version: string | null } {
-    const possiblePaths = process.platform === 'darwin'
-      ? ['/usr/local/bin/claude', '/opt/homebrew/bin/claude', '/usr/bin/claude']
-      : ['/usr/local/bin/claude', '/usr/bin/claude'];
-
-    // Only check known safe paths - do NOT iterate through PATH directories
-    // This prevents potential command injection attacks
-    for (const execPath of possiblePaths) {
-      try {
-        if (fs.existsSync(execPath)) {
-          const versionOutput = execSync(`"${execPath}" --version`, {
-            encoding: 'utf-8',
-            timeout: 5000,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          });
-
-          const versionMatch = versionOutput.match(/(\d+\.\d+\.\d+)/);
-          const version = versionMatch ? versionMatch[1] : null;
-
-          return { installed: true, executablePath: execPath, version };
-        }
-      } catch (err) {
-        // Continue searching - log debug info if needed
-        console.debug(`[RalphExecution] Claude Code detection failed for ${execPath}:`, err instanceof Error ? err.message : String(err));
-      }
-    }
-
-    return { installed: false, executablePath: null, version: null };
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Prompt Construction
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /**
    * Build the Ralph loop prompt with pinned context
    */
   buildLoopPrompt(context: LoopIterationContext, controlFiles: {
@@ -287,86 +226,7 @@ export class RalphExecutionAdapter extends EventEmitter {
     agentMd: string;
     fixPlanMd: string;
   }): string {
-    const parts: string[] = [];
-
-    // Stack summary header
-    parts.push('=== RALPH LOOP CONTEXT ===');
-    parts.push(`Iteration: ${context.iteration}`);
-    parts.push(`Started: ${new Date(context.startedAt).toISOString()}`);
-
-    // Selected item
-    if (context.selectedItem) {
-      parts.push('');
-      parts.push('=== CURRENT TASK ===');
-      parts.push(`Item: ${context.selectedItem.title}`);
-      parts.push(`Status: ${context.selectedItem.status}`);
-      if (context.acceptanceGate) {
-        parts.push(`Acceptance Gate: ${context.acceptanceGate.type} - ${context.acceptanceGate.description}`);
-      }
-    }
-
-    // Control file content
-    parts.push('');
-    parts.push('=== OPERATOR PROMPT ===');
-    parts.push(controlFiles.promptMd);
-
-    // Agent configuration
-    parts.push('');
-    parts.push('=== AGENT CONFIG ===');
-    parts.push(controlFiles.agentMd);
-
-    // Current fix plan excerpt (relevant section)
-    parts.push('');
-    parts.push('=== FIX PLAN ===');
-    parts.push(this.extractRelevantPlanSection(controlFiles.fixPlanMd, context.selectedItem));
-
-    // Previous loop summary if available
-    if (context.iteration > 1) {
-      parts.push('');
-      parts.push('=== PREVIOUS ITERATION ===');
-      parts.push('Review the terminal output from the previous iteration.');
-    }
-
-    parts.push('');
-    parts.push('=== INSTRUCTIONS ===');
-    parts.push('1. Focus ONLY on the current task item');
-    parts.push('2. Make minimal, targeted changes');
-    parts.push('3. Run acceptance gate verification when complete');
-    parts.push('4. Report progress and any blockers');
-    parts.push('5. Exit cleanly when done');
-
-    return parts.join('\n');
-  }
-
-  /**
-   * Extract the relevant section of fix_plan.md for the selected item
-   */
-  private extractRelevantPlanSection(fixPlanMd: string, selectedItem: ScheduledItem | null): string {
-    if (!selectedItem) {
-      // Return first 50 lines of plan
-      return fixPlanMd.split('\n').slice(0, 50).join('\n');
-    }
-
-    const lines = fixPlanMd.split('\n');
-    const selectedTitle = selectedItem.title;
-
-    // Find the line with the selected item
-    let startLine = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes(selectedTitle)) {
-        startLine = i;
-        break;
-      }
-    }
-
-    if (startLine === -1) {
-      return fixPlanMd;
-    }
-
-    // Extract context around the selected item (20 lines before and after)
-    const start = Math.max(0, startLine - 20);
-    const end = Math.min(lines.length, startLine + 40);
-    return lines.slice(start, end).join('\n');
+    return buildLoopPrompt(context, controlFiles);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
