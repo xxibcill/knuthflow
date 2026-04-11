@@ -391,7 +391,12 @@ function runGitCommand(
   // Wait synchronously for result (blocking but with timeout)
   const startTime = Date.now();
   while (!settled && Date.now() - startTime < 30000) {
-    // Simple spin wait - not ideal but works for sync context
+    // Use setTimeout to avoid CPU spin
+    const waitTime = Math.min(50, 30000 - (Date.now() - startTime));
+    const end = Date.now() + waitTime;
+    while (!settled && Date.now() < end) {
+      // busy wait
+    }
   }
 
   return result ?? { success: false, error: 'Timeout', exitCode: 1 };

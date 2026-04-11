@@ -1052,6 +1052,15 @@ class SessionDatabase {
     };
   }
 
+  // Helper to parse staged files from database row
+  private parseStagedFiles(row: Record<string, unknown>): string[] {
+    try {
+      return JSON.parse(row.staged_files as string || '[]');
+    } catch {
+      return [];
+    }
+  }
+
   listCheckpoints(runId: string): Array<{
     commitSha: string;
     iteration: number;
@@ -1064,7 +1073,7 @@ class SessionDatabase {
     return rows.map(row => ({
       commitSha: row.commit_sha as string,
       iteration: row.iteration as number,
-      stagedFiles: JSON.parse(row.staged_files as string || '[]'),
+      stagedFiles: this.parseStagedFiles(row),
       createdAt: row.created_at as number,
     }));
   }
@@ -1082,7 +1091,7 @@ class SessionDatabase {
     return {
       commitSha: row.commit_sha as string,
       iteration: row.iteration as number,
-      stagedFiles: JSON.parse(row.staged_files as string || '[]'),
+      stagedFiles: this.parseStagedFiles(row),
       createdAt: row.created_at as number,
     };
   }

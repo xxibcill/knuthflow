@@ -144,12 +144,12 @@ export async function recoverRun(
 /**
  * Clean up an unrecoverable run by marking it as failed with appropriate error.
  */
-export function cleanupRun(runId: string, reason: string): void {
+export function cleanupRun(runId: string, projectId: string, reason: string): void {
   const db = getDatabase();
   db.endLoopRun(runId, 'failed', null, null, reason);
 
   // Clean up runtime state if it exists
-  const runtime = getRalphRuntime('');
+  const runtime = getRalphRuntime(projectId);
   if (runtime.ownsRun(runId)) {
     runtime.cleanupRun(runId);
   }
@@ -206,7 +206,7 @@ export async function performStartupRecovery(
       case 'unrecoverable':
         report.unrecoverable++;
         // Clean up unrecoverable runs
-        cleanupRun(run.id, result.message);
+        cleanupRun(run.id, run.projectId, result.message);
         break;
     }
   }
