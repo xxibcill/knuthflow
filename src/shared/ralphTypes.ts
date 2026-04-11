@@ -76,6 +76,8 @@ export interface BootstrapResult {
   updated: string[];
   backups: string[];
   error?: string;
+  /** Error code for programmatic error handling */
+  code?: string;
 }
 
 // Alias for use in modules that extend BootstrapResult

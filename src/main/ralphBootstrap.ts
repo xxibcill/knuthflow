@@ -16,6 +16,8 @@ interface RalphTemplateConfig {
   maxRetries: number;
 }
 
+// Note: model is a default value for bootstrap templates.
+// Future: could be made configurable via app settings or per-workspace config.
 const RALPH_TEMPLATE_CONFIG: RalphTemplateConfig = {
   model: 'Claude Sonnet 4',
   temperature: 0.7,
@@ -146,22 +148,27 @@ export class RalphBootstrap {
 
   /**
    * Bootstrap a workspace as a Ralph project
+   *
+   * Transaction ordering: DB record is created first, then control files are written.
+   * If file writes fail after DB record is created, the validator will detect
+   * incomplete state (missing files but project exists) as corrupted, and repair
+   * can re-generate the missing files.
    */
   bootstrap(options: BootstrapOptions): BootstrapResult {
     const { workspaceId, workspacePath, force = false } = options;
 
     // Validate workspace exists
     if (!fs.existsSync(workspacePath)) {
-      return { success: false, error: 'Workspace path does not exist', created: [], skipped: [], updated: [], backups: [] };
+      return { success: false, error: 'WORKSPACE_NOT_FOUND', created: [], skipped: [], updated: [], backups: [] };
     }
 
     if (!fs.statSync(workspacePath).isDirectory()) {
-      return { success: false, error: 'Workspace path is not a directory', created: [], skipped: [], updated: [], backups: [] };
+      return { success: false, error: 'WORKSPACE_NOT_DIRECTORY', created: [], skipped: [], updated: [], backups: [] };
     }
 
     // Security: ensure path is absolute to prevent path traversal
     if (!path.isAbsolute(workspacePath)) {
-      return { success: false, error: 'Workspace path must be absolute', created: [], skipped: [], updated: [], backups: [] };
+      return { success: false, error: 'WORKSPACE_PATH_NOT_ABSOLUTE', created: [], skipped: [], updated: [], backups: [] };
     }
 
     // Check if workspace already has Ralph project
@@ -173,12 +180,14 @@ export class RalphBootstrap {
         backups = this.createBackups(this.getRalphControlFiles(workspacePath));
       }
 
-      const result = this.bootstrapControlFiles(workspacePath, force);
-
-      // Persist the Ralph project only after the filesystem bootstrap succeeds.
+      // Create DB record first. If this succeeds but file writes fail,
+      // the validator will detect the inconsistency and repair can fix it.
       if (!project) {
         project = this.getDatabase().createRalphProject(workspaceId);
       }
+
+      // Now write control files to disk
+      const result = this.bootstrapControlFiles(workspacePath, force);
 
       return {
         success: true,
@@ -192,6 +201,7 @@ export class RalphBootstrap {
       return {
         success: false,
         error: this.getErrorMessage(error),
+        code: 'BOOTSTRAP_FAILED',
         created: [],
         skipped: [],
         updated: [],
@@ -379,7 +389,9 @@ export class RalphBootstrap {
   }
 
   /**
-   * Check if a workspace is Ralph-enabled
+   * Check if a workspace is Ralph-enabled by validating the metadata file exists
+   * and contains valid JSON with required fields.
+   * Returns false if metadata is missing, malformed, or lacks required fields.
    */
   isRalphEnabled(workspacePath: string): boolean {
     const metadataPath = path.join(workspacePath, RALPH_METADATA_FILE);
@@ -389,7 +401,14 @@ export class RalphBootstrap {
 
     try {
       const content = fs.readFileSync(metadataPath, 'utf-8');
-      JSON.parse(content);
+      const metadata = JSON.parse(content);
+
+      // Validate required fields exist
+      if (typeof metadata.version !== 'number' || typeof metadata.bootstrappedAt !== 'number') {
+        console.warn(`[RalphBootstrap] Metadata file ${metadataPath} missing required fields`);
+        return false;
+      }
+
       return true;
     } catch (err) {
       console.error(`[RalphBootstrap] Failed to parse metadata file ${metadataPath}:`, err);
