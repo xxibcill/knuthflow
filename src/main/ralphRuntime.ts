@@ -8,6 +8,7 @@ import {
   RalphRuntimeConfig,
   DEFAULT_RALPH_RUNTIME_CONFIG,
 } from '../shared/ralphTypes';
+import { performStartupRecovery, validateRuntimeState, type RecoveryReport } from './ralph/ralphRecovery';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Runtime Events
@@ -470,6 +471,25 @@ export class RalphRuntime extends EventEmitter {
    */
   updateConfig(updates: Partial<RalphRuntimeConfig>): void {
     this.config = { ...this.config, ...updates };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Recovery Operations (Phase 11)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Perform startup recovery for all stale runs in this runtime's projects.
+   * Called when runtime is first initialized.
+   */
+  async performRecovery(projectId: string, workspacePath: string, activePtySessionIds: Set<string>): Promise<RecoveryReport> {
+    return performStartupRecovery(projectId, workspacePath, activePtySessionIds);
+  }
+
+  /**
+   * Validate runtime state consistency and clean up orphaned entries.
+   */
+  validateAndCleanup(projectId: string): { consistent: boolean; issues: string[] } {
+    return validateRuntimeState(projectId);
   }
 }
 
