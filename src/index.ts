@@ -24,6 +24,12 @@ const activeProcesses: Map<number, ChildProcess> = new Map();
 // Window reference for IPC
 let mainWindow: BrowserWindow | null = null;
 
+const testUserDataPath = process.env.KNUTHFLOW_USER_DATA_DIR;
+if (testUserDataPath) {
+  fs.mkdirSync(testUserDataPath, { recursive: true });
+  app.setPath('userData', testUserDataPath);
+}
+
 const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     height: 600,

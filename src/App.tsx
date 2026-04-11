@@ -307,7 +307,7 @@ export default function App() {
   const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col" data-testid="app-shell">
       {/* Header */}
       <header className="flex-none bg-gray-800 border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between">
