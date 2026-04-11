@@ -26,7 +26,10 @@ function resolvePackagedOutputDir(productName: string): string {
     .sort();
 
   if (matchingDirs.length > 0) {
-    return matchingDirs[matchingDirs.length - 1];
+    // Pick the most recently modified directory
+    return matchingDirs
+      .map(dir => ({ dir, mtime: fs.statSync(dir).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)[0].dir;
   }
 
   throw new Error(`Packaged app not found in ${outDir}. Run "npm run package" before Playwright.`);

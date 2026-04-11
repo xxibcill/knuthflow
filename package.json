@@ -12,7 +12,8 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "test:e2e": "npm run package && playwright test",
-    "test:e2e:headed": "npm run package && playwright test --headed"
+    "test:e2e:headed": "npm run package && playwright test --headed",
+    "test:e2e:ci": "playwright test"
   },
   "keywords": [],
   "author": {
