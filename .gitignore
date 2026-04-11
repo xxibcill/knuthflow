@@ -28,6 +28,10 @@ coverage
 playwright-report/
 test-results/
 
+# Playwright test artifacts
+playwright-report/
+test-results/
+
 # node-waf configuration
 .lock-wscript
 
