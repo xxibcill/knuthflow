@@ -10,6 +10,23 @@ import { getSecureStorage } from './main/secureStorage';
 import { getLogManager, LogLevel, LogEntry } from './main/logManager';
 import { getRalphBootstrap, resetRalphBootstrap, RalphBootstrap } from './main/ralphBootstrap';
 import { getRalphValidator, resetRalphValidator, RalphValidator } from './main/ralphValidator';
+import {
+  RalphRuntime,
+  RalphScheduler,
+  RalphExecutionAdapter,
+  RalphSafetyMonitor,
+  getRalphRuntime,
+  getAllRalphRuntimes,
+  getRuntimeForRunId,
+  getRalphScheduler,
+  getRalphExecution,
+  getRalphSafety,
+  resetRalphRuntime,
+  resetRalphScheduler,
+  resetRalphExecution,
+  resetRalphSafety,
+} from './main/index';
+import { StopReason, VALID_STOP_REASONS } from './shared/ralphTypes';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -958,6 +975,272 @@ ipcMain.handle('ralph:deleteProject', async (_event, projectId: string) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Ralph Runtime (Phase 8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isValidStopReason(reason: string): reason is StopReason {
+  return VALID_STOP_REASONS.includes(reason as StopReason);
+}
+
+ipcMain.handle('ralphRuntime:start', async (_event, projectId: string, name: string, sessionId: string, ptySessionId: string) => {
+  try {
+    const runtime = getRalphRuntime(projectId);
+    const run = runtime.start(projectId, name, sessionId, ptySessionId);
+    return { success: true, run };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphRuntime:pause', async (_event, runId: string) => {
+  try {
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      runtime.pause(runId);
+      return { success: true };
+    }
+    return { success: false, error: 'Run not found' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphRuntime:resume', async (_event, runId: string) => {
+  try {
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      runtime.resume(runId);
+      return { success: true };
+    }
+    return { success: false, error: 'Run not found' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphRuntime:stop', async (_event, runId: string, reason: string, message: string, canResume?: boolean) => {
+  try {
+    if (!isValidStopReason(reason)) {
+      return { success: false, error: `Invalid stop reason: ${reason}` };
+    }
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      runtime.stop(runId, reason, message, canResume ?? false);
+      return { success: true };
+    }
+    return { success: false, error: 'Run not found' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphRuntime:getState', async (_event, runId: string) => {
+  try {
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      return {
+        success: true,
+        state: runtime.getRuntimeState(runId),
+        context: runtime.getCurrentContext(runId),
+        safetyStop: runtime.getSafetyStop(runId),
+      };
+    }
+    return { success: false, error: 'Run not found' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphRuntime:getActiveRun', async (_event, projectId: string) => {
+  try {
+    const runtime = getRalphRuntime(projectId);
+    return { success: true, run: runtime.getActiveRunForProject(projectId) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Ralph Scheduler (Phase 8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('ralphScheduler:parsePlan', async (_event, workspacePath: string) => {
+  try {
+    const scheduler = getRalphScheduler(workspacePath);
+    const tasks = scheduler.parseFixPlan();
+    return { success: true, tasks };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphScheduler:selectNextItem', async (_event, workspacePath: string) => {
+  try {
+    const scheduler = getRalphScheduler(workspacePath);
+    const item = scheduler.selectNextItem();
+    return { success: true, item };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphScheduler:getPendingItems', async (_event, workspacePath: string) => {
+  try {
+    const scheduler = getRalphScheduler(workspacePath);
+    const items = scheduler.getPendingItems();
+    return { success: true, items };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphScheduler:completeItem', async (_event, workspacePath: string, itemId: string) => {
+  try {
+    // Validate inputs
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return { success: false, error: 'Invalid itemId' };
+    }
+    const scheduler = getRalphScheduler(workspacePath);
+    const success = scheduler.completeItem(itemId);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphScheduler:deferItem', async (_event, workspacePath: string, itemId: string, reason?: string) => {
+  try {
+    // Validate inputs
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return { success: false, error: 'Invalid itemId' };
+    }
+    const scheduler = getRalphScheduler(workspacePath);
+    const success = scheduler.deferItem(itemId, reason);
+    return { success };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphScheduler:determineAcceptanceGate', async (_event, workspacePath: string, itemId: string) => {
+  try {
+    // Validate inputs
+    if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
+      return { success: false, error: 'Invalid itemId' };
+    }
+    const scheduler = getRalphScheduler(workspacePath);
+    const pendingItems = scheduler.getPendingItems();
+    const item = pendingItems.find(i => i.id === itemId);
+    if (!item) {
+      return { success: false, error: 'Item not found' };
+    }
+    const gate = scheduler.determineAcceptanceGate(item);
+    return { success: true, gate };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IPC Handlers - Ralph Safety (Phase 8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('ralphSafety:canExecute', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    return safety.canExecute(projectId);
+  } catch (error) {
+    return { allowed: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:recordCall', async (_event, projectId: string, tokensUsed?: number) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    safety.recordCall(projectId, tokensUsed ?? 0);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:recordFailure', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    safety.recordFailure(projectId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:recordNoProgress', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    safety.recordNoProgress(projectId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:recordPermissionDenial', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    safety.recordPermissionDenial(projectId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:getRateLimitState', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    return { success: true, state: safety.getRateLimitState(projectId) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:getCircuitBreakerState', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    return { success: true, state: safety.getCircuitBreakerState(projectId) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:isCircuitOpen', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    return { success: true, isOpen: safety.isCircuitOpen(projectId) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:resetCircuit', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    safety.resetCircuit(projectId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('ralphSafety:getSafetyState', async (_event, projectId: string) => {
+  try {
+    const safety = getRalphSafety(projectId);
+    return { success: true, state: safety.getSafetyState(projectId) };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // App Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1029,6 +1312,10 @@ app.on('will-quit', () => {
   // Reset Ralph singletons
   resetRalphBootstrap();
   resetRalphValidator();
+  resetRalphRuntime();
+  resetRalphScheduler();
+  resetRalphExecution();
+  resetRalphSafety();
 
   // Cleanup PTY manager
   ptyManager.dispose();
