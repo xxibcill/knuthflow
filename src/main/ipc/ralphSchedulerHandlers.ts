@@ -1,8 +1,8 @@
-import { ipcMain } from 'electron';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { getRalphScheduler } from '../ralphScheduler';
 
 export function registerRalphSchedulerHandlers(): void {
-  ipcMain.handle('ralphScheduler:parsePlan', async (_event, workspacePath: string) => {
+  ipcMain.handle('ralphScheduler:parsePlan', async (_event: IpcMainInvokeEvent, workspacePath: string) => {
     try {
       const scheduler = getRalphScheduler(workspacePath);
       const tasks = scheduler.parseFixPlan();
@@ -12,7 +12,7 @@ export function registerRalphSchedulerHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphScheduler:selectNextItem', async (_event, workspacePath: string) => {
+  ipcMain.handle('ralphScheduler:selectNextItem', async (_event: IpcMainInvokeEvent, workspacePath: string) => {
     try {
       const scheduler = getRalphScheduler(workspacePath);
       const item = scheduler.selectNextItem();
@@ -22,7 +22,7 @@ export function registerRalphSchedulerHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphScheduler:getPendingItems', async (_event, workspacePath: string) => {
+  ipcMain.handle('ralphScheduler:getPendingItems', async (_event: IpcMainInvokeEvent, workspacePath: string) => {
     try {
       const scheduler = getRalphScheduler(workspacePath);
       const items = scheduler.getPendingItems();
@@ -32,7 +32,7 @@ export function registerRalphSchedulerHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphScheduler:completeItem', async (_event, workspacePath: string, itemId: string) => {
+  ipcMain.handle('ralphScheduler:completeItem', async (_event: IpcMainInvokeEvent, workspacePath: string, itemId: string) => {
     try {
       // Validate inputs
       if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
@@ -46,7 +46,7 @@ export function registerRalphSchedulerHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphScheduler:deferItem', async (_event, workspacePath: string, itemId: string, reason?: string) => {
+  ipcMain.handle('ralphScheduler:deferItem', async (_event: IpcMainInvokeEvent, workspacePath: string, itemId: string, reason?: string) => {
     try {
       // Validate inputs
       if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {
@@ -60,7 +60,7 @@ export function registerRalphSchedulerHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphScheduler:determineAcceptanceGate', async (_event, workspacePath: string, itemId: string) => {
+  ipcMain.handle('ralphScheduler:determineAcceptanceGate', async (_event: IpcMainInvokeEvent, workspacePath: string, itemId: string) => {
     try {
       // Validate inputs
       if (!itemId || typeof itemId !== 'string' || itemId.length > 200) {

@@ -1,8 +1,8 @@
-import { ipcMain } from 'electron';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { getRalphSafety } from '../ralphSafety';
 
 export function registerRalphSafetyHandlers(): void {
-  ipcMain.handle('ralphSafety:canExecute', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:canExecute', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       return safety.canExecute(projectId);
@@ -11,7 +11,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:recordCall', async (_event, projectId: string, tokensUsed?: number) => {
+  ipcMain.handle('ralphSafety:recordCall', async (_event: IpcMainInvokeEvent, projectId: string, tokensUsed?: number) => {
     try {
       const safety = getRalphSafety(projectId);
       safety.recordCall(projectId, tokensUsed ?? 0);
@@ -21,7 +21,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:recordFailure', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:recordFailure', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       safety.recordFailure(projectId);
@@ -31,7 +31,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:recordNoProgress', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:recordNoProgress', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       safety.recordNoProgress(projectId);
@@ -41,7 +41,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:recordPermissionDenial', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:recordPermissionDenial', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       safety.recordPermissionDenial(projectId);
@@ -51,7 +51,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:getRateLimitState', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:getRateLimitState', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       return { success: true, state: safety.getRateLimitState(projectId) };
@@ -60,7 +60,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:getCircuitBreakerState', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:getCircuitBreakerState', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       return { success: true, state: safety.getCircuitBreakerState(projectId) };
@@ -69,7 +69,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:isCircuitOpen', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:isCircuitOpen', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       return { success: true, isOpen: safety.isCircuitOpen(projectId) };
@@ -78,7 +78,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:resetCircuit', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:resetCircuit', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       safety.resetCircuit(projectId);
@@ -88,7 +88,7 @@ export function registerRalphSafetyHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphSafety:getSafetyState', async (_event, projectId: string) => {
+  ipcMain.handle('ralphSafety:getSafetyState', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const safety = getRalphSafety(projectId);
       return { success: true, state: safety.getSafetyState(projectId) };

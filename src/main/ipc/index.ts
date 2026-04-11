@@ -1,6 +1,6 @@
 export { registerProcessHandlers, getActiveProcesses, cleanupProcesses } from './processHandlers';
 export { registerPtyHandlers, ptyManager } from './ptyHandlers';
-export { registerClaudeHandlers, detectClaudeCode } from './claudeHandlers';
+export { registerClaudeHandlers } from './claudeHandlers';
 export { registerStorageHandlers } from './storageHandlers';
 export { registerFilesystemHandlers } from './filesystemHandlers';
 export { registerAppHandlers } from './appHandlers';
@@ -15,3 +15,4 @@ export { registerRalphHandlers } from './ralphHandlers';
 export { registerRalphRuntimeHandlers } from './ralphRuntimeHandlers';
 export { registerRalphSchedulerHandlers } from './ralphSchedulerHandlers';
 export { registerRalphSafetyHandlers } from './ralphSafetyHandlers';
+export { detectClaudeCode } from '../utils/claudeDetection';

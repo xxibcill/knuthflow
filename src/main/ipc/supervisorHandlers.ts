@@ -1,19 +1,19 @@
-import { ipcMain } from 'electron';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { getSupervisor } from '../supervisor';
 
 export function registerSupervisorHandlers(): void {
-  ipcMain.handle('supervisor:validateIntegrity', async () => {
+  ipcMain.handle('supervisor:validateIntegrity', async (_event: IpcMainInvokeEvent) => {
     const supervisor = getSupervisor();
     return supervisor.validateSessionIntegrity();
   });
 
-  ipcMain.handle('supervisor:cleanupOrphans', async () => {
+  ipcMain.handle('supervisor:cleanupOrphans', async (_event: IpcMainInvokeEvent) => {
     const supervisor = getSupervisor();
     supervisor.cleanupOrphanedSessions();
     return { success: true };
   });
 
-  ipcMain.handle('supervisor:explainExit', async (_event, exitCode: number | null, signal?: number) => {
+  ipcMain.handle('supervisor:explainExit', async (_event: IpcMainInvokeEvent, exitCode: number | null, signal?: number) => {
     const supervisor = getSupervisor();
     return supervisor.explainExit(exitCode, signal ?? undefined);
   });

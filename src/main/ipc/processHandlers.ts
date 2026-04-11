@@ -1,11 +1,11 @@
-import { ipcMain } from 'electron';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 
 // Active processes tracked by PID
 const activeProcesses: Map<number, ChildProcess> = new Map();
 
 export function registerProcessHandlers(): void {
-  ipcMain.handle('process:spawn', async (_event, args: string[], cwd?: string) => {
+  ipcMain.handle('process:spawn', async (_event: IpcMainInvokeEvent, args: string[], cwd?: string) => {
     const spawned = spawn('claude', args, {
       cwd: cwd || process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -24,14 +24,14 @@ export function registerProcessHandlers(): void {
     return { pid: spawned.pid! };
   });
 
-  ipcMain.handle('process:send', async (_event, pid: number, input: string) => {
+  ipcMain.handle('process:send', async (_event: IpcMainInvokeEvent, pid: number, input: string) => {
     const proc = activeProcesses.get(pid);
     if (proc && proc.stdin) {
       proc.stdin.write(input);
     }
   });
 
-  ipcMain.handle('process:kill', async (_event, pid: number) => {
+  ipcMain.handle('process:kill', async (_event: IpcMainInvokeEvent, pid: number) => {
     const proc = activeProcesses.get(pid);
     if (proc) {
       proc.kill();
@@ -39,7 +39,7 @@ export function registerProcessHandlers(): void {
     }
   });
 
-  ipcMain.handle('process:list', async () => {
+  ipcMain.handle('process:list', async (_event: IpcMainInvokeEvent) => {
     return Array.from(activeProcesses.entries()).map(([pid, proc]) => ({
       pid,
       status: proc.killed ? 'dead' : 'running',

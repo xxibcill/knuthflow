@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { StopReason, VALID_STOP_REASONS } from '../../shared/ralphTypes';
 import {
   getRalphRuntime,
@@ -10,7 +10,7 @@ function isValidStopReason(reason: string): reason is StopReason {
 }
 
 export function registerRalphRuntimeHandlers(): void {
-  ipcMain.handle('ralphRuntime:start', async (_event, projectId: string, name: string, sessionId: string, ptySessionId: string) => {
+  ipcMain.handle('ralphRuntime:start', async (_event: IpcMainInvokeEvent, projectId: string, name: string, sessionId: string, ptySessionId: string) => {
     try {
       const runtime = getRalphRuntime(projectId);
       const run = runtime.start(projectId, name, sessionId, ptySessionId);
@@ -20,7 +20,7 @@ export function registerRalphRuntimeHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphRuntime:pause', async (_event, runId: string) => {
+  ipcMain.handle('ralphRuntime:pause', async (_event: IpcMainInvokeEvent, runId: string) => {
     try {
       const runtime = getRuntimeForRunId(runId);
       if (runtime && runtime.ownsRun(runId)) {
@@ -33,7 +33,7 @@ export function registerRalphRuntimeHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphRuntime:resume', async (_event, runId: string) => {
+  ipcMain.handle('ralphRuntime:resume', async (_event: IpcMainInvokeEvent, runId: string) => {
     try {
       const runtime = getRuntimeForRunId(runId);
       if (runtime && runtime.ownsRun(runId)) {
@@ -46,7 +46,7 @@ export function registerRalphRuntimeHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphRuntime:stop', async (_event, runId: string, reason: string, message: string, canResume?: boolean) => {
+  ipcMain.handle('ralphRuntime:stop', async (_event: IpcMainInvokeEvent, runId: string, reason: string, message: string, canResume?: boolean) => {
     try {
       if (!isValidStopReason(reason)) {
         return { success: false, error: `Invalid stop reason: ${reason}` };
@@ -62,7 +62,7 @@ export function registerRalphRuntimeHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphRuntime:getState', async (_event, runId: string) => {
+  ipcMain.handle('ralphRuntime:getState', async (_event: IpcMainInvokeEvent, runId: string) => {
     try {
       const runtime = getRuntimeForRunId(runId);
       if (runtime && runtime.ownsRun(runId)) {
@@ -79,7 +79,7 @@ export function registerRalphRuntimeHandlers(): void {
     }
   });
 
-  ipcMain.handle('ralphRuntime:getActiveRun', async (_event, projectId: string) => {
+  ipcMain.handle('ralphRuntime:getActiveRun', async (_event: IpcMainInvokeEvent, projectId: string) => {
     try {
       const runtime = getRalphRuntime(projectId);
       return { success: true, run: runtime.getActiveRunForProject(projectId) };

@@ -1,13 +1,13 @@
-import { ipcMain } from 'electron';
+import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { getDatabase, AppSettings } from '../database';
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle('settings:get', async (_event, key: string) => {
+  ipcMain.handle('settings:get', async (_event: IpcMainInvokeEvent, key: string) => {
     const db = getDatabase();
     return db.getSetting(key as keyof AppSettings);
   });
 
-  ipcMain.handle('settings:set', async (_event, key: string, value: unknown) => {
+  ipcMain.handle('settings:set', async (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
     const db = getDatabase();
     const validKeys: (keyof AppSettings)[] = [
       'cliPath', 'defaultArgs', 'launchOnStartup', 'restoreLastWorkspace',
@@ -20,12 +20,12 @@ export function registerSettingsHandlers(): void {
     db.setSetting(key as keyof AppSettings, value as AppSettings[keyof AppSettings]);
   });
 
-  ipcMain.handle('settings:getAll', async () => {
+  ipcMain.handle('settings:getAll', async (_event: IpcMainInvokeEvent) => {
     const db = getDatabase();
     return db.getAllSettings();
   });
 
-  ipcMain.handle('settings:setAll', async (_event, settings: Partial<AppSettings>) => {
+  ipcMain.handle('settings:setAll', async (_event: IpcMainInvokeEvent, settings: Partial<AppSettings>) => {
     const db = getDatabase();
     const validKeys: (keyof AppSettings)[] = [
       'cliPath', 'defaultArgs', 'launchOnStartup', 'restoreLastWorkspace',

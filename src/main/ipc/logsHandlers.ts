@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron';
 import { getLogManager, LogLevel } from '../logManager';
 import { getSecureStorage } from '../secureStorage';
 import { getDatabase } from '../database';
-import { detectClaudeCode } from './claudeHandlers';
+import { detectClaudeCode } from '../utils/claudeDetection';
 
 export function registerLogsHandlers(): void {
   ipcMain.handle('logs:get', async (_event, limit?: number, level?: string) => {

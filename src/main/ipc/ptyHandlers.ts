@@ -1,26 +1,26 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { getPtyManager, PtyOptions } from '../ptyManager';
 
 const ptyManager = getPtyManager();
 
 export function registerPtyHandlers(mainWindowGetter: () => BrowserWindow | null): void {
-  ipcMain.handle('pty:create', async (_event, options?: PtyOptions) => {
+  ipcMain.handle('pty:create', async (_event: IpcMainInvokeEvent, options?: PtyOptions) => {
     return ptyManager.create(options || {});
   });
 
-  ipcMain.handle('pty:write', async (_event, sessionId: string, data: string) => {
+  ipcMain.handle('pty:write', async (_event: IpcMainInvokeEvent, sessionId: string, data: string) => {
     return ptyManager.write(sessionId, data);
   });
 
-  ipcMain.handle('pty:resize', async (_event, sessionId: string, cols: number, rows: number) => {
+  ipcMain.handle('pty:resize', async (_event: IpcMainInvokeEvent, sessionId: string, cols: number, rows: number) => {
     return ptyManager.resize(sessionId, cols, rows);
   });
 
-  ipcMain.handle('pty:kill', async (_event, sessionId: string, signal?: string) => {
+  ipcMain.handle('pty:kill', async (_event: IpcMainInvokeEvent, sessionId: string, signal?: string) => {
     return ptyManager.kill(sessionId, signal);
   });
 
-  ipcMain.handle('pty:list', async () => {
+  ipcMain.handle('pty:list', async (_event: IpcMainInvokeEvent) => {
     return ptyManager.list().map(session => ({
       id: session.id,
       pid: session.pty.pid,
