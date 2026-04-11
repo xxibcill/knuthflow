@@ -1,4 +1,4 @@
-import { getDatabase, RalphArtifact } from '../database';
+import { getDatabase, RalphArtifact, ArtifactType, ArtifactSeverity } from '../database';
 import { AcceptanceGate } from '../../shared/ralphTypes';
 
 // RalphArtifact is the canonical type defined in database.ts
@@ -8,20 +8,8 @@ type Artifact = RalphArtifact;
 // Re-export RalphArtifact as Artifact for backwards compatibility
 export { RalphArtifact as Artifact };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Artifact Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type ArtifactType =
-  | 'compiler_output'
-  | 'test_log'
-  | 'diff'
-  | 'exit_metadata'
-  | 'generated_file'
-  | 'validation_result'
-  | 'loop_summary';
-
-export type ArtifactSeverity = 'error' | 'warning' | 'info';
+// Re-export types from database for convenience
+export { ArtifactType, ArtifactSeverity };
 
 export interface ValidationResult {
   passed: boolean;

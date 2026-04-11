@@ -9,9 +9,6 @@ import {
 } from './planParser';
 import { gatherContextForItem } from './ralphSearchJob';
 
-// Re-export LoopLearning for backwards compatibility
-export { LoopLearning };
-
 // FollowUpItem is the type for creating follow-ups (before DB adds projectId, resolved, resolvedAt)
 export type FollowUpItem = Omit<FollowUp, 'projectId' | 'resolved' | 'resolvedAt'>;
 
@@ -335,12 +332,14 @@ function rebuildPlanWithReorderedTasks(
     const originalLine = lines.find(l => l.includes(task.title));
     if (originalLine) {
       pendingSection.push(originalLine);
+      // Note: For reorders, before/after show position indices, not content
+      // since the line content itself doesn't change - only its position does
       changes.push({
         type: 'reordered',
         taskId: task.id,
         taskTitle: task.title,
-        before: originalLine.trim(),
-        after: originalLine.trim(),
+        before: null, // Position in original list - not tracked here
+        after: null,  // Position in reordered list - not tracked here
         reason: 'Reordered by priority',
       });
     }

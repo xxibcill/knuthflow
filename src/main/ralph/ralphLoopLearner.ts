@@ -89,6 +89,13 @@ class MistakeTracker {
       }
     }
   }
+
+  /**
+   * Reset all tracked patterns. Useful for testing or when starting a new run.
+   */
+  reset(): void {
+    this.patterns.clear();
+  }
 }
 
 // Module-level tracker
@@ -125,14 +132,16 @@ export function detectMistakePatterns(params: {
   const detectedPatterns = mistakeTracker.getPatterns();
 
   // Persist patterns to database
-  for (const pattern of detectedPatterns) {
+  if (detectedPatterns.length > 0) {
     const db = getDatabase();
-    db.upsertLoopLearning({
-      projectId,
-      pattern: pattern.description,
-      countermeasure: `Detected ${pattern.occurrences}x - requires operator review`,
-      metadata: { type: pattern.type, occurrences: pattern.occurrences },
-    });
+    for (const pattern of detectedPatterns) {
+      db.upsertLoopLearning({
+        projectId,
+        pattern: pattern.description,
+        countermeasure: `Detected ${pattern.occurrences}x - requires operator review`,
+        metadata: { type: pattern.type, occurrences: pattern.occurrences },
+      });
+    }
   }
 
   // Cleanup old patterns
