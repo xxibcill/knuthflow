@@ -10,6 +10,23 @@ import { getSecureStorage } from './main/secureStorage';
 import { getLogManager, LogLevel, LogEntry } from './main/logManager';
 import { getRalphBootstrap, resetRalphBootstrap, RalphBootstrap } from './main/ralphBootstrap';
 import { getRalphValidator, resetRalphValidator, RalphValidator } from './main/ralphValidator';
+import {
+  RalphRuntime,
+  RalphScheduler,
+  RalphExecutionAdapter,
+  RalphSafetyMonitor,
+  getRalphRuntime,
+  getAllRalphRuntimes,
+  getRuntimeForRunId,
+  getRalphScheduler,
+  getRalphExecution,
+  getRalphSafety,
+  resetRalphRuntime,
+  resetRalphScheduler,
+  resetRalphExecution,
+  resetRalphSafety,
+} from './main/index';
+import { StopReason, VALID_STOP_REASONS } from './shared/ralphTypes';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -961,24 +978,6 @@ ipcMain.handle('ralph:deleteProject', async (_event, projectId: string) => {
 // IPC Handlers - Ralph Runtime (Phase 8)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import {
-  RalphRuntime,
-  RalphScheduler,
-  RalphExecutionAdapter,
-  RalphSafetyMonitor,
-  getRalphRuntime,
-  getAllRalphRuntimes,
-  getRuntimeForRunId,
-  getRalphScheduler,
-  getRalphExecution,
-  getRalphSafety,
-  resetRalphRuntime,
-  resetRalphScheduler,
-  resetRalphExecution,
-  resetRalphSafety,
-} from './main/index';
-import { StopReason, VALID_STOP_REASONS } from './shared/ralphTypes';
-
 function isValidStopReason(reason: string): reason is StopReason {
   return VALID_STOP_REASONS.includes(reason as StopReason);
 }
@@ -1040,14 +1039,15 @@ ipcMain.handle('ralphRuntime:getState', async (_event, runId: string) => {
     const runtime = getRuntimeForRunId(runId);
     if (runtime && runtime.ownsRun(runId)) {
       return {
+        success: true,
         state: runtime.getRuntimeState(runId),
         context: runtime.getCurrentContext(runId),
         safetyStop: runtime.getSafetyStop(runId),
       };
     }
-    return { state: null, context: null, safetyStop: null };
+    return { success: false, error: 'Run not found' };
   } catch (error) {
-    return { state: null, context: null, safetyStop: null, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 

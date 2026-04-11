@@ -113,7 +113,7 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Persist rate limit state to database
-   * TODO: Implement database persistence for rate limit state
+   * TODO (Phase 9): Implement database persistence for rate limit state
    *       Currently only in-memory; state will not survive app restart
    */
   private persistRateLimitState(projectId: string, state: RateLimitState): void {
@@ -127,7 +127,7 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Load persisted rate limit state
-   * TODO: Implement database persistence for rate limit state
+   * TODO (Phase 9): Implement database persistence for rate limit state
    *       Currently returns null (no persistence)
    */
   private loadPersistedRateLimit(projectId: string): RateLimitState | null {
@@ -299,7 +299,7 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Persist circuit breaker state to database
-   * TODO: Implement database persistence for circuit breaker state
+   * TODO (Phase 9): Implement database persistence for circuit breaker state
    *       Currently only in-memory; state will not survive app restart
    */
   private persistCircuitBreakerState(projectId: string, state: CircuitBreakerState): void {
@@ -311,7 +311,7 @@ export class RalphSafetyMonitor extends EventEmitter {
 
   /**
    * Load persisted circuit breaker state
-   * TODO: Implement database persistence for circuit breaker state
+   * TODO (Phase 9): Implement database persistence for circuit breaker state
    *       Currently returns null (no persistence)
    */
   private loadPersistedCircuitBreaker(projectId: string): CircuitBreakerState | null {
@@ -448,6 +448,11 @@ export class RalphSafetyMonitor extends EventEmitter {
     circuitBreaker: CircuitBreakerState;
     lastActivityAt: number;
   } | null {
+    // Periodically clean up stale entries to prevent unbounded memory growth
+    // Clean if we have more than 50 entries and it's been a while
+    if (this.safetyStates.size > 50) {
+      this.cleanupStaleEntries();
+    }
     return this.safetyStates.get(projectId) ?? null;
   }
 

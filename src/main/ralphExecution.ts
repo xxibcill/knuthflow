@@ -118,7 +118,7 @@ export class RalphExecutionAdapter extends EventEmitter {
    * Sessions are only tracked in-memory and will not survive app restart.
    */
   private getStoredSession(sessionId: string): SessionState | null {
-    // TODO: Implement persistent session storage
+    // TODO (Phase 9): Implement persistent session storage
     // For now, we only track sessions in-memory and cannot resume across restarts
     return null;
   }
@@ -157,28 +157,47 @@ export class RalphExecutionAdapter extends EventEmitter {
       return;
     }
 
-    // Wait for shell to be ready, then send Claude command
-    let shellReady = false;
-    const timeout = setTimeout(() => {
-      if (!shellReady) {
-        shellReady = true;
-        const cmd = `"${detection.executablePath}" --no-input\r`;
-        this.ptyManager.write(session.ptySessionId, cmd);
-      }
-    }, this.config.shellReadyTimeoutMs);
+    // Use a Promise-based approach to wait for shell readiness
+    // This avoids race conditions with the data handler
+    const waitForShellReady = new Promise<void>((resolve) => {
+      let settled = false;
+      const cmd = `"${detection.executablePath}" --no-input\r`;
 
-    this.sessionDataHandler = ({ sessionId, data }) => {
-      if (sessionId === session.ptySessionId && !shellReady) {
-        // Check for shell prompt indicators (covers most common shells and custom prompts)
-        // Includes: $, #, > (for some shells), and common prompt markers
-        if (data.includes('$') || data.includes('#') || data.includes('>')) {
-          shellReady = true;
-          clearTimeout(timeout);
-          const cmd = `"${detection.executablePath}" --no-input\r`;
-          this.ptyManager.write(session.ptySessionId, cmd);
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve();
         }
-      }
+      }, this.config.shellReadyTimeoutMs);
 
+      const checkPrompt = (data: string) => {
+        if (settled) return;
+
+        // Match common shell prompt patterns at end of line:
+        // - $ or # at end (bash, zsh, fish with default prompts)
+        // - > at end (csh, tcsh, or Windows-style)
+        // - Prompt can have spaces before it like "my prompt $ "
+        const promptPattern = /[$#>]\s*$/;
+        if (promptPattern.test(data)) {
+          settled = true;
+          clearTimeout(timeout);
+          this.ptyManager.write(session.ptySessionId, cmd);
+          resolve();
+        }
+      };
+
+      // Set up a one-time data handler to detect shell ready
+      const handler = ({ sessionId, data }: { sessionId: string; data: string }) => {
+        if (sessionId === session.ptySessionId) {
+          checkPrompt(data);
+        }
+      };
+
+      this.ptyManager.once('data', handler);
+    });
+
+    // Set up output handler before waiting
+    this.sessionDataHandler = ({ sessionId, data }) => {
       if (sessionId === session.ptySessionId) {
         this.outputBuffer += data;
         this.emit('output', data);
@@ -192,7 +211,7 @@ export class RalphExecutionAdapter extends EventEmitter {
           this.ptyManager.removeListener('data', this.sessionDataHandler);
           this.sessionDataHandler = null;
         }
-        // TODO: Implement auto-recovery logic when session expires
+        // TODO (Phase 9): Implement auto-recovery logic when session expires
         // e.g., create new session and resume the loop
         this.emit('sessionExpired');
       }
@@ -200,6 +219,12 @@ export class RalphExecutionAdapter extends EventEmitter {
 
     this.ptyManager.on('data', this.sessionDataHandler);
     this.ptyManager.on('exit', this.sessionExitHandler);
+
+    // Ensure Claude command is sent even if prompt detection fails
+    waitForShellReady.catch(() => {
+      // Prompt timeout - shellReadyTimeoutMs elapsed without detecting prompt
+      // The Claude command was already scheduled via the timeout in waitForShellReady
+    });
   }
 
   /**

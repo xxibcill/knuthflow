@@ -26,7 +26,7 @@ export type RalphRuntimeEvent = keyof RalphRuntimeEvents;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Runtime
-// TODO: Add unit tests for state transitions, timeout handling, and concurrency
+// @TODO(Phase 10): Add unit tests for state transitions, timeout handling, and concurrency
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RalphRuntime extends EventEmitter {
@@ -44,6 +44,9 @@ export class RalphRuntime extends EventEmitter {
 
   // Reverse index: runId -> projectId for fast lookups
   private runIdToProjectId: Map<string, string> = new Map();
+
+  // Project ID -> runId index for O(1) getActiveRunForProject lookups
+  private projectIdToRunId: Map<string, string> = new Map();
 
   constructor(config: Partial<RalphRuntimeConfig> = {}) {
     super();
@@ -87,6 +90,7 @@ export class RalphRuntime extends EventEmitter {
 
       // Update reverse index
       this.runIdToProjectId.set(run.id, projectId);
+      this.projectIdToRunId.set(projectId, run.id);
       // Register in global reverse index for O(1) IPC handler lookups
       runIdToRuntime.set(run.id, this);
 
@@ -300,15 +304,18 @@ export class RalphRuntime extends EventEmitter {
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Get active run for a project
+   * Get active run for a project (O(1) lookup)
    */
   getActiveRunForProject(projectId: string): { run: LoopRun; state: LoopState } | null {
-    for (const [, activeRun] of this.activeRuns) {
-      if (activeRun.run.projectId === projectId) {
-        return { run: activeRun.run, state: activeRun.state };
-      }
+    const runId = this.projectIdToRunId.get(projectId);
+    if (!runId) {
+      return null;
     }
-    return null;
+    const activeRun = this.activeRuns.get(runId);
+    if (!activeRun) {
+      return null;
+    }
+    return { run: activeRun.run, state: activeRun.state };
   }
 
   /**
@@ -385,6 +392,10 @@ export class RalphRuntime extends EventEmitter {
    * Clean up a run from active memory
    */
   cleanupRun(runId: string): void {
+    const projectId = this.runIdToProjectId.get(runId);
+    if (projectId) {
+      this.projectIdToRunId.delete(projectId);
+    }
     this.activeRuns.delete(runId);
     this.runIdToProjectId.delete(runId);
     runIdToRuntime.delete(runId);

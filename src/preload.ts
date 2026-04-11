@@ -340,7 +340,7 @@ export interface KnuthflowAPI {
     addRunSnapshot(projectId: string, runId: string, iteration: number, planContent: string): Promise<PlanSnapshot>;
     deleteProject(projectId: string): Promise<void>;
   };
-};
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Preload API - Secure IPC bridge
