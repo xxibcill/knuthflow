@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDatabase, RalphProject, RalphControlFiles } from './database';
+import { getDatabase, RalphProject } from './database';
+import type { RalphControlFiles, BootstrapError, SharedBootstrapResult } from '../shared/ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Template Content
@@ -105,14 +106,8 @@ const RALPH_METADATA_FILE = '.ralph';
 // Bootstrap Result Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface BootstrapResult {
-  success: boolean;
+export interface BootstrapResult extends SharedBootstrapResult {
   project?: RalphProject;
-  created: string[];
-  skipped: string[];
-  updated: string[];
-  backups: string[];
-  error?: string;
 }
 
 export interface BootstrapOptions {
@@ -148,6 +143,11 @@ export class RalphBootstrap {
 
     if (!fs.statSync(workspacePath).isDirectory()) {
       return { success: false, error: 'Workspace path is not a directory', created: [], skipped: [], updated: [], backups: [] };
+    }
+
+    // Security: ensure path is absolute to prevent path traversal
+    if (!path.isAbsolute(workspacePath)) {
+      return { success: false, error: 'Workspace path must be absolute', created: [], skipped: [], updated: [], backups: [] };
     }
 
     // Check if workspace already has Ralph project

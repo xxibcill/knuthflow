@@ -2,31 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getDatabase } from './database';
 import { getRalphBootstrap } from './ralphBootstrap';
+import type { ValidationSeverity, ValidationIssue, ReadinessReport } from '../shared/ralphTypes';
+export type { ValidationSeverity, ValidationIssue, ReadinessReport } from '../shared/ralphTypes';
+import { STALE_RUN_THRESHOLD_MS } from '../shared/ralphTypes';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Validation Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type ValidationSeverity = 'error' | 'warning' | 'info';
-
-export interface ValidationIssue {
-  code: string;
-  severity: ValidationSeverity;
-  message: string;
-  recovery: string;
-  path?: string;
-}
-
-export interface ReadinessReport {
-  ready: boolean;
-  isFresh: boolean;
-  isCorrupted: boolean;
-  workspaceId: string;
-  workspacePath: string;
-  projectId: string | null;
-  issues: ValidationIssue[];
-  checkedAt: number;
-}
+// Re-export for backwards compatibility
+export { STALE_RUN_THRESHOLD_MS } from '../shared/ralphTypes';
 
 export interface ValidationResult {
   valid: boolean;
@@ -232,7 +213,7 @@ export class RalphValidator {
     const activeRuns = this.db.listActiveLoopRuns(projectId);
     for (const run of activeRuns) {
       if (run.startTime) {
-        const staleThreshold = 30 * 60 * 1000; // 30 minutes
+        const staleThreshold = STALE_RUN_THRESHOLD_MS;
         const timeSinceStart = Date.now() - run.startTime;
 
         if (timeSinceStart > staleThreshold) {

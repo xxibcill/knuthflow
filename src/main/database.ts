@@ -3,6 +3,33 @@ import * as path from 'path';
 import { app } from 'electron';
 import * as fs from 'fs';
 
+import type {
+  RalphProject,
+  LoopRunStatus,
+  LoopRun,
+  LoopSummary,
+  PlanSnapshot,
+  RalphControlFiles,
+  BootstrapError,
+  ValidationSeverity,
+  ValidationIssue,
+  ReadinessReport,
+  STALE_RUN_THRESHOLD_MS,
+} from '../shared/ralphTypes';
+export {
+  RalphProject,
+  LoopRunStatus,
+  LoopRun,
+  LoopSummary,
+  PlanSnapshot,
+  RalphControlFiles,
+  BootstrapError,
+  ValidationSeverity,
+  ValidationIssue,
+  ReadinessReport,
+  STALE_RUN_THRESHOLD_MS,
+} from '../shared/ralphTypes';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,63 +97,6 @@ export interface LaunchProfile {
 
 export interface DatabaseSchema {
   version: number;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Ralph Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface RalphProject {
-  id: string;
-  workspaceId: string;
-  version: number;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export type LoopRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-
-export interface LoopRun {
-  id: string;
-  projectId: string;
-  name: string;
-  status: LoopRunStatus;
-  startTime: number | null;
-  endTime: number | null;
-  exitCode: number | null;
-  signal: number | null;
-  error: string | null;
-  iterationCount: number;
-  sessionId: string | null;
-  ptySessionId: string | null;
-  createdAt: number;
-}
-
-export interface LoopSummary {
-  id: string;
-  projectId: string;
-  runId: string;
-  iteration: number;
-  prompt: string;
-  response: string;
-  selectedFiles: string[];
-  createdAt: number;
-}
-
-export interface PlanSnapshot {
-  id: string;
-  projectId: string;
-  runId: string;
-  iteration: number;
-  planContent: string;
-  createdAt: number;
-}
-
-export interface RalphControlFiles {
-  promptMd: string;
-  agentMd: string;
-  fixPlanMd: string;
-  specsDir: string | null;
 }
 
 // Schema version for migrations
@@ -675,11 +645,15 @@ class SessionDatabase {
   }
 
   deleteRalphProject(id: string): void {
-    // Delete related data first
-    this.db.prepare('DELETE FROM loop_summaries WHERE project_id = ?').run(id);
-    this.db.prepare('DELETE FROM plan_snapshots WHERE project_id = ?').run(id);
-    this.db.prepare('DELETE FROM loop_runs WHERE project_id = ?').run(id);
-    this.db.prepare('DELETE FROM ralph_projects WHERE id = ?').run(id);
+    // Use transaction to ensure atomic deletion
+    const deleteStmt = this.db.transaction((table: string) => {
+      this.db.prepare(`DELETE FROM ${table} WHERE project_id = ?`).run(id);
+    });
+
+    deleteStmt('loop_summaries');
+    deleteStmt('plan_snapshots');
+    deleteStmt('loop_runs');
+    deleteStmt('ralph_projects');
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

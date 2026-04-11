@@ -8,8 +8,8 @@ import { getSupervisor, resetSupervisor } from './main/supervisor';
 import { registerUpdateHandlers } from './main/updateManager';
 import { getSecureStorage } from './main/secureStorage';
 import { getLogManager, LogLevel, LogEntry } from './main/logManager';
-import { getRalphBootstrap, RalphBootstrap } from './main/ralphBootstrap';
-import { getRalphValidator, RalphValidator } from './main/ralphValidator';
+import { getRalphBootstrap, resetRalphBootstrap, RalphBootstrap } from './main/ralphBootstrap';
+import { getRalphValidator, resetRalphValidator, RalphValidator } from './main/ralphValidator';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -1025,6 +1025,10 @@ app.on('will-quit', () => {
 
   // Stop the supervisor
   resetSupervisor();
+
+  // Reset Ralph singletons
+  resetRalphBootstrap();
+  resetRalphValidator();
 
   // Cleanup PTY manager
   ptyManager.dispose();
