@@ -968,6 +968,7 @@ import {
   RalphSafetyMonitor,
   getRalphRuntime,
   getAllRalphRuntimes,
+  getRuntimeForRunId,
   getRalphScheduler,
   getRalphExecution,
   getRalphSafety,
@@ -989,12 +990,10 @@ ipcMain.handle('ralphRuntime:start', async (_event, projectId: string, name: str
 
 ipcMain.handle('ralphRuntime:pause', async (_event, runId: string) => {
   try {
-    // Find which runtime has this run
-    for (const [projectId, runtime] of getAllRalphRuntimes()) {
-      if (runtime.isRunActive(runId)) {
-        runtime.pause(runId);
-        return { success: true };
-      }
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      runtime.pause(runId);
+      return { success: true };
     }
     return { success: false, error: 'Run not found' };
   } catch (error) {
@@ -1004,11 +1003,10 @@ ipcMain.handle('ralphRuntime:pause', async (_event, runId: string) => {
 
 ipcMain.handle('ralphRuntime:resume', async (_event, runId: string) => {
   try {
-    for (const [projectId, runtime] of getAllRalphRuntimes()) {
-      if (runtime.isRunActive(runId)) {
-        runtime.resume(runId);
-        return { success: true };
-      }
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      runtime.resume(runId);
+      return { success: true };
     }
     return { success: false, error: 'Run not found' };
   } catch (error) {
@@ -1018,11 +1016,10 @@ ipcMain.handle('ralphRuntime:resume', async (_event, runId: string) => {
 
 ipcMain.handle('ralphRuntime:stop', async (_event, runId: string, reason: string, message: string, canResume?: boolean) => {
   try {
-    for (const [projectId, runtime] of getAllRalphRuntimes()) {
-      if (runtime.isRunActive(runId)) {
-        runtime.stop(runId, reason as any, message, canResume ?? false);
-        return { success: true };
-      }
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      runtime.stop(runId, reason as any, message, canResume ?? false);
+      return { success: true };
     }
     return { success: false, error: 'Run not found' };
   } catch (error) {
@@ -1032,14 +1029,13 @@ ipcMain.handle('ralphRuntime:stop', async (_event, runId: string, reason: string
 
 ipcMain.handle('ralphRuntime:getState', async (_event, runId: string) => {
   try {
-    for (const [projectId, runtime] of getAllRalphRuntimes()) {
-      if (runtime.isRunActive(runId)) {
-        return {
-          state: runtime.getRuntimeState(runId),
-          context: runtime.getCurrentContext(runId),
-          safetyStop: runtime.getSafetyStop(runId),
-        };
-      }
+    const runtime = getRuntimeForRunId(runId);
+    if (runtime && runtime.ownsRun(runId)) {
+      return {
+        state: runtime.getRuntimeState(runId),
+        context: runtime.getCurrentContext(runId),
+        safetyStop: runtime.getSafetyStop(runId),
+      };
     }
     return { state: null, context: null, safetyStop: null };
   } catch (error) {

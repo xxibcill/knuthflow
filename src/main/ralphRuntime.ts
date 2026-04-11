@@ -43,6 +43,9 @@ export class RalphRuntime extends EventEmitter {
     iterationStartTime: number | null;
   }> = new Map();
 
+  // Reverse index: runId -> projectId for fast lookups
+  private runIdToProjectId: Map<string, string> = new Map();
+
   constructor(config: Partial<RalphRuntimeConfig> = {}) {
     super();
     this.db = getDatabase();
@@ -76,6 +79,11 @@ export class RalphRuntime extends EventEmitter {
       safetyStop: null,
       iterationStartTime: null,
     });
+
+    // Update reverse index
+    this.runIdToProjectId.set(run.id, projectId);
+    // Register in global reverse index for O(1) IPC handler lookups
+    runIdToRuntime.set(run.id, this);
 
     this.emit('stateChanged', 'starting');
     return run;
@@ -216,12 +224,24 @@ export class RalphRuntime extends EventEmitter {
     }
 
     // Update current context for next iteration
-    activeRun.currentContext = {
-      ...activeRun.currentContext!,
-      iteration: iteration + 1,
-      prompt: nextPrompt,
-      startedAt: Date.now(),
-    };
+    if (activeRun.currentContext) {
+      activeRun.currentContext = {
+        ...activeRun.currentContext,
+        iteration: iteration + 1,
+        prompt: nextPrompt,
+        startedAt: Date.now(),
+      };
+    } else {
+      // Initialize new context if none exists
+      activeRun.currentContext = {
+        iteration: iteration + 1,
+        selectedItem: null,
+        acceptanceGate: null,
+        prompt: nextPrompt,
+        sessionId: null,
+        startedAt: Date.now(),
+      };
+    }
 
     this.emit('iterationCompleted', activeRun.currentContext, true);
     return true;
@@ -357,6 +377,28 @@ export class RalphRuntime extends EventEmitter {
    */
   cleanupRun(runId: string): void {
     this.activeRuns.delete(runId);
+    this.runIdToProjectId.delete(runId);
+    runIdToRuntime.delete(runId);
+  }
+
+  /**
+   * Find runtime by runId using reverse index
+   */
+  findRuntimeByRunId(runId: string): RalphRuntime | null {
+    const projectId = this.runIdToProjectId.get(runId);
+    if (!projectId) {
+      return null;
+    }
+    // Return 'this' since all runtimes are managed via singleton pattern
+    // and we use the reverse index to check if this runtime owns the run
+    return this.activeRuns.has(runId) ? this : null;
+  }
+
+  /**
+   * Check if this runtime owns a specific run
+   */
+  ownsRun(runId: string): boolean {
+    return this.activeRuns.has(runId);
   }
 
   /**
@@ -379,6 +421,8 @@ export class RalphRuntime extends EventEmitter {
 // ─────────────────────────────────────────────────────────────────────────────
 
 let runtimeInstances: Map<string, RalphRuntime> = new Map();
+// Global reverse index: runId -> RalphRuntime for O(1) lookups
+let runIdToRuntime: Map<string, RalphRuntime> = new Map();
 
 export function getRalphRuntime(projectId: string): RalphRuntime {
   let runtime = runtimeInstances.get(projectId);
@@ -393,10 +437,33 @@ export function getAllRalphRuntimes(): Map<string, RalphRuntime> {
   return runtimeInstances;
 }
 
+/**
+ * Get runtime that owns a specific runId (O(1) lookup)
+ */
+export function getRuntimeForRunId(runId: string): RalphRuntime | null {
+  return runIdToRuntime.get(runId) ?? null;
+}
+
+/**
+ * Register a runId with its owning runtime
+ */
+export function registerRunId(runId: string, runtime: RalphRuntime): void {
+  runIdToRuntime.set(runId, runtime);
+}
+
 export function resetRalphRuntime(projectId?: string): void {
   if (projectId) {
+    const runtime = runtimeInstances.get(projectId);
+    if (runtime) {
+      // Clean up all active runs for this runtime
+      for (const runId of runtime.getActiveRunIds(projectId)) {
+        runtime.cleanupRun(runId);
+        runIdToRuntime.delete(runId);
+      }
+    }
     runtimeInstances.delete(projectId);
   } else {
     runtimeInstances.clear();
+    runIdToRuntime.clear();
   }
 }
