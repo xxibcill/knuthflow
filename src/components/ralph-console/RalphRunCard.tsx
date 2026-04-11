@@ -75,7 +75,7 @@ export function RalphRunCard({ run, isSelected, onSelect, onOpenWorkspace }: Ral
         relative p-4 rounded-lg border cursor-pointer transition-all duration-150
         ${isSelected
           ? 'bg-gray-700 border-blue-500 ring-1 ring-blue-500'
-          : 'bg-gray-800 border-gray-600 hover:bg-gray-750 hover:border-gray-500'
+          : 'bg-gray-800 border-gray-600 hover:bg-gray-700 hover:border-gray-500'
         }
       `}
     >

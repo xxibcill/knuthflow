@@ -20,6 +20,47 @@ import { RalphSafetyAlerts } from './RalphSafetyAlerts';
 
 export type { RalphRunDashboardItem } from './RalphConsole.types';
 
+// Extended types for IPC calls not yet in preload
+interface RalphRuntime {
+  getState(runId: string): Promise<{ success: boolean; state?: RalphPhase }>;
+}
+
+interface RalphAPI {
+  getProjectRuns(projectId: string): Promise<Array<{
+    id: string;
+    projectId: string;
+    name: string;
+    status: string;
+    iterationCount: number;
+    startTime: number | null;
+    endTime: number | null;
+    error: string | null;
+  }>>;
+  getRunSummaries(runId: string): Promise<LoopSummary[]>;
+  getRunSnapshots(runId: string): Promise<PlanSnapshot[]>;
+  listArtifacts(options: { runId: string }): Promise<RalphArtifact[]>;
+  pauseRun(runId: string): Promise<void>;
+  resumeRun(runId: string): Promise<void>;
+  stopRun(runId: string): Promise<void>;
+  replanRun(runId: string): Promise<void>;
+  validateRun(runId: string): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    knuthflow: {
+      workspace: {
+        list(): Promise<Array<{ id: string; name: string; path: string }>>;
+      };
+      ralph: RalphAPI;
+      ralphRuntime?: RalphRuntime;
+      filesystem?: {
+        readFile(path: string): Promise<string>;
+      };
+    };
+  }
+}
+
 interface RalphConsolePanelProps {
   workspacePath: string | null;
   onOpenWorkspace: (workspacePath: string) => void;
@@ -40,7 +81,7 @@ interface TimelineEvent {
 
 const POLLING_INTERVAL_MS = 5000;
 
-export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspace, onOpenFile }: RalphConsolePanelProps) {
+export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsolePanelProps) {
   // State
   const [runs, setRuns] = useState<RalphRunDashboardItem[]>([]);
   const [selectedRun, setSelectedRun] = useState<RalphRunDashboardItem | null>(null);
@@ -59,12 +100,6 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Load runs on mount
-  const runsRef = useRef(runs);
-  useEffect(() => {
-    runsRef.current = runs;
-  }, [runs]);
 
   useEffect(() => {
     loadRuns();
@@ -87,13 +122,12 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
           if (run.status === 'running' || run.status === 'pending') {
             // Get runtime state from main process via IPC
             try {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const state = await (window.knuthflow as any).ralphRuntime?.getState?.(run.id);
+              const state = await window.knuthflow.ralphRuntime?.getState(run.id);
               if (state?.success && state.state) {
                 phase = state.state;
               }
-            } catch {
-              // Runtime state not available
+            } catch (err) {
+              console.debug('Runtime state not available:', err);
             }
           } else if (run.status === 'completed') {
             phase = 'completed';
@@ -141,8 +175,7 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
       setPlanSnapshots(snapshots || []);
 
       // Load artifacts
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const artifactList = await (window.knuthflow.ralph as any).listArtifacts?.({ runId: run.runId });
+      const artifactList = await window.knuthflow.ralph.listArtifacts({ runId: run.runId });
       setArtifacts(artifactList || []);
 
       // Build timeline events from summaries
@@ -175,8 +208,8 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
             const tasks = parseFixPlanTasks(content);
             setFixPlanTasks(tasks);
           }
-        } catch {
-          // fix_plan.md not available
+        } catch (err) {
+          console.debug('fix_plan.md not available:', err);
           setFixPlanTasks([]);
         }
       }
@@ -224,15 +257,28 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
 
     // Execute action via IPC
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (window.knuthflow.ralph as any)[`${action}Run`]?.(selectedRun.runId);
-      await loadRuns();
-      const currentRuns = runsRef.current;
-      const updatedRun = currentRuns.find(r => r.runId === selectedRun.runId);
-      if (updatedRun) {
-        setSelectedRun(updatedRun);
-        loadSelectedRunDetails(updatedRun);
+      const ralphAPI = window.knuthflow.ralph;
+      switch (action) {
+        case 'pause':
+          await ralphAPI.pauseRun(selectedRun.runId);
+          break;
+        case 'resume':
+          await ralphAPI.resumeRun(selectedRun.runId);
+          break;
+        case 'stop':
+          await ralphAPI.stopRun(selectedRun.runId);
+          break;
+        case 'replan':
+          await ralphAPI.replanRun(selectedRun.runId);
+          break;
+        case 'validate':
+          await ralphAPI.validateRun(selectedRun.runId);
+          break;
       }
+      await loadRuns();
+      setSelectedRun(currentRuns => {
+        return currentRuns.find(r => r.runId === selectedRun.runId) ?? selectedRun;
+      });
     } catch (error) {
       console.error(`Failed to ${action} run:`, error);
     }
@@ -243,15 +289,29 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
     if (!pendingConfirmation || !selectedRun) return;
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (window.knuthflow.ralph as any)[`${pendingConfirmation.action}Run`]?.(selectedRun.runId);
+      const ralphAPI = window.knuthflow.ralph;
+      switch (pendingConfirmation.action) {
+        case 'pause':
+          await ralphAPI.pauseRun(selectedRun.runId);
+          break;
+        case 'resume':
+          await ralphAPI.resumeRun(selectedRun.runId);
+          break;
+        case 'stop':
+          await ralphAPI.stopRun(selectedRun.runId);
+          break;
+        case 'replan':
+          await ralphAPI.replanRun(selectedRun.runId);
+          break;
+        case 'validate':
+          await ralphAPI.validateRun(selectedRun.runId);
+          break;
+      }
       setPendingConfirmation(null);
       await loadRuns();
-      const currentRuns = runsRef.current;
-      const updatedRun = currentRuns.find(r => r.runId === selectedRun.runId);
-      if (updatedRun) {
-        setSelectedRun(updatedRun);
-      }
+      setSelectedRun(currentRuns => {
+        return currentRuns.find(r => r.runId === selectedRun.runId) ?? selectedRun;
+      });
     } catch (error) {
       console.error(`Failed to ${pendingConfirmation.action}:`, error);
     }
@@ -531,7 +591,7 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
                     onViewArtifact={(id) => {
                       const summary = loopSummaries.find(s => s.id === id);
                       if (summary) {
-                        // Show artifact detail
+                        console.debug('View artifact:', summary);
                       }
                     }}
                   />
@@ -555,8 +615,8 @@ export function RalphConsolePanel({ workspacePath: _workspacePath, onOpenWorkspa
                   <RalphSafetyAlerts
                     alerts={alerts}
                     onDismiss={(id) => setAlerts(prev => prev.filter(a => a.id !== id))}
-                    onViewDetails={(_alert) => {
-                      // Show alert details
+                    onViewDetails={(alert) => {
+                      console.debug('View alert details:', alert);
                     }}
                   />
                 )}
