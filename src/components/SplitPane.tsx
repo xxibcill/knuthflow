@@ -18,6 +18,8 @@ export interface SplitPaneProps {
   onResize?: (sizes: [number, number]) => void;
 }
 
+const KEYBOARD_STEP = 5; // % to move per key press
+
 export function SplitPane({
   children,
   direction = 'horizontal',
@@ -34,6 +36,22 @@ export function SplitPane({
     return [50, 50];
   });
   const [isDragging, setIsDragging] = useState(false);
+
+  const minSize1 = panelConfigs?.[0]?.minSize ?? 10;
+  const maxSize1 = panelConfigs?.[0]?.maxSize ?? 90;
+  const minSize2 = panelConfigs?.[1]?.minSize ?? 10;
+  const maxSize2 = panelConfigs?.[1]?.maxSize ?? 90;
+
+  const applyResize = useCallback((newFirstSize: number) => {
+    newFirstSize = Math.max(minSize1, Math.min(maxSize1, newFirstSize));
+    const newSecondSize = 100 - newFirstSize;
+
+    if (newSecondSize >= minSize2 && newSecondSize <= maxSize2) {
+      const newSizes: [number, number] = [newFirstSize, newSecondSize];
+      setSizes(newSizes);
+      onResize?.(newSizes);
+    }
+  }, [minSize1, maxSize1, minSize2, maxSize2, onResize]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -53,25 +71,32 @@ export function SplitPane({
       newFirstSize = ((e.clientY - rect.top) / rect.height) * 100;
     }
 
-    // Apply min/max constraints
-    const minSize1 = panelConfigs?.[0]?.minSize ?? 10;
-    const maxSize1 = panelConfigs?.[0]?.maxSize ?? 90;
-    const minSize2 = panelConfigs?.[1]?.minSize ?? 10;
-    const maxSize2 = panelConfigs?.[1]?.maxSize ?? 90;
-
-    newFirstSize = Math.max(minSize1, Math.min(maxSize1, newFirstSize));
-    const newSecondSize = 100 - newFirstSize;
-
-    if (newSecondSize >= minSize2 && newSecondSize <= maxSize2) {
-      const newSizes: [number, number] = [newFirstSize, newSecondSize];
-      setSizes(newSizes);
-      onResize?.(newSizes);
-    }
-  }, [isDragging, direction, panelConfigs, onResize]);
+    applyResize(newFirstSize);
+  }, [isDragging, direction, applyResize]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    let delta = 0;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      delta = -KEYBOARD_STEP;
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      delta = KEYBOARD_STEP;
+    } else if (e.key === 'Home') {
+      applyResize(minSize1);
+      return;
+    } else if (e.key === 'End') {
+      applyResize(maxSize1);
+      return;
+    }
+
+    if (delta !== 0) {
+      e.preventDefault();
+      applyResize(sizes[0] + delta);
+    }
+  }, [sizes, applyResize, minSize1, maxSize1]);
 
   useEffect(() => {
     if (isDragging) {
@@ -116,6 +141,8 @@ export function SplitPane({
       {/* Resizer */}
       <div
         onMouseDown={handleMouseDown}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
         className={`flex-shrink-0 ${
           isHorizontal
             ? 'w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500'
@@ -123,6 +150,9 @@ export function SplitPane({
         } ${isDragging ? 'bg-blue-500' : 'bg-gray-700'}`}
         role="separator"
         aria-orientation={direction}
+        aria-valuenow={sizes[0]}
+        aria-valuemin={minSize1}
+        aria-valuemax={maxSize1}
       />
 
       {/* Second panel */}

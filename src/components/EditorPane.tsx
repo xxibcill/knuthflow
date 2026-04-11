@@ -2,13 +2,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
+
 interface EditorPaneProps {
   filePath?: string | null;
   content?: string | null;
   language?: string;
   readOnly?: boolean;
   onContentChange?: (content: string) => void;
-  onFileOpen?: (path: string) => void;
+  onSave?: (path: string, content: string) => Promise<void>;
   className?: string;
 }
 
@@ -61,7 +63,7 @@ export function EditorPane({
   language,
   readOnly = true,
   onContentChange,
-  onFileOpen,
+  onSave,
   className = '',
 }: EditorPaneProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -89,6 +91,14 @@ export function EditorPane({
         }
 
         const fileContent = await window.knuthflow.filesystem.readFile(filePath);
+
+        // Check file size limit
+        if (new Blob([fileContent]).size > MAX_FILE_SIZE) {
+          setError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`);
+          setCurrentFile(null);
+          return;
+        }
+
         const fileName = getFileName(filePath);
         const detectedLanguage = language || getLanguageFromPath(filePath);
 
@@ -148,11 +158,15 @@ export function EditorPane({
     }
   }, [onContentChange]);
 
-  const handleOpenFile = useCallback(async () => {
-    if (onFileOpen) {
-      onFileOpen(filePath || '');
+  const handleSave = useCallback(async () => {
+    if (!onSave || !currentFile || !filePath) return;
+
+    try {
+      await onSave(filePath, currentFile.content);
+    } catch (err) {
+      setError(`Failed to save file: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  }, [filePath, onFileOpen]);
+  }, [onSave, currentFile, filePath]);
 
   // Empty state
   if (!currentFile && !loading && !error) {
@@ -211,9 +225,9 @@ export function EditorPane({
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">{currentFile.language}</span>
-            {!readOnly && (
+            {!readOnly && onSave && (
               <button
-                onClick={handleOpenFile}
+                onClick={handleSave}
                 className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1"
               >
                 Save
@@ -260,16 +274,5 @@ export function EditorPane({
     </div>
   );
 }
-
-// Styles
-const style = document.createElement('style');
-style.textContent = `
-  .editor-pane-wrapper {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-`;
-document.head.appendChild(style);
 
 export default EditorPane;

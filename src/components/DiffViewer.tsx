@@ -368,15 +368,4 @@ export function DiffViewer({
   );
 }
 
-// Styles
-const style = document.createElement('style');
-style.textContent = `
-  .diff-viewer-wrapper {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-`;
-document.head.appendChild(style);
-
 export default DiffViewer;
