@@ -19,6 +19,8 @@ export interface CheckpointResult {
   unrelatedChangesExcluded?: boolean;
   /** Indicates this was a dry-run - no actual commit was created */
   isDryRun?: boolean;
+  /** Whether checkpoint metadata was successfully stored in database */
+  metadataStored?: boolean;
 }
 
 export interface PreflightCheckResult {
@@ -323,8 +325,9 @@ export function createCheckpoint(
   }
 
   // Store checkpoint metadata in database
+  let metadataStored = false;
   if (commitSha) {
-    storeCheckpointMetadata(runId, iteration, commitSha, stageResult.stagedFiles);
+    metadataStored = storeCheckpointMetadata(runId, iteration, commitSha, stageResult.stagedFiles);
   }
 
   return {
@@ -333,6 +336,7 @@ export function createCheckpoint(
     message: `Checkpoint created: ${commitSha?.substring(0, 8)}`,
     stagedFiles: stageResult.stagedFiles,
     unrelatedChangesExcluded: true,
+    metadataStored,
   };
 }
 
@@ -359,7 +363,7 @@ function storeCheckpointMetadata(
   iteration: number,
   commitSha: string,
   stagedFiles: string[]
-): void {
+): boolean {
   const db = getDatabase();
   const now = Date.now();
 
@@ -372,8 +376,10 @@ function storeCheckpointMetadata(
       stagedFiles: JSON.stringify(stagedFiles),
       createdAt: now,
     });
+    return true;
   } catch (err) {
     console.error('[RalphCheckpoint] Failed to store checkpoint metadata:', err);
+    return false;
   }
 }
 
