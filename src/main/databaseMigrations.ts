@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -23,6 +23,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 3 to 4 (add artifact, learning, follow-ups, safety state)
   if (currentVersion < 4) {
     migrateToV4(db);
+  }
+
+  // Migrate from version 4 to 5 (add checkpoint metadata)
+  if (currentVersion < 5) {
+    migrateToV5(db);
   }
 
   // Update schema version
@@ -248,5 +253,26 @@ function migrateToV4(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_loop_learning_pattern ON loop_learning(project_id, pattern);
     CREATE INDEX IF NOT EXISTS idx_follow_ups_project_id ON follow_ups(project_id);
     CREATE INDEX IF NOT EXISTS idx_follow_ups_resolved ON follow_ups(project_id, resolved);
+  `);
+}
+
+function migrateToV5(db: Database.Database): void {
+  // Create checkpoint_metadata table for tracking Ralph checkpoints
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS checkpoint_metadata (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      iteration INTEGER NOT NULL,
+      commit_sha TEXT NOT NULL,
+      staged_files TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create indexes for checkpoint queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_checkpoint_run_id ON checkpoint_metadata(run_id);
+    CREATE INDEX IF NOT EXISTS idx_checkpoint_commit_sha ON checkpoint_metadata(commit_sha);
   `);
 }

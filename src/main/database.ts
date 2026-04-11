@@ -159,6 +159,19 @@ export interface SafetyStateRecord {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Checkpoint Metadata Types (Phase 11)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CheckpointMetadata {
+  id: string;
+  runId: string;
+  iteration: number;
+  commitSha: string;
+  stagedFiles: string;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default Settings
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1010,6 +1023,76 @@ class SessionDatabase {
     return {
       rateLimitState: JSON.parse(row.rate_limit_state as string),
       circuitBreakerState: JSON.parse(row.circuit_breaker_state as string),
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Checkpoint Metadata Operations (Phase 11)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createCheckpoint(params: {
+    runId: string;
+    iteration: number;
+    commitSha: string;
+    stagedFiles: string;
+    createdAt: number;
+  }): CheckpointMetadata {
+    const id = `checkpoint-${crypto.randomUUID()}`;
+    this.db.prepare(`
+      INSERT INTO checkpoint_metadata (id, run_id, iteration, commit_sha, staged_files, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, params.runId, params.iteration, params.commitSha, params.stagedFiles, params.createdAt);
+    return {
+      id,
+      runId: params.runId,
+      iteration: params.iteration,
+      commitSha: params.commitSha,
+      stagedFiles: params.stagedFiles,
+      createdAt: params.createdAt,
+    };
+  }
+
+  // Helper to parse staged files from database row
+  private parseStagedFiles(row: Record<string, unknown>): string[] {
+    try {
+      return JSON.parse(row.staged_files as string || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  listCheckpoints(runId: string): Array<{
+    commitSha: string;
+    iteration: number;
+    stagedFiles: string[];
+    createdAt: number;
+  }> {
+    const rows = this.db.prepare(`
+      SELECT * FROM checkpoint_metadata WHERE run_id = ? ORDER BY created_at ASC
+    `).all(runId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      commitSha: row.commit_sha as string,
+      iteration: row.iteration as number,
+      stagedFiles: this.parseStagedFiles(row),
+      createdAt: row.created_at as number,
+    }));
+  }
+
+  getLatestCheckpoint(runId: string): {
+    commitSha: string;
+    iteration: number;
+    stagedFiles: string[];
+    createdAt: number;
+  } | null {
+    const row = this.db.prepare(`
+      SELECT * FROM checkpoint_metadata WHERE run_id = ? ORDER BY created_at DESC LIMIT 1
+    `).get(runId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      commitSha: row.commit_sha as string,
+      iteration: row.iteration as number,
+      stagedFiles: this.parseStagedFiles(row),
+      createdAt: row.created_at as number,
     };
   }
 
