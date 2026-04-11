@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import { getDatabase, LoopRun } from './database';
-import { getRalphBootstrap } from './ralphBootstrap';
 import {
   LoopState,
   StopReason,
@@ -30,8 +29,7 @@ export type RalphRuntimeEvent = keyof RalphRuntimeEvents;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RalphRuntime extends EventEmitter {
-  private db: ReturnType<typeof getDatabase>;
-  private bootstrap: ReturnType<typeof getRalphBootstrap>;
+  private db = getDatabase();
   private config: Required<RalphRuntimeConfig>;
 
   // Active run state per workspace
@@ -48,8 +46,6 @@ export class RalphRuntime extends EventEmitter {
 
   constructor(config: Partial<RalphRuntimeConfig> = {}) {
     super();
-    this.db = getDatabase();
-    this.bootstrap = getRalphBootstrap();
     this.config = { ...DEFAULT_RALPH_RUNTIME_CONFIG, ...config };
   }
 

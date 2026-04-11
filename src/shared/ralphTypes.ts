@@ -152,7 +152,7 @@ export interface ScheduledItem {
 }
 
 export interface AcceptanceGate {
-  type: 'test' | 'build' | 'observable' | 'manual';
+  type: 'test' | 'build' | 'lint' | 'observable' | 'manual';
   description: string;
   command?: string;
   expectedExitCode?: number;

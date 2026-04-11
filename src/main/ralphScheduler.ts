@@ -381,7 +381,7 @@ export class RalphScheduler {
     // Lint-related tasks
     if (titleLower.includes('lint') || titleLower.includes('format')) {
       return {
-        type: 'test',
+        type: 'lint',
         description: `Lint code: ${item.title}`,
         command: 'npm run lint',
         expectedExitCode: 0,
