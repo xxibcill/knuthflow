@@ -653,7 +653,16 @@ export function generateLoopSummary(summary: LoopSummary): string {
   const lines: string[] = [];
 
   lines.push(`=== LOOP SUMMARY (Iteration ${summary.iteration}) ===`);
-  lines.push(`Decision: ${summary.decision.toUpperCase()}`);
+
+  // Format decision with descriptive suffix for clarity
+  const decisionLabels: Record<LoopDecision, string> = {
+    continue: 'CONTINUE',
+    replan: 'REPLAN',
+    pause: 'PAUSE',
+    fail: 'FAIL',
+    complete: 'COMPLETE',
+  };
+  lines.push(`Decision: ${decisionLabels[summary.decision] || summary.decision.toUpperCase()}`);
   lines.push(`Task: ${summary.taskTitle || 'N/A'}`);
 
   if (summary.validationPassed !== null) {

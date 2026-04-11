@@ -1,4 +1,5 @@
 import { getDatabase, LoopLearning, FollowUp } from '../database';
+import * as crypto from 'crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mistake Pattern Detection
@@ -99,7 +100,8 @@ class MistakeTracker {
 }
 
 // Module-level tracker
-const mistakeTracker = new MistakeTracker();
+// Exported for testing - allows tests to reset state between runs
+export const mistakeTracker = new MistakeTracker();
 
 /**
  * Detect common mistake patterns from output.
@@ -264,7 +266,7 @@ export function createFollowUpFromFailure(params: {
 }): FollowUp {
   const db = getDatabase();
   const followUp: Omit<FollowUp, 'projectId' | 'resolved' | 'resolvedAt'> = {
-    id: `followup-${Date.now()}`,
+    id: `followup-${crypto.randomUUID()}`,
     taskId: params.taskId,
     title: `Re-examine: ${params.taskTitle}`,
     description: `Task failed during execution. Reason: ${params.failureReason}`,

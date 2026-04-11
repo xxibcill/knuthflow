@@ -108,8 +108,8 @@ function detectTestCommand(workspacePath: string): string | null {
       if (scripts['test:ci']) return 'npm run test:ci';
       if (scripts.vitest) return 'npx vitest';
       if (scripts.jest) return 'npx jest';
-    } catch {
-      // Ignore parse errors
+    } catch (err) {
+      console.warn('[ValidationRunner] Failed to parse package.json for test command detection:', err);
     }
   }
 
@@ -184,8 +184,8 @@ function detectBuildCommand(workspacePath: string): string | null {
       if (scripts.compile) return 'npm run compile';
       if (scripts['build:prod']) return 'npm run build:prod';
       if (scripts.tsc) return 'npx tsc --noEmit';
-    } catch {
-      // Ignore parse errors
+    } catch (err) {
+      console.warn('[ValidationRunner] Failed to parse package.json for build command detection:', err);
     }
   }
 
@@ -253,8 +253,8 @@ function detectLintCommand(workspacePath: string): string | null {
       if (scripts.lint) return 'npm run lint';
       if (scripts['lint:fix']) return 'npm run lint:fix';
       if (scripts.eslint) return 'npx eslint .';
-    } catch {
-      // Ignore parse errors
+    } catch (err) {
+      console.warn('[ValidationRunner] Failed to parse package.json for lint command detection:', err);
     }
   }
 

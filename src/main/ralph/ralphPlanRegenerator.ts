@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 import { getDatabase, LoopLearning, FollowUp } from '../database';
 import { PlanTask } from '../../shared/ralphTypes';
@@ -223,7 +224,7 @@ async function generateNewPlan(
 function createFollowUpFromChange(change: PlanChange): FollowUpItem | null {
   if (change.type === 'removed') {
     return {
-      id: `followup-${Date.now()}`,
+      id: `followup-${crypto.randomUUID()}`,
       taskId: null,
       title: `Investigate: ${change.taskTitle}`,
       description: `Task was removed during plan regeneration. Reason: ${change.reason}`,
@@ -235,7 +236,7 @@ function createFollowUpFromChange(change: PlanChange): FollowUpItem | null {
 
   if (change.type === 'priority_changed') {
     return {
-      id: `followup-${Date.now()}`,
+      id: `followup-${crypto.randomUUID()}`,
       taskId: change.taskId,
       title: `Re-evaluate: ${change.taskTitle}`,
       description: `Task priority was adjusted during plan regeneration. ${change.reason}`,
@@ -328,8 +329,17 @@ function rebuildPlanWithReorderedTasks(
 
   // Insert pending tasks in priority order after header
   const pendingSection: string[] = [];
+  // Build a map of taskId -> line for efficient lookup
+  const taskIdToLine = new Map<string, string>();
+  for (const line of lines) {
+    const taskIdMatch = line.match(/\{([a-f0-9-]{36})\}/);
+    if (taskIdMatch) {
+      taskIdToLine.set(taskIdMatch[1], line);
+    }
+  }
+
   for (const task of reorderedTasks) {
-    const originalLine = lines.find(l => l.includes(task.title));
+    const originalLine = taskIdToLine.get(task.id);
     if (originalLine) {
       pendingSection.push(originalLine);
       // Note: For reorders, before/after show position indices, not content
@@ -464,7 +474,7 @@ export function createFollowUp(params: {
   const db = getDatabase();
 
   const followUp: FollowUpItem = {
-    id: `followup-${Date.now()}`,
+    id: `followup-${crypto.randomUUID()}`,
     taskId: params.taskId,
     title: params.title,
     description: params.description,
