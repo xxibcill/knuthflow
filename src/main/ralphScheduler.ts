@@ -355,8 +355,8 @@ export class RalphScheduler {
   determineAcceptanceGate(item: ScheduledItem): AcceptanceGate | null {
     const titleLower = item.title.toLowerCase();
 
-    // Test-related tasks - match "test", "tests", "testing", "spec", "specs", "specs"
-    if (/\b(test(?:s|ing)?|spec(?:s)?)\b/.test(titleLower)) {
+    // Test-related tasks - match "test", "tests", "testing", "spec", "specs"
+    if (/\b(test(?:s|ing)?|specs?)\b/.test(titleLower)) {
       return {
         type: 'test',
         description: `Run tests for: ${item.title}`,
@@ -425,7 +425,7 @@ export class RalphScheduler {
 // Singleton cache
 // ─────────────────────────────────────────────────────────────────────────────
 
-let schedulerInstances: Map<string, RalphScheduler> = new Map();
+const schedulerInstances: Map<string, RalphScheduler> = new Map();
 
 export function getRalphScheduler(workspacePath: string): RalphScheduler {
   let scheduler = schedulerInstances.get(workspacePath);
@@ -434,6 +434,10 @@ export function getRalphScheduler(workspacePath: string): RalphScheduler {
     schedulerInstances.set(workspacePath, scheduler);
   }
   return scheduler;
+}
+
+export function getAllRalphSchedulers(): Map<string, RalphScheduler> {
+  return schedulerInstances;
 }
 
 export function resetRalphScheduler(workspacePath?: string): void {

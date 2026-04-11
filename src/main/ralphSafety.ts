@@ -58,7 +58,7 @@ export class RalphSafetyMonitor extends EventEmitter {
   /**
    * Record a call and token usage
    */
-  recordCall(projectId: string, tokensUsed: number = 0): void {
+  recordCall(projectId: string, tokensUsed = 0): void {
     const state = this.getRateLimitState(projectId);
 
     // Check if window has expired
@@ -484,7 +484,7 @@ export class RalphSafetyMonitor extends EventEmitter {
 // Singleton management
 // ─────────────────────────────────────────────────────────────────────────────
 
-let safetyInstances: Map<string, RalphSafetyMonitor> = new Map();
+const safetyInstances: Map<string, RalphSafetyMonitor> = new Map();
 
 export function getRalphSafety(projectId: string): RalphSafetyMonitor {
   let safety = safetyInstances.get(projectId);

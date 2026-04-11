@@ -141,7 +141,7 @@ export class RalphRuntime extends EventEmitter {
   /**
    * Stop a run with a reason
    */
-  stop(runId: string, reason: StopReason, message: string, canResume: boolean = false, metadata?: Record<string, unknown>): void {
+  stop(runId: string, reason: StopReason, message: string, canResume = false, metadata?: Record<string, unknown>): void {
     const activeRun = this.activeRuns.get(runId);
     if (!activeRun) {
       throw new Error(`No active run found: ${runId}`);
@@ -429,9 +429,8 @@ export class RalphRuntime extends EventEmitter {
 // Singleton instance management
 // ─────────────────────────────────────────────────────────────────────────────
 
-let runtimeInstances: Map<string, RalphRuntime> = new Map();
-// Global reverse index: runId -> RalphRuntime for O(1) lookups
-let runIdToRuntime: Map<string, RalphRuntime> = new Map();
+const runtimeInstances: Map<string, RalphRuntime> = new Map();
+const runIdToRuntime: Map<string, RalphRuntime> = new Map();
 // Projects currently executing start() - prevents race conditions
 const projectsStarting: Set<string> = new Set();
 
@@ -453,13 +452,6 @@ export function getAllRalphRuntimes(): Map<string, RalphRuntime> {
  */
 export function getRuntimeForRunId(runId: string): RalphRuntime | null {
   return runIdToRuntime.get(runId) ?? null;
-}
-
-/**
- * Register a runId with its owning runtime
- */
-export function registerRunId(runId: string, runtime: RalphRuntime): void {
-  runIdToRuntime.set(runId, runtime);
 }
 
 export function resetRalphRuntime(projectId?: string): void {

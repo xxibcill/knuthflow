@@ -45,8 +45,8 @@ export class RalphExecutionAdapter extends EventEmitter {
   private workspacePath: string;
   private config: Required<RalphRuntimeConfig>;
   private currentSession: SessionState | null = null;
-  private outputBuffer: string = '';
-  private responseBuffer: string = '';
+  private outputBuffer = '';
+  private responseBuffer = '';
   private sessionDataHandler: ((data: { sessionId: string; data: string }) => void) | null = null;
   private sessionExitHandler: ((exit: { sessionId: string; exitCode: number; signal?: number }) => void) | null = null;
 
@@ -169,7 +169,9 @@ export class RalphExecutionAdapter extends EventEmitter {
 
     this.sessionDataHandler = ({ sessionId, data }) => {
       if (sessionId === session.ptySessionId && !shellReady) {
-        if (data.includes('$') || data.includes('#')) {
+        // Check for shell prompt indicators (covers most common shells and custom prompts)
+        // Includes: $, #, > (for some shells), and common prompt markers
+        if (data.includes('$') || data.includes('#') || data.includes('>')) {
           shellReady = true;
           clearTimeout(timeout);
           const cmd = `"${detection.executablePath}" --no-input\r`;
@@ -353,7 +355,7 @@ export class RalphExecutionAdapter extends EventEmitter {
   async executeIteration(
     context: LoopIterationContext,
     prompt: string,
-    timeoutMs: number = 300000
+    timeoutMs = 300000
   ): Promise<string> {
     if (!this.currentSession) {
       throw new Error('No active session');
@@ -371,16 +373,23 @@ export class RalphExecutionAdapter extends EventEmitter {
 
     // Wait for execution to complete
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      let settled = false;
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         this.removeSessionHandlers();
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
         reject(new Error('Execution timeout'));
       }, timeoutMs);
 
       // Use once for the exit handler so it auto-removes when PTY exits
       const onExit = ({ sessionId }: { sessionId: string; exitCode: number; signal?: number }) => {
         if (sessionId === this.currentSession?.ptySessionId) {
-          clearTimeout(timeout);
-          this.removeSessionHandlers();
+          cleanup();
           resolve(this.outputBuffer);
         }
       };
@@ -388,8 +397,7 @@ export class RalphExecutionAdapter extends EventEmitter {
       try {
         this.ptyManager.once('exit', onExit);
       } catch (err) {
-        clearTimeout(timeout);
-        this.removeSessionHandlers();
+        cleanup();
         reject(err);
       }
     });
@@ -436,7 +444,7 @@ export class RalphExecutionAdapter extends EventEmitter {
   /**
    * Handle resume when stored session is missing or stale
    */
-  handleResumeFailure(reason: 'missing' | 'stale' | 'invalid'): SessionState {
+  handleResumeFailure(_reason: 'missing' | 'stale' | 'invalid'): SessionState {
     this.emit('sessionExpired');
 
     // Clean up old session if exists
@@ -492,7 +500,7 @@ export class RalphExecutionAdapter extends EventEmitter {
 // Singleton management
 // ─────────────────────────────────────────────────────────────────────────────
 
-let executionInstances: Map<string, RalphExecutionAdapter> = new Map();
+const executionInstances: Map<string, RalphExecutionAdapter> = new Map();
 
 export function getRalphExecution(workspacePath: string): RalphExecutionAdapter {
   let execution = executionInstances.get(workspacePath);
@@ -501,6 +509,10 @@ export function getRalphExecution(workspacePath: string): RalphExecutionAdapter 
     executionInstances.set(workspacePath, execution);
   }
   return execution;
+}
+
+export function getAllRalphExecutions(): Map<string, RalphExecutionAdapter> {
+  return executionInstances;
 }
 
 export function resetRalphExecution(workspacePath?: string): void {
