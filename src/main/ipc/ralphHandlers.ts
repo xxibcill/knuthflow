@@ -123,13 +123,11 @@ export function registerRalphHandlers(): void {
 
   ipcMain.handle('ralph:replanRun', async (_event: IpcMainInvokeEvent, runId: string) => {
     getRunOrThrow(runId);
-    // @TODO(Phase 12): Implement actual plan regeneration via runtime.triggerReplan when that method exists
-    return { success: true, message: 'Plan regeneration queued' };
+    throw new Error('Replan is not implemented yet');
   });
 
   ipcMain.handle('ralph:validateRun', async (_event: IpcMainInvokeEvent, runId: string) => {
     getRunOrThrow(runId);
-    // @TODO(Phase 12): Implement actual validation via runtime.triggerValidation when that method exists
-    return { success: true, message: 'Validation queued' };
+    throw new Error('Validation is not implemented yet');
   });
 }

@@ -98,6 +98,13 @@ function getReadinessBadge(report: ReadinessReport | null) {
   return { className: 'badge badge-warning', label: report.isFresh ? 'Needs Bootstrap' : 'Needs Repair' };
 }
 
+function getRunStatusBadge(status: RalphRunDashboardItem['status']) {
+  if (status === 'completed') return 'badge badge-success';
+  if (status === 'failed') return 'badge badge-danger';
+  if (status === 'paused' || status === 'cancelled') return 'badge badge-warning';
+  return 'badge badge-info';
+}
+
 export function RalphConsolePanel({
   workspace,
   onOpenWorkspace,
@@ -236,7 +243,9 @@ export function RalphConsolePanel({
             }
           } else if (run.status === 'completed') {
             phase = 'completed';
-          } else if (run.status === 'failed' || run.status === 'cancelled') {
+          } else if (run.status === 'cancelled') {
+            phase = 'cancelled';
+          } else if (run.status === 'failed') {
             phase = 'failed';
           }
 
@@ -748,7 +757,7 @@ export function RalphConsolePanel({
                   </p>
                 </div>
                 <div className="toolbar-inline">
-                  <span className={selectedRun.status === 'completed' ? 'badge badge-success' : selectedRun.status === 'failed' ? 'badge badge-danger' : selectedRun.status === 'paused' ? 'badge badge-warning' : 'badge badge-info'}>
+                  <span className={getRunStatusBadge(selectedRun.status)}>
                     {selectedRun.status}
                   </span>
                   <span className="badge badge-neutral">{selectedRun.phase}</span>

@@ -117,6 +117,7 @@ export type LoopState =
   | 'validating'
   | 'paused'
   | 'failed'
+  | 'cancelled'
   | 'completed';
 
 // Stop reasons - derived from array to ensure type/array stay in sync

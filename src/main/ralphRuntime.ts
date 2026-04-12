@@ -152,11 +152,6 @@ export class RalphRuntime extends EventEmitter {
    * Stop a run with a reason
    */
   stop(runId: string, reason: StopReason, message: string, canResume = false, metadata?: Record<string, unknown>): void {
-    const activeRun = this.activeRuns.get(runId);
-    if (!activeRun) {
-      throw new Error(`No active run found: ${runId}`);
-    }
-
     const safetyStop: SafetyStop = {
       reason,
       message,
@@ -165,19 +160,12 @@ export class RalphRuntime extends EventEmitter {
       metadata,
     };
 
-    activeRun.safetyStop = safetyStop;
     const status = reason === 'error'
       ? 'failed'
       : reason === 'user_stopped'
         ? 'cancelled'
         : 'completed';
-    activeRun.state = status === 'failed' ? 'failed' : 'completed';
-
-    // Update database
-    this.db.endLoopRun(runId, status, null, null, message);
-
-    this.emit('stateChanged', activeRun.state);
-    this.emit('stopped', safetyStop);
+    this.finishRun(runId, status, message, safetyStop);
   }
 
   /**
@@ -190,17 +178,13 @@ export class RalphRuntime extends EventEmitter {
       return;
     }
 
-    this.db.endLoopRun(runId, 'cancelled', null, null, 'Force stopped');
-    activeRun.state = 'failed';
-    activeRun.safetyStop = {
+    const safetyStop: SafetyStop = {
       reason: 'user_stopped',
       message: 'Force stopped by operator',
       triggeredAt: Date.now(),
       canResume: false,
     };
-
-    this.emit('stateChanged', 'failed');
-    this.emit('stopped', activeRun.safetyStop);
+    this.finishRun(runId, 'cancelled', 'Force stopped', safetyStop);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -292,12 +276,13 @@ export class RalphRuntime extends EventEmitter {
 
     const validTransitions: Record<LoopState, LoopState[]> = {
       idle: ['starting'],
-      starting: ['planning', 'executing', 'paused', 'failed', 'completed'],
-      planning: ['executing', 'paused', 'failed', 'completed'],
-      executing: ['validating', 'paused', 'failed', 'completed'],
-      validating: ['planning', 'executing', 'paused', 'failed', 'completed'],
-      paused: ['executing', 'failed', 'completed'],
+      starting: ['planning', 'executing', 'paused', 'failed', 'cancelled', 'completed'],
+      planning: ['executing', 'paused', 'failed', 'cancelled', 'completed'],
+      executing: ['validating', 'paused', 'failed', 'cancelled', 'completed'],
+      validating: ['planning', 'executing', 'paused', 'failed', 'cancelled', 'completed'],
+      paused: ['executing', 'failed', 'cancelled', 'completed'],
       failed: [],
+      cancelled: [],
       completed: [],
     };
 
@@ -427,7 +412,7 @@ export class RalphRuntime extends EventEmitter {
     let cleaned = 0;
     for (const [runId, activeRun] of this.activeRuns) {
       // Clean up runs that are in terminal states and older than maxAgeMs
-      if (activeRun.state === 'failed' || activeRun.state === 'completed') {
+      if (activeRun.state === 'failed' || activeRun.state === 'cancelled' || activeRun.state === 'completed') {
         const lastActivity = activeRun.iterationStartTime ?? activeRun.run.createdAt;
         if (now - lastActivity > maxAgeMs) {
           this.cleanupRun(runId);
@@ -447,6 +432,23 @@ export class RalphRuntime extends EventEmitter {
     if (this.activeRuns.size > 50) {
       this.cleanupStaleEntries();
     }
+  }
+
+  private finishRun(runId: string, status: 'completed' | 'failed' | 'cancelled', error: string, safetyStop: SafetyStop): void {
+    const activeRun = this.activeRuns.get(runId);
+    if (!activeRun) {
+      throw new Error(`No active run found: ${runId}`);
+    }
+
+    activeRun.run = { ...activeRun.run, status, endTime: Date.now(), error };
+    activeRun.safetyStop = safetyStop;
+    activeRun.state = status;
+
+    this.db.endLoopRun(runId, status, null, null, error);
+
+    this.emit('stateChanged', activeRun.state);
+    this.emit('stopped', safetyStop);
+    this.cleanupRun(runId);
   }
 
   /**
