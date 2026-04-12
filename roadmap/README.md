@@ -24,6 +24,9 @@ Current product bias:
 | [Phase 10](./phases/phase-10-operator-console.md) | Operator Console | Users can monitor Ralph runs, inspect backlog and artifacts, and intervene safely from the desktop UI |
 | [Phase 11](./phases/phase-11-recovery-and-release-readiness.md) | Recovery and Release Readiness | Autonomous runs can checkpoint, recover, and ship with test harnesses and operator documentation |
 | [Phase 12](./phases/phase-12-ralph-flow-upgrade.md) | Ralph Flow Upgrade | Ralph mode becomes a coherent end-to-end loop with deterministic control files, stable plan semantics, and implemented operator actions |
+| [Phase 13](./phases/phase-13-goal-to-app-bootstrap.md) | Goal To App Bootstrap | Users can turn an app idea into a scaffolded Ralph-ready workspace with generated specs, starter structure, and an approved initial plan |
+| [Phase 14](./phases/phase-14-long-horizon-app-builder.md) | Long-Horizon App Builder | Ralph can build a larger application across milestones with resumable context, preview feedback, and milestone-aware replanning |
+| [Phase 15](./phases/phase-15-desktop-one-shot-delivery.md) | Desktop One-Shot Delivery | Users can request an app from Knuthflow, review it in the desktop UI, and receive packaged delivery artifacts with explicit approval gates |
 
 ## Sequencing Logic
 
@@ -39,6 +42,9 @@ Current product bias:
 10. Expose operator-facing controls and observability once the loop can make grounded decisions.
 11. Finish with checkpointing, crash recovery, dry-run testing, and release documentation for autonomous mode.
 12. Consolidate the accumulated Ralph modules into a single real loop flow before scaling autonomous usage further.
+13. Add a goal-intake and workspace-bootstrap layer so Ralph can start from an app brief instead of requiring a pre-authored repository setup.
+14. Extend the upgraded Ralph loop into a milestone-aware app builder that can stay coherent across long-running product work.
+15. Finish with desktop review, packaging, and end-to-end delivery so the product can honestly support a one-shot app workflow for supported targets.
 
 ## Creating a New Phase
 

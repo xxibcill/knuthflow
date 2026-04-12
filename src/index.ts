@@ -19,6 +19,8 @@ import {
   registerRalphRuntimeHandlers,
   registerRalphSchedulerHandlers,
   registerRalphSafetyHandlers,
+  registerAppIntakeHandlers,
+  registerWorkspaceScaffoldingHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -156,6 +158,12 @@ function registerIpcHandlers(): void {
 
   // Ralph safety handlers
   registerRalphSafetyHandlers();
+
+  // App intake handlers
+  registerAppIntakeHandlers();
+
+  // Workspace scaffolding handlers
+  registerWorkspaceScaffoldingHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

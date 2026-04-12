@@ -34,6 +34,8 @@ import type {
   BootstrapResult,
   RalphControlFiles,
   ArtifactType,
+  AppIntakeDraft,
+  AppBlueprint,
 } from './shared/preloadTypes';
 
 // Re-export all types from shared module
@@ -72,6 +74,8 @@ export type {
   BootstrapResult,
   RalphControlFiles,
   ArtifactType,
+  AppIntakeDraft,
+  AppBlueprint,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -342,6 +346,32 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('ralphRuntime:start', projectId, name, sessionId, ptySessionId),
     getState: (runId: string) =>
       ipcRenderer.invoke('ralphRuntime:getState', runId),
+  },
+  appintake: {
+    generateBlueprint: (intake: AppIntakeDraft) =>
+      ipcRenderer.invoke('appintake:generateBlueprint', intake),
+    writeBlueprintFiles: (workspacePath: string, blueprint: AppBlueprint) =>
+      ipcRenderer.invoke('appintake:writeBlueprintFiles', workspacePath, blueprint),
+    validateIntake: (intake: Pick<AppIntakeDraft,
+      'appName' |
+      'appBrief' |
+      'targetPlatform' |
+      'deliveryFormat' |
+      'maxBuildTime'
+    >) =>
+      ipcRenderer.invoke('appintake:validateIntake', intake),
+  },
+  scaffolding: {
+    getTemplates: () =>
+      ipcRenderer.invoke('scaffolding:getTemplates'),
+    scaffold: (workspacePath: string, templateType: string, appName: string) =>
+      ipcRenderer.invoke('scaffolding:scaffold', workspacePath, templateType, appName),
+    getMetadata: (workspacePath: string) =>
+      ipcRenderer.invoke('scaffolding:getMetadata', workspacePath),
+    isScaffolded: (workspacePath: string) =>
+      ipcRenderer.invoke('scaffolding:isScaffolded', workspacePath),
+    getBuildCommands: (workspacePath: string) =>
+      ipcRenderer.invoke('scaffolding:getBuildCommands', workspacePath),
   },
 };
 
