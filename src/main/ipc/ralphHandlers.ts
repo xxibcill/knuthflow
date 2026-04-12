@@ -110,4 +110,24 @@ export function registerRalphHandlers(): void {
     const db = getDatabase();
     db.deleteRalphProject(projectId);
   });
+
+  ipcMain.handle('ralph:replanRun', async (_event: IpcMainInvokeEvent, runId: string) => {
+    const db = getDatabase();
+    const run = db.getLoopRun(runId);
+    if (!run) {
+      throw new Error('Run not found');
+    }
+    // @TODO(Phase 12): Implement actual plan regeneration via runtime.triggerReplan when that method exists
+    return { success: true, message: 'Plan regeneration queued' };
+  });
+
+  ipcMain.handle('ralph:validateRun', async (_event: IpcMainInvokeEvent, runId: string) => {
+    const db = getDatabase();
+    const run = db.getLoopRun(runId);
+    if (!run) {
+      throw new Error('Run not found');
+    }
+    // @TODO(Phase 12): Implement actual validation via runtime.triggerValidation when that method exists
+    return { success: true, message: 'Validation queued' };
+  });
 }

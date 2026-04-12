@@ -329,7 +329,7 @@ const api: KnuthflowAPI = {
     resumeRun: (runId: string) =>
       ipcRenderer.invoke('ralphRuntime:resume', runId),
     stopRun: (runId: string) =>
-      ipcRenderer.invoke('ralphRuntime:stop', runId),
+      ipcRenderer.invoke('ralphRuntime:stop', runId, 'user_stopped', 'Stopped by operator', false),
     replanRun: (runId: string) =>
       ipcRenderer.invoke('ralph:replanRun', runId),
     validateRun: (runId: string) =>
