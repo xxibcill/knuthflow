@@ -396,6 +396,118 @@ export interface KnuthflowAPI {
     replanRun(runId: string): Promise<void>;
     validateRun(runId: string): Promise<void>;
   };
+  appintake: {
+    generateBlueprint(intake: {
+      appName: string;
+      appBrief: string;
+      targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
+      successCriteria: string[];
+      stackPreferences: string[];
+      frameworkConstraints: string[];
+      forbiddenPatterns: string[];
+      maxBuildTime: number;
+      supportedBrowsers: string[];
+      deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
+    }): Promise<{
+      success: boolean;
+      blueprint?: {
+        version: string;
+        generatedAt: number;
+        intake: {
+          appName: string;
+          appBrief: string;
+          targetPlatform: string;
+          successCriteria: string[];
+          stackPreferences: string[];
+          deliveryFormat: string;
+        };
+        specs: Array<{
+          id: string;
+          title: string;
+          description: string;
+          acceptanceCriteria: string[];
+        }>;
+        milestones: Array<{
+          id: string;
+          title: string;
+          description: string;
+          tasks: string[];
+          acceptanceGate: string;
+          order: number;
+        }>;
+        fixPlan: string;
+      };
+      error?: string;
+      code?: string;
+    }>;
+    writeBlueprintFiles(workspacePath: string, blueprint: {
+      version: string;
+      generatedAt: number;
+      intake: {
+        appName: string;
+        appBrief: string;
+        targetPlatform: string;
+        successCriteria: string[];
+        stackPreferences: string[];
+        deliveryFormat: string;
+      };
+      specs: Array<{
+        id: string;
+        title: string;
+        description: string;
+        acceptanceCriteria: string[];
+      }>;
+      milestones: Array<{
+        id: string;
+        title: string;
+        description: string;
+        tasks: string[];
+        acceptanceGate: string;
+        order: number;
+      }>;
+      fixPlan: string;
+    }): Promise<{
+      success: boolean;
+      filesCreated?: string[];
+      error?: string;
+      code?: string;
+    }>;
+    validateIntake(intake: {
+      appName: string;
+      appBrief: string;
+      targetPlatform: string;
+      deliveryFormat: string;
+      maxBuildTime: number;
+    }): Promise<{
+      valid: boolean;
+      issues: string[];
+    }>;
+  };
+  scaffolding: {
+    getTemplates(): Promise<Array<{
+      id: string;
+      name: string;
+      description: string;
+      applicablePlatforms: string[];
+    }>>;
+    scaffold(workspacePath: string, templateType: string, appName: string): Promise<{
+      success: boolean;
+      createdFiles?: string[];
+      errors?: string[];
+      templateUsed?: string | null;
+    }>;
+    getMetadata(workspacePath: string): Promise<{
+      template: string;
+      scaffoldAt: number;
+      appName: string;
+    } | null>;
+    isScaffolded(workspacePath: string): Promise<boolean>;
+    getBuildCommands(workspacePath: string): Promise<Array<{
+      name: string;
+      command: string;
+      description: string;
+    }>>;
+  };
   ralphRuntime?: {
     start(projectId: string, name: string, sessionId: string, ptySessionId: string): Promise<{ success: boolean; run?: LoopRun; error?: string }>;
     getState(runId: string): Promise<{ success: boolean; state?: LoopState }>;

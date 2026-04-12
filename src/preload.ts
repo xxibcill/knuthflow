@@ -343,6 +343,69 @@ const api: KnuthflowAPI = {
     getState: (runId: string) =>
       ipcRenderer.invoke('ralphRuntime:getState', runId),
   },
+  appintake: {
+    generateBlueprint: (intake: {
+      appName: string;
+      appBrief: string;
+      targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
+      successCriteria: string[];
+      stackPreferences: string[];
+      frameworkConstraints: string[];
+      forbiddenPatterns: string[];
+      maxBuildTime: number;
+      supportedBrowsers: string[];
+      deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
+    }) =>
+      ipcRenderer.invoke('appintake:generateBlueprint', intake),
+    writeBlueprintFiles: (workspacePath: string, blueprint: {
+      version: string;
+      generatedAt: number;
+      intake: {
+        appName: string;
+        appBrief: string;
+        targetPlatform: string;
+        successCriteria: string[];
+        stackPreferences: string[];
+        deliveryFormat: string;
+      };
+      specs: Array<{
+        id: string;
+        title: string;
+        description: string;
+        acceptanceCriteria: string[];
+      }>;
+      milestones: Array<{
+        id: string;
+        title: string;
+        description: string;
+        tasks: string[];
+        acceptanceGate: string;
+        order: number;
+      }>;
+      fixPlan: string;
+    }) =>
+      ipcRenderer.invoke('appintake:writeBlueprintFiles', workspacePath, blueprint),
+    validateIntake: (intake: {
+      appName: string;
+      appBrief: string;
+      targetPlatform: string;
+      deliveryFormat: string;
+      maxBuildTime: number;
+    }) =>
+      ipcRenderer.invoke('appintake:validateIntake', intake),
+  },
+  scaffolding: {
+    getTemplates: () =>
+      ipcRenderer.invoke('scaffolding:getTemplates'),
+    scaffold: (workspacePath: string, templateType: string, appName: string) =>
+      ipcRenderer.invoke('scaffolding:scaffold', workspacePath, templateType, appName),
+    getMetadata: (workspacePath: string) =>
+      ipcRenderer.invoke('scaffolding:getMetadata', workspacePath),
+    isScaffolded: (workspacePath: string) =>
+      ipcRenderer.invoke('scaffolding:isScaffolded', workspacePath),
+    getBuildCommands: (workspacePath: string) =>
+      ipcRenderer.invoke('scaffolding:getBuildCommands', workspacePath),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
