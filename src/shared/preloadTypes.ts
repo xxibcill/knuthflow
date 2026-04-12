@@ -76,6 +76,11 @@ export interface ClaudeLaunchResult {
   error?: string;
 }
 
+export interface ClaudeLaunchOptions {
+  args?: string[];
+  cwd?: string;
+}
+
 export interface ClaudeRunInfo {
   runId: string;
   sessionId: string;
@@ -282,7 +287,7 @@ export interface KnuthflowAPI {
   };
   claude: {
     detect(): Promise<ClaudeCodeStatus>;
-    launch(args?: string[]): Promise<ClaudeLaunchResult>;
+    launch(options?: ClaudeLaunchOptions): Promise<ClaudeLaunchResult>;
     kill(runId: string): Promise<{ success: boolean; error?: string }>;
     getRunState(runId: string): Promise<{ state: ClaudeRunState; sessionId: string | null; exitCode?: number; signal?: number; error?: string }>;
     listRuns(): Promise<ClaudeRunInfo[]>;
@@ -392,6 +397,7 @@ export interface KnuthflowAPI {
     validateRun(runId: string): Promise<void>;
   };
   ralphRuntime?: {
+    start(projectId: string, name: string, sessionId: string, ptySessionId: string): Promise<{ success: boolean; run?: LoopRun; error?: string }>;
     getState(runId: string): Promise<{ success: boolean; state?: LoopState }>;
   };
 }

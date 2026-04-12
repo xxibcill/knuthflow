@@ -8,6 +8,7 @@ import type {
   PtyDataEvent,
   PtyExitEvent,
   ClaudeRunState,
+  ClaudeLaunchOptions,
   ClaudeLaunchResult,
   ClaudeRunInfo,
   Workspace,
@@ -45,6 +46,7 @@ export type {
   PtyDataEvent,
   PtyExitEvent,
   ClaudeRunState,
+  ClaudeLaunchOptions,
   ClaudeLaunchResult,
   ClaudeRunInfo,
   Workspace,
@@ -140,8 +142,8 @@ const api: KnuthflowAPI = {
   claude: {
     detect: () =>
       ipcRenderer.invoke('claude:detect'),
-    launch: (args?: string[]) =>
-      ipcRenderer.invoke('claude:launch', args),
+    launch: (options?: ClaudeLaunchOptions) =>
+      ipcRenderer.invoke('claude:launch', options),
     kill: (runId: string) =>
       ipcRenderer.invoke('claude:kill', runId),
     getRunState: (runId: string) =>
@@ -329,13 +331,15 @@ const api: KnuthflowAPI = {
     resumeRun: (runId: string) =>
       ipcRenderer.invoke('ralphRuntime:resume', runId),
     stopRun: (runId: string) =>
-      ipcRenderer.invoke('ralphRuntime:stop', runId),
+      ipcRenderer.invoke('ralphRuntime:stop', runId, 'user_stopped', 'Stopped by operator', false),
     replanRun: (runId: string) =>
       ipcRenderer.invoke('ralph:replanRun', runId),
     validateRun: (runId: string) =>
       ipcRenderer.invoke('ralph:validateRun', runId),
   },
   ralphRuntime: {
+    start: (projectId: string, name: string, sessionId: string, ptySessionId: string) =>
+      ipcRenderer.invoke('ralphRuntime:start', projectId, name, sessionId, ptySessionId),
     getState: (runId: string) =>
       ipcRenderer.invoke('ralphRuntime:getState', runId),
   },

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Workspace } from '../../preload';
+import type { LoopRun, RalphProject, ReadinessReport } from '../../shared/preloadTypes';
 import type {
   LoopSummary,
   OperatorConfirmation,
@@ -20,12 +22,23 @@ import { RalphSafetyAlerts } from './RalphSafetyAlerts';
 export type { RalphRunDashboardItem } from './RalphConsole.types';
 
 interface RalphConsolePanelProps {
-  workspacePath: string | null;
+  workspace: Workspace | null;
   onOpenWorkspace: (workspacePath: string) => void;
   onOpenFile: (filePath: string, lineNumber?: number) => void;
+  onLaunchClaudeSession: (options: {
+    name: string;
+    workspace: Workspace;
+  }) => Promise<{
+    success: boolean;
+    claudeRunId?: string;
+    ptySessionId?: string;
+    sessionRecordId?: string;
+    error?: string;
+  }>;
 }
 
 type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts';
+type WorkspaceActionState = 'bootstrap' | 'repair' | 'start' | null;
 
 interface TimelineEvent {
   iteration: number;
@@ -37,9 +50,60 @@ interface TimelineEvent {
   outcome?: 'success' | 'failed' | 'skipped';
 }
 
+interface WorkspaceNotice {
+  tone: 'info' | 'error';
+  message: string;
+}
+
 const POLLING_INTERVAL_MS = 5000;
 
-export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsolePanelProps) {
+function summarizeIssues(report: ReadinessReport | null): string {
+  if (!report) return 'Inspect readiness before starting a run.';
+  if (report.ready) return 'Control files are in place and Ralph can start from this workspace.';
+  if (report.issues.length === 0) return 'Ralph needs attention before it can start.';
+  return report.issues[0].message;
+}
+
+function formatBootstrapResult(result: {
+  created: string[];
+  updated: string[];
+  skipped: string[];
+}): string {
+  const fragments: string[] = [];
+
+  if (result.created.length > 0) {
+    fragments.push(`created ${result.created.join(', ')}`);
+  }
+
+  if (result.updated.length > 0) {
+    fragments.push(`updated ${result.updated.join(', ')}`);
+  }
+
+  if (result.skipped.length > 0 && fragments.length === 0) {
+    fragments.push(`kept ${result.skipped.join(', ')}`);
+  }
+
+  return fragments.length > 0 ? fragments.join(' • ') : 'Ralph control files are ready.';
+}
+
+function getReadinessBadge(report: ReadinessReport | null) {
+  if (!report) {
+    return { className: 'badge badge-neutral', label: 'Unchecked' };
+  }
+
+  if (report.ready) {
+    return { className: 'badge badge-success', label: 'Ready' };
+  }
+
+  return { className: 'badge badge-warning', label: report.isFresh ? 'Needs Bootstrap' : 'Needs Repair' };
+}
+
+export function RalphConsolePanel({
+  workspace,
+  onOpenWorkspace,
+  onOpenFile,
+  onLaunchClaudeSession,
+}: RalphConsolePanelProps) {
   const [runs, setRuns] = useState<RalphRunDashboardItem[]>([]);
   const [selectedRun, setSelectedRun] = useState<RalphRunDashboardItem | null>(null);
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -51,10 +115,15 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   const [fixPlanTasks, setFixPlanTasks] = useState<PlanTask[]>([]);
   const [loopSummaries, setLoopSummaries] = useState<LoopSummary[]>([]);
   const [planSnapshots, setPlanSnapshots] = useState<PlanSnapshot[]>([]);
+  const [workspaceProject, setWorkspaceProject] = useState<RalphProject | null>(null);
+  const [workspaceReadiness, setWorkspaceReadiness] = useState<ReadinessReport | null>(null);
+  const [activeWorkspaceRuns, setActiveWorkspaceRuns] = useState<LoopRun[]>([]);
+  const [workspaceActionState, setWorkspaceActionState] = useState<WorkspaceActionState>(null);
+  const [workspaceNotice, setWorkspaceNotice] = useState<WorkspaceNotice | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadRunsRef = useRef<(() => Promise<void>) | null>(null);
+  const loadRunsRef = useRef<(() => Promise<RalphRunDashboardItem[]>) | null>(null);
   const loadSelectedRunDetailsRef = useRef<((run: RalphRunDashboardItem) => Promise<void>) | null>(null);
   const selectedRunRef = useRef<RalphRunDashboardItem | null>(null);
   const selectedRunIdRef = useRef<string | null>(null);
@@ -110,13 +179,48 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     return tasks;
   };
 
-  const loadRuns = useCallback(async () => {
+  const loadWorkspaceContext = useCallback(async () => {
+    if (!workspace) {
+      setWorkspaceProject(null);
+      setWorkspaceReadiness(null);
+      setActiveWorkspaceRuns([]);
+      return;
+    }
+
+    try {
+      const [report, project] = await Promise.all([
+        window.knuthflow.ralph.getReadinessReport(workspace.id, workspace.path),
+        window.knuthflow.ralph.getProject(workspace.id),
+      ]);
+
+      setWorkspaceReadiness(report);
+      setWorkspaceProject(project);
+
+      if (project) {
+        const activeRuns = await window.knuthflow.ralph.getActiveRuns(project.id);
+        setActiveWorkspaceRuns(activeRuns);
+      } else {
+        setActiveWorkspaceRuns([]);
+      }
+    } catch (error) {
+      console.error('Failed to load Ralph workspace context:', error);
+      setWorkspaceNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Unable to load Ralph workspace state.',
+      });
+    }
+  }, [workspace]);
+
+  const loadRuns = useCallback(async (): Promise<RalphRunDashboardItem[]> => {
     setIsRefreshing(true);
     try {
-      const projects = await window.knuthflow.workspace.list();
+      const workspaces = await window.knuthflow.workspace.list();
       const nextRuns: RalphRunDashboardItem[] = [];
 
-      for (const project of projects) {
+      for (const workspaceItem of workspaces) {
+        const project = await window.knuthflow.ralph.getProject(workspaceItem.id);
+        if (!project) continue;
+
         const projectRuns = await window.knuthflow.ralph.getProjectRuns(project.id);
         for (const run of projectRuns) {
           let phase: RalphPhase = 'idle';
@@ -136,13 +240,17 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
             phase = 'failed';
           }
 
+          const status = phase === 'paused' ? 'paused' : run.status;
+
           nextRuns.push({
             runId: run.id,
             projectId: run.projectId,
-            workspaceName: project.name,
-            workspacePath: project.path,
+            sessionId: run.sessionId,
+            ptySessionId: run.ptySessionId,
+            workspaceName: workspaceItem.name,
+            workspacePath: workspaceItem.path,
             name: run.name,
-            status: run.status,
+            status,
             phase,
             selectedItem: null,
             safetyState: null,
@@ -156,8 +264,16 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
       }
 
       setRuns(nextRuns);
+
+      const selectedRunId = selectedRunIdRef.current;
+      const nextSelectedRun = selectedRunId ? nextRuns.find((run) => run.runId === selectedRunId) ?? null : null;
+      selectedRunRef.current = nextSelectedRun;
+      setSelectedRun(nextSelectedRun);
+
+      return nextRuns;
     } catch (error) {
       console.error('Failed to load Ralph runs:', error);
+      return [];
     } finally {
       setIsRefreshing(false);
     }
@@ -218,6 +334,122 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     loadSelectedRunDetails(run);
   }, [loadSelectedRunDetails]);
 
+  const openControlFile = useCallback((fileName: 'PROMPT.md' | 'AGENT.md' | 'fix_plan.md') => {
+    if (!workspace) return;
+    onOpenFile(`${workspace.path}/${fileName}`, 1);
+  }, [onOpenFile, workspace]);
+
+  const handleBootstrap = useCallback(async (force = false) => {
+    if (!workspace) return;
+
+    setWorkspaceActionState(force ? 'repair' : 'bootstrap');
+    setWorkspaceNotice(null);
+
+    try {
+      const result = await window.knuthflow.ralph.bootstrap(workspace.id, workspace.path, force);
+      if (!result.success) {
+        setWorkspaceNotice({
+          tone: 'error',
+          message: result.error || 'Unable to bootstrap Ralph for this workspace.',
+        });
+        return;
+      }
+
+      setWorkspaceNotice({
+        tone: 'info',
+        message: formatBootstrapResult(result),
+      });
+      await Promise.all([loadWorkspaceContext(), loadRuns()]);
+    } catch (error) {
+      setWorkspaceNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Unable to bootstrap Ralph for this workspace.',
+      });
+    } finally {
+      setWorkspaceActionState(null);
+    }
+  }, [loadRuns, loadWorkspaceContext, workspace]);
+
+  const handleStartLoop = useCallback(async () => {
+    if (!workspace) return;
+
+    setWorkspaceActionState('start');
+    setWorkspaceNotice(null);
+
+    try {
+      const validation = await window.knuthflow.ralph.validateBeforeStart(workspace.id, workspace.path);
+      if (!validation.valid) {
+        setWorkspaceNotice({
+          tone: 'error',
+          message: validation.issues[0]?.message || 'Ralph is not ready to start from this workspace.',
+        });
+        return;
+      }
+
+      const project = workspaceProject ?? await window.knuthflow.ralph.getProject(workspace.id);
+      if (!project) {
+        setWorkspaceNotice({
+          tone: 'error',
+          message: 'Bootstrap Ralph for this workspace before starting a loop.',
+        });
+        return;
+      }
+
+      const runName = `Ralph ${new Date().toLocaleTimeString()}`;
+      const launch = await onLaunchClaudeSession({ name: runName, workspace });
+      if (!launch.success || !launch.sessionRecordId || !launch.ptySessionId) {
+        setWorkspaceNotice({
+          tone: 'error',
+          message: launch.error || 'Claude session failed to start for Ralph.',
+        });
+        return;
+      }
+
+      const runtimeResult = await window.knuthflow.ralphRuntime?.start(
+        project.id,
+        runName,
+        launch.sessionRecordId,
+        launch.ptySessionId,
+      );
+
+      if (!runtimeResult?.success || !runtimeResult.run) {
+        if (launch.claudeRunId) {
+          await window.knuthflow.claude.kill(launch.claudeRunId);
+        }
+
+        if (launch.sessionRecordId) {
+          await window.knuthflow.session.updateEnd(launch.sessionRecordId, 'failed', null, null);
+        }
+
+        setWorkspaceNotice({
+          tone: 'error',
+          message: runtimeResult?.error || 'Ralph runtime failed to register the new run.',
+        });
+        return;
+      }
+
+      const nextRuns = await loadRuns();
+      await loadWorkspaceContext();
+
+      const nextSelectedRun = nextRuns.find((run) => run.runId === runtimeResult.run?.id) ?? null;
+      if (nextSelectedRun) {
+        handleSelectRun(nextSelectedRun);
+      }
+
+      setWorkspaceNotice({
+        tone: 'info',
+        message: `${runName} started from ${workspace.name}.`,
+      });
+    } catch (error) {
+      setWorkspaceNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Unable to start Ralph from this workspace.',
+      });
+    } finally {
+      setWorkspaceActionState(null);
+    }
+  }, [handleSelectRun, loadRuns, loadWorkspaceContext, onLaunchClaudeSession, workspace, workspaceProject]);
+
   const handleOperatorAction = useCallback(async (action: 'pause' | 'resume' | 'stop' | 'replan' | 'validate') => {
     if (!selectedRun) return;
 
@@ -233,18 +465,6 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
       return;
     }
 
-    if (action === 'replan') {
-      setPendingConfirmation({
-        action: 'replan',
-        title: 'Regenerate fix plan?',
-        message: 'This rebuilds the run plan while preserving existing context and snapshots.',
-        confirmLabel: 'Replan',
-        cancelLabel: 'Cancel',
-        isDangerous: false,
-      });
-      return;
-    }
-
     try {
       switch (action) {
         case 'pause':
@@ -253,17 +473,24 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
         case 'resume':
           await window.knuthflow.ralph.resumeRun(selectedRun.runId);
           break;
-        case 'validate':
-          await window.knuthflow.ralph.validateRun(selectedRun.runId);
-          break;
         default:
-          break;
+          return;
       }
-      await loadRuns();
+
+      const nextRuns = await loadRuns();
+      const nextSelectedRun = nextRuns.find((run) => run.runId === selectedRun.runId);
+      if (nextSelectedRun) {
+        await loadSelectedRunDetails(nextSelectedRun);
+      }
+      await loadWorkspaceContext();
     } catch (error) {
       console.error(`Failed to ${action} run:`, error);
+      setWorkspaceNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : `Unable to ${action} this Ralph run.`,
+      });
     }
-  }, [loadRuns, selectedRun]);
+  }, [loadRuns, loadSelectedRunDetails, loadWorkspaceContext, selectedRun]);
 
   const handleConfirm = useCallback(async () => {
     if (!pendingConfirmation || !selectedRun) return;
@@ -271,18 +498,40 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     try {
       if (pendingConfirmation.action === 'stop') {
         await window.knuthflow.ralph.stopRun(selectedRun.runId);
-      }
 
-      if (pendingConfirmation.action === 'replan') {
-        await window.knuthflow.ralph.replanRun(selectedRun.runId);
+        if (selectedRun.ptySessionId) {
+          await window.knuthflow.pty.kill(selectedRun.ptySessionId, 'SIGTERM');
+        }
+
+        if (selectedRun.sessionId) {
+          await window.knuthflow.session.updateEnd(selectedRun.sessionId, 'completed', null, null);
+        }
       }
 
       setPendingConfirmation(null);
-      await loadRuns();
+
+      const nextRuns = await loadRuns();
+      const nextSelectedRun = nextRuns.find((run) => run.runId === selectedRun.runId) ?? null;
+      if (nextSelectedRun) {
+        await loadSelectedRunDetails(nextSelectedRun);
+      } else {
+        setSelectedRun(null);
+        setTimelineEvents([]);
+        setArtifacts([]);
+        setFixPlanTasks([]);
+        setLoopSummaries([]);
+        setPlanSnapshots([]);
+      }
+
+      await loadWorkspaceContext();
     } catch (error) {
       console.error(`Failed to ${pendingConfirmation.action}:`, error);
+      setWorkspaceNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : `Unable to ${pendingConfirmation.action} this Ralph run.`,
+      });
     }
-  }, [loadRuns, pendingConfirmation, selectedRun]);
+  }, [loadRuns, loadSelectedRunDetails, loadWorkspaceContext, pendingConfirmation, selectedRun]);
 
   useEffect(() => {
     loadRunsRef.current = loadRuns;
@@ -290,8 +539,12 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
   }, [loadRuns, loadSelectedRunDetails]);
 
   useEffect(() => {
-    loadRunsRef.current?.();
+    void loadRunsRef.current?.();
   }, []);
+
+  useEffect(() => {
+    void loadWorkspaceContext();
+  }, [loadWorkspaceContext]);
 
   useEffect(() => {
     selectedRunRef.current = selectedRun;
@@ -302,9 +555,10 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     const interval = setInterval(async () => {
       const currentRunId = selectedRunIdRef.current;
       if (currentRunId && selectedRunRef.current?.status === 'running') {
-        await loadRunsRef.current?.();
-        if (currentRunId === selectedRunIdRef.current && selectedRunRef.current) {
-          await loadSelectedRunDetailsRef.current?.(selectedRunRef.current);
+        const nextRuns = await loadRunsRef.current?.();
+        const nextSelectedRun = nextRuns?.find((run) => run.runId === currentRunId);
+        if (nextSelectedRun) {
+          await loadSelectedRunDetailsRef.current?.(nextSelectedRun);
         }
       }
     }, POLLING_INTERVAL_MS);
@@ -322,18 +576,134 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
     { id: 'alerts', label: 'Alerts', count: alerts.length },
   ];
 
+  const workspaceBadge = getReadinessBadge(workspaceReadiness);
+  const activeWorkspaceRun = activeWorkspaceRuns.find((run) => run.status === 'running') ?? null;
+  const canStartLoop = Boolean(
+    workspace &&
+    workspaceReadiness?.ready &&
+    workspaceProject &&
+    !activeWorkspaceRun &&
+    workspaceActionState === null,
+  );
+
   return (
     <div className="section-shell">
       <div className="section-header">
         <div>
           <h2 className="section-title">Ralph Console</h2>
-          <p className="section-lead">Operational dashboard for autonomous runs, fix plans, artifacts, and manual intervention.</p>
+          <p className="section-lead">Bootstrap a workspace, edit Ralph control files, and supervise active loop runs.</p>
         </div>
         <div className="toolbar-inline">
           <span className="badge badge-neutral">{runs.length} runs</span>
-          <button onClick={() => loadRuns()} disabled={isRefreshing} className="btn">
+          <button onClick={() => void loadRuns()} disabled={isRefreshing} className="btn">
             {isRefreshing ? 'Refreshing…' : 'Refresh'}
           </button>
+        </div>
+      </div>
+
+      <div className="list-pane !pb-0">
+        <div className="surface-panel-muted p-5">
+          {workspace ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="metric-label">Workspace</p>
+                  <h3 className="m-0 text-lg font-semibold">{workspace.name}</h3>
+                  <p className="mt-2 text-sm text-muted text-mono">{workspace.path}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={workspaceBadge.className}>{workspaceBadge.label}</span>
+                  {activeWorkspaceRun && <span className="badge badge-info">Run Active</span>}
+                  {workspaceProject && <span className="badge badge-neutral text-mono">{workspaceProject.id.slice(0, 12)}…</span>}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => void handleStartLoop()}
+                  disabled={!canStartLoop}
+                  className="btn btn-primary"
+                >
+                  {workspaceActionState === 'start' ? 'Starting…' : 'Start Loop'}
+                </button>
+                <button
+                  onClick={() => void handleBootstrap(false)}
+                  disabled={!workspace || workspaceActionState !== null}
+                  className="btn"
+                >
+                  {workspaceActionState === 'bootstrap' ? 'Bootstrapping…' : 'Bootstrap Ralph'}
+                </button>
+                <button
+                  onClick={() => void handleBootstrap(true)}
+                  disabled={!workspace || workspaceActionState !== null}
+                  className="btn"
+                >
+                  {workspaceActionState === 'repair' ? 'Repairing…' : 'Repair Files'}
+                </button>
+                <button onClick={() => openControlFile('PROMPT.md')} disabled={!workspace} className="btn btn-ghost">
+                  Edit Prompt
+                </button>
+                <button onClick={() => openControlFile('AGENT.md')} disabled={!workspace} className="btn btn-ghost">
+                  Edit Agent
+                </button>
+                <button onClick={() => openControlFile('fix_plan.md')} disabled={!workspace} className="btn btn-ghost">
+                  Edit Fix Plan
+                </button>
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+                <div className="surface-panel-inset p-4">
+                  <p className="metric-label">Readiness</p>
+                  <p className="m-0 text-sm text-muted">{summarizeIssues(workspaceReadiness)}</p>
+                  {workspaceReadiness && workspaceReadiness.issues.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {workspaceReadiness.issues.slice(0, 3).map((issue) => (
+                        <div key={`${issue.code}-${issue.message}`} className="list-card !cursor-default">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <span className={issue.severity === 'error' ? 'badge badge-danger' : issue.severity === 'warning' ? 'badge badge-warning' : 'badge badge-info'}>
+                                {issue.severity}
+                              </span>
+                              <h4 className="list-card-title">{issue.message}</h4>
+                            </div>
+                            <p className="m-0 text-sm text-muted">{issue.recovery}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="surface-panel-inset p-4">
+                  <p className="metric-label">Workspace Actions</p>
+                  <div className="mt-3 space-y-2 text-sm text-muted">
+                    <p className="m-0">Bootstrap creates `PROMPT.md`, `AGENT.md`, `fix_plan.md`, `specs/`, and `.ralph`.</p>
+                    <p className="m-0">Start Loop opens a Claude session in this repository and registers a Ralph run in the console.</p>
+                    {activeWorkspaceRun && (
+                      <p className="m-0 text-[var(--text-primary)]">
+                        Active run: <strong>{activeWorkspaceRun.name}</strong>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {workspaceNotice && (
+                <div className={`surface-panel-inset px-4 py-3 ${workspaceNotice.tone === 'error' ? 'border-[var(--danger)]' : 'border-[var(--info)]'}`}>
+                  <p className={`m-0 text-sm ${workspaceNotice.tone === 'error' ? 'text-red-300' : 'text-[var(--text-primary)]'}`}>
+                    {workspaceNotice.message}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="empty-state !min-h-0">
+              <div>
+                <h3 className="text-lg font-semibold">Choose a workspace first</h3>
+                <p className="mt-2 text-sm text-muted">Ralph starts from the currently selected repository, not from the global run list.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -351,10 +721,10 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
                 <div className="empty-state surface-panel-muted">
                   <div>
                     <h3 className="text-lg font-semibold">No Ralph runs found</h3>
-                    <p className="mt-2 text-sm text-muted">Start a Ralph run from a workspace to populate the console.</p>
+                    <p className="mt-2 text-sm text-muted">Bootstrap the current workspace, then start a loop to populate the console.</p>
                   </div>
                 </div>
-              ) : runs.map(run => (
+              ) : runs.map((run) => (
                 <RalphRunCard
                   key={run.runId}
                   run={run}
@@ -387,7 +757,7 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
 
               <div className="px-4 pb-3">
                 <div className="segmented-control">
-                  {tabs.map(tab => (
+                  {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
@@ -460,7 +830,7 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
                     snapshots={planSnapshots}
                     onViewArtifact={(summaryId) => {
                       setActiveTab('artifacts');
-                      const artifact = artifacts.find(item => item.itemId === summaryId);
+                      const artifact = artifacts.find((item) => item.itemId === summaryId);
                       if (artifact) setSelectedArtifact(artifact);
                     }}
                   />
@@ -483,7 +853,7 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
                 {activeTab === 'alerts' && (
                   <RalphSafetyAlerts
                     alerts={alerts}
-                    onDismiss={(id) => setAlerts(prev => prev.filter(alert => alert.id !== id))}
+                    onDismiss={(id) => setAlerts((prev) => prev.filter((alert) => alert.id !== id))}
                     onViewDetails={(alert) => console.debug('Alert details:', alert)}
                   />
                 )}

@@ -70,6 +70,7 @@ export function EditorPane({
 }: EditorPaneProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const [currentFile, setCurrentFile] = useState<FileInfo | null>(null);
+  const [savedContent, setSavedContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -104,6 +105,7 @@ export function EditorPane({
           language: language || getLanguageFromPath(filePath),
           content: fileContent,
         });
+        setSavedContent(fileContent);
       } catch (err) {
         setCurrentFile(null);
         setError(`Failed to load file: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -118,8 +120,11 @@ export function EditorPane({
   useEffect(() => {
     if (content !== undefined && content !== null) {
       setCurrentFile(prev => (prev && prev.content !== content ? { ...prev, content } : prev));
+      setSavedContent(content);
     }
   }, [content]);
+
+  const isDirty = Boolean(currentFile && currentFile.content !== savedContent);
 
   const handleEditorMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
@@ -143,6 +148,7 @@ export function EditorPane({
 
   const handleContentChange = useCallback((value: string | undefined) => {
     if (value !== undefined) {
+      setCurrentFile(prev => (prev ? { ...prev, content: value } : prev));
       onContentChange?.(value);
     }
   }, [onContentChange]);
@@ -152,6 +158,7 @@ export function EditorPane({
 
     try {
       await onSave(filePath, currentFile.content);
+      setSavedContent(currentFile.content);
     } catch (err) {
       setError(`Failed to save file: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
@@ -212,8 +219,9 @@ export function EditorPane({
           <div className="toolbar-inline">
             <span className="badge badge-neutral">{currentFile.language}</span>
             {readOnly && <span className="badge badge-info">Read Only</span>}
+            {!readOnly && isDirty && <span className="badge badge-warning">Unsaved</span>}
             {!readOnly && onSave && (
-              <button onClick={handleSave} className="btn btn-primary">Save</button>
+              <button onClick={handleSave} disabled={!isDirty} className="btn btn-primary">Save</button>
             )}
           </div>
         </div>

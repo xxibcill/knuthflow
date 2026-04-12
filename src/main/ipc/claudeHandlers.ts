@@ -19,11 +19,14 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
   const ptyMgr = getPtyManager();
   let handlersAttached = false;
 
-  ipcMain.handle('claude:detect', async (_event: IpcMainInvokeEvent) => {
+  ipcMain.handle('claude:detect', async () => {
     return detectClaudeCode();
   });
 
-  ipcMain.handle('claude:launch', async (_event: IpcMainInvokeEvent, args: string[] = []) => {
+  ipcMain.handle('claude:launch', async (_event: IpcMainInvokeEvent, options?: { args?: string[]; cwd?: string } | string[]) => {
+    const launchOptions = Array.isArray(options) ? { args: options } : (options ?? {});
+    const args = launchOptions.args ?? [];
+
     // First detect Claude Code
     const detection = detectClaudeCode();
     if (!detection.installed || !detection.executablePath) {
@@ -32,7 +35,7 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
 
     const runId = `run-${crypto.randomUUID()}`;
     const sessionId = ptyMgr.create({
-      cwd: process.cwd(),
+      cwd: launchOptions.cwd || process.cwd(),
       cols: 80,
       rows: 24,
     });
@@ -131,7 +134,7 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     };
   });
 
-  ipcMain.handle('claude:listRuns', async (_event: IpcMainInvokeEvent) => {
+  ipcMain.handle('claude:listRuns', async () => {
     return Array.from(activeRuns.entries()).map(([runId, run]) => ({
       runId,
       sessionId: run.sessionId,
