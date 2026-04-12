@@ -134,10 +134,8 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     };
   });
 
-<<<<<<< HEAD
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ipcMain.handle('claude:listRuns', async (_event: IpcMainInvokeEvent) => {
-  ipcMain.handle('claude:listRuns', async () => {
     return Array.from(activeRuns.entries()).map(([runId, run]) => ({
       runId,
       sessionId: run.sessionId,
