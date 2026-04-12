@@ -1,12 +1,5 @@
-import { ipcMain, IpcMainInvokeEvent } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { getWorkspaceScaffolder, type TemplateType } from '../ralph/workspaceScaffolder';
-
-export interface ScaffoldResult {
-  success: boolean;
-  createdFiles?: string[];
-  errors?: string[];
-  templateUsed?: TemplateType | null;
-}
 
 /**
  * Register handlers for workspace scaffolding

@@ -445,11 +445,16 @@ export function RalphConsolePanel({
     }
   }, [workspace]);
 
+  // Ref to avoid stale closure in handleBlueprintEdit
+  const generatedBlueprintRef = useRef(generatedBlueprint);
+  generatedBlueprintRef.current = generatedBlueprint;
+
   const handleBlueprintEdit = useCallback(() => {
-    setKickoffDraft((currentDraft) => currentDraft ?? generatedBlueprint?.intake ?? null);
+    const intake = kickoffDraft ?? generatedBlueprintRef.current?.intake ?? null;
+    setKickoffDraft(intake);
     setKickoffState('intake');
     setKickoffError(null);
-  }, [generatedBlueprint]);
+  }, [kickoffDraft]);
 
   const handleBlueprintApprove = useCallback(async () => {
     if (!workspace || !generatedBlueprint) return;
@@ -893,7 +898,6 @@ export function RalphConsolePanel({
                     onApprove={handleBlueprintApprove}
                     onEditIntake={handleBlueprintEdit}
                     onCancel={handleKickoffCancel}
-                    isApproved={false}
                     isSubmitting={isKickoffSubmitting}
                   />
                   {kickoffError && (

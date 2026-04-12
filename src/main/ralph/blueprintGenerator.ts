@@ -478,9 +478,19 @@ ${
     const writtenFiles: Array<{ path: string; previousContent: string | null }> = [];
     const createdDirs: string[] = [];
 
+    // Resolve workspace path once to check for path traversal
+    const resolvedWorkspace = path.resolve(workspacePath);
+
     // Helper to write atomically (write to temp then rename)
     const atomicWrite = (filePath: string, content: string): boolean => {
-      const fullPath = path.join(workspacePath, filePath);
+      const fullPath = path.join(resolvedWorkspace, filePath);
+
+      // Path traversal check
+      if (!fullPath.startsWith(resolvedWorkspace)) {
+        errors.push('Path traversal detected');
+        return false;
+      }
+
       const dir = path.dirname(fullPath);
       const previousContent = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf-8') : null;
 
@@ -545,7 +555,7 @@ ${
 
       // Write specs/
       const specsDir = 'specs';
-      const specsDirFull = path.join(workspacePath, specsDir);
+      const specsDirFull = path.join(resolvedWorkspace, specsDir);
       if (!fs.existsSync(specsDirFull)) {
         fs.mkdirSync(specsDirFull, { recursive: true });
       }

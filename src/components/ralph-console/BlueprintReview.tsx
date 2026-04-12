@@ -8,7 +8,6 @@ export interface BlueprintReviewProps {
   onApprove: () => void;
   onEditIntake: () => void;
   onCancel: () => void;
-  isApproved: boolean;
   isSubmitting: boolean;
 }
 
@@ -17,7 +16,6 @@ export function BlueprintReview({
   onApprove,
   onEditIntake,
   onCancel,
-  isApproved,
   isSubmitting,
 }: BlueprintReviewProps) {
   const [expandedSection, setExpandedSection] = useState<BlueprintSection | null>('intake');
@@ -40,7 +38,6 @@ export function BlueprintReview({
         <span className="badge badge-neutral">
           Generated: {new Date(blueprint.generatedAt).toLocaleString()}
         </span>
-        {isApproved && <span className="badge badge-success">Approved</span>}
       </div>
 
       {/* Intake Section */}
@@ -245,9 +242,9 @@ export function BlueprintReview({
           <button
             onClick={onApprove}
             className="btn btn-primary"
-            disabled={isApproved || isSubmitting}
+            disabled={isSubmitting}
           >
-            {isSubmitting ? 'Submitting...' : isApproved ? 'Approved' : 'Approve & Start Build'}
+            {isSubmitting ? 'Submitting...' : 'Approve & Start Build'}
           </button>
         </div>
       </div>
