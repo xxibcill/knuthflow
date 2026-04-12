@@ -57,10 +57,12 @@
   --accent-solid: oklch(0.6 0.16 253);
   --accent-strong: oklch(0.5 0.13 250);
   --accent-soft: oklch(0.92 0.035 252);
+  --success: oklch(0.54 0.14 151);
   --success-soft: oklch(0.92 0.04 151);
+  --info: oklch(0.54 0.12 233);
+  --info-soft: oklch(0.93 0.03 233);
   --warning-soft: oklch(0.94 0.04 86);
   --danger-soft: oklch(0.93 0.045 25);
-  --info-soft: oklch(0.93 0.03 233);
   --grid-line: rgba(17, 24, 39, 0.06);
 }
 
