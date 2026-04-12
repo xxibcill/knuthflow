@@ -19,9 +19,8 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
   const ptyMgr = getPtyManager();
   let handlersAttached = false;
 
-  ipcMain.handle('claude:detect', async (_event: IpcMainInvokeEvent) => {
-    return detectClaudeCode();
-  });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ipcMain.handle('claude:detect', async (_event: IpcMainInvokeEvent) => detectClaudeCode());
 
   ipcMain.handle('claude:launch', async (_event: IpcMainInvokeEvent, args: string[] = []) => {
     // First detect Claude Code
@@ -131,6 +130,7 @@ export function registerClaudeHandlers(mainWindowGetter: () => BrowserWindow | n
     };
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ipcMain.handle('claude:listRuns', async (_event: IpcMainInvokeEvent) => {
     return Array.from(activeRuns.entries()).map(([runId, run]) => ({
       runId,

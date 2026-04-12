@@ -13,11 +13,13 @@ export function registerProfileHandlers(): void {
     return db.getProfile(id);
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('profile:getDefault', async (_event: IpcMainInvokeEvent) => {
     const db = getDatabase();
     return db.getDefaultProfile();
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('profile:list', async (_event: IpcMainInvokeEvent) => {
     const db = getDatabase();
     return db.listProfiles();

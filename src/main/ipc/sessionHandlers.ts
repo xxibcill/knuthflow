@@ -29,6 +29,7 @@ export function registerSessionHandlers(): void {
     return db.listRecentSessions(workspaceId, limit);
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('session:listActive', async (_event: IpcMainInvokeEvent) => {
     const db = getDatabase();
     return db.listActiveSessions();

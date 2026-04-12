@@ -17,6 +17,7 @@ export function registerSecureStorageHandlers(): void {
     return storage.delete(key);
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('secureStorage:isUsingFallback', async (_event: IpcMainInvokeEvent) => {
     const storage = getSecureStorage();
     return storage.isUsingFallback();

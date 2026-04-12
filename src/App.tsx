@@ -695,7 +695,8 @@ export default function App() {
               });
               setViewMode('terminal');
             }}
-            onOpenFile={(filePath, lineNumber) => {
+            /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+            onOpenFile={(filePath, _lineNumber) => {
               setEditorFilePath(filePath);
               setViewMode('editor');
             }}
