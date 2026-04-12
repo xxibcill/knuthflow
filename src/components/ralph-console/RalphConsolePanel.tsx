@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Workspace } from '../../preload';
 import type { LoopRun, RalphProject, ReadinessReport } from '../../shared/preloadTypes';
 import type {
@@ -20,6 +20,51 @@ import { RalphOperatorControls } from './RalphOperatorControls';
 import { RalphPhaseTimeline } from './RalphPhaseTimeline';
 import { RalphRunCard } from './RalphRunCard';
 import { RalphSafetyAlerts } from './RalphSafetyAlerts';
+
+// Error boundary for kickoff workflow
+interface KickoffErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class KickoffErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset: () => void },
+  KickoffErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode; onReset: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): KickoffErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    console.error('Kickoff workflow error:', error, errorInfo);
+  }
+
+  render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 border border-red-500 rounded">
+          <h3 className="text-red-300 font-semibold">Something went wrong</h3>
+          <p className="text-sm text-muted mt-2">{this.state.error?.message}</p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset();
+            }}
+            className="btn btn-primary mt-4"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export type { RalphRunDashboardItem } from './RalphConsole.types';
 
@@ -399,7 +444,6 @@ export function RalphConsolePanel({
     targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
     successCriteria: string[];
     stackPreferences: string[];
-    frameworkConstraints: string[];
     forbiddenPatterns: string[];
     maxBuildTime: number;
     supportedBrowsers: string[];
@@ -852,55 +896,59 @@ export function RalphConsolePanel({
           )}
 
           {/* Kickoff Workflow (Phase 13) */}
-          {kickoffState === 'intake' && (
-            <div className="kickoff-intake">
-              <AppIntakeForm
-                onSubmit={handleIntakeSubmit}
-                onCancel={handleKickoffCancel}
-                isSubmitting={isKickoffSubmitting}
-              />
-              {kickoffError && (
-                <div className="mt-4 p-4 border border-red-500 rounded">
-                  <p className="text-red-300">{kickoffError}</p>
+          {(kickoffState === 'intake' || kickoffState === 'review' || kickoffState === 'approved') && (
+            <KickoffErrorBoundary onReset={handleKickoffCancel}>
+              {kickoffState === 'intake' && (
+                <div className="kickoff-intake">
+                  <AppIntakeForm
+                    onSubmit={handleIntakeSubmit}
+                    onCancel={handleKickoffCancel}
+                    isSubmitting={isKickoffSubmitting}
+                  />
+                  {kickoffError && (
+                    <div className="mt-4 p-4 border border-red-500 rounded">
+                      <p className="text-red-300">{kickoffError}</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {kickoffState === 'review' && generatedBlueprint && (
-            <div className="kickoff-review">
-              <BlueprintReview
-                blueprint={generatedBlueprint}
-                onApprove={handleBlueprintApprove}
-                onEdit={handleBlueprintEdit}
-                onCancel={handleKickoffCancel}
-                isApproved={false}
-                isSubmitting={isKickoffSubmitting}
-              />
-              {kickoffError && (
-                <div className="mt-4 p-4 border border-red-500 rounded">
-                  <p className="text-red-300">{kickoffError}</p>
+              {kickoffState === 'review' && generatedBlueprint && (
+                <div className="kickoff-review">
+                  <BlueprintReview
+                    blueprint={generatedBlueprint}
+                    onApprove={handleBlueprintApprove}
+                    onEdit={handleBlueprintEdit}
+                    onCancel={handleKickoffCancel}
+                    isApproved={false}
+                    isSubmitting={isKickoffSubmitting}
+                  />
+                  {kickoffError && (
+                    <div className="mt-4 p-4 border border-red-500 rounded">
+                      <p className="text-red-300">{kickoffError}</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {kickoffState === 'approved' && (
-            <div className="kickoff-approved p-6">
-              <div className="text-center">
-                <span className="badge badge-success text-lg py-3 px-4">Blueprint Approved</span>
-                <h3 className="text-xl font-semibold mt-4">Your app is ready to build!</h3>
-                <p className="mt-2 text-muted">
-                  The blueprint has been written to the workspace. Start the Ralph loop when ready.
-                </p>
-                <button
-                  onClick={() => setKickoffState('idle')}
-                  className="btn btn-primary mt-4"
-                >
-                  Start Building
-                </button>
-              </div>
-            </div>
+              {kickoffState === 'approved' && (
+                <div className="kickoff-approved p-6">
+                  <div className="text-center">
+                    <span className="badge badge-success text-lg py-3 px-4">Blueprint Approved</span>
+                    <h3 className="text-xl font-semibold mt-4">Your app is ready to build!</h3>
+                    <p className="mt-2 text-muted">
+                      The blueprint has been written to the workspace. Start the Ralph loop when ready.
+                    </p>
+                    <button
+                      onClick={() => setKickoffState('idle')}
+                      className="btn btn-primary mt-4"
+                    >
+                      Start Building
+                    </button>
+                  </div>
+                </div>
+              )}
+            </KickoffErrorBoundary>
           )}
         </div>
       </div>

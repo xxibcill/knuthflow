@@ -350,7 +350,6 @@ const api: KnuthflowAPI = {
       targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
       successCriteria: string[];
       stackPreferences: string[];
-      frameworkConstraints: string[];
       forbiddenPatterns: string[];
       maxBuildTime: number;
       supportedBrowsers: string[];

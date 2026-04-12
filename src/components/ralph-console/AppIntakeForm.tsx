@@ -6,7 +6,6 @@ export interface AppIntakeFormData {
   targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
   successCriteria: string[];
   stackPreferences: string[];
-  frameworkConstraints: string[];
   forbiddenPatterns: string[];
   maxBuildTime: number;
   supportedBrowsers: string[];
@@ -123,7 +122,6 @@ export function AppIntakeForm({
       targetPlatform,
       successCriteria: successCriteria.filter(c => c.trim()),
       stackPreferences,
-      frameworkConstraints: [],
       forbiddenPatterns,
       maxBuildTime,
       supportedBrowsers,
@@ -145,10 +143,13 @@ export function AppIntakeForm({
   ]);
 
   const handlePresetStack = useCallback((preset: string) => {
-    if (!stackPreferences.includes(preset)) {
-      setStackPreferences(prev => [...prev, preset]);
-    }
-  }, [stackPreferences]);
+    setStackPreferences(prev => {
+      if (prev.includes(preset)) {
+        return prev;
+      }
+      return [...prev, preset];
+    });
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="app-intake-form">

@@ -149,7 +149,7 @@ const WEB_TEMPLATE: AppTemplate = {
       path: 'tsconfig.node.json',
       content: JSON.stringify({
         compilerOptions: {
-          comdiropsite: true,
+          composite: true,
           skipLibCheck: true,
           module: 'ESNext',
           moduleResolution: 'bundler',

@@ -14,7 +14,6 @@ export interface AppIntakeForm {
 
   // Technical constraints
   stackPreferences: string[];
-  frameworkConstraints: string[];
   forbiddenPatterns: string[];
 
   // Delivery constraints
@@ -69,13 +68,28 @@ function generateDeterministicId(input: string, salt: string): string {
 // Blueprint Generator
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Generate a content-based hash for version string
+ */
+function generateContentHash(input: string): string {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36).slice(0, 8);
+}
+
 export class BlueprintGenerator {
   /**
    * Generate a deterministic app blueprint from intake form data
    */
   generateBlueprint(intake: AppIntakeForm): AppBlueprint {
     const now = Date.now();
-    const version = `1.0.0-${now}`;
+    // Use content hash instead of timestamp for meaningful version comparison
+    const contentHash = generateContentHash(`${intake.appName}:${intake.appBrief}:${intake.targetPlatform}`);
+    const version = `1.0.0-${contentHash}`;
 
     // Generate specs from the brief and success criteria
     const specs = this.generateSpecs(intake);
@@ -442,7 +456,7 @@ ${
   }
 
   /**
-   * Write blueprint files to workspace
+   * Write blueprint files to workspace atomically with rollback on failure
    */
   writeBlueprintFiles(workspacePath: string, blueprint: AppBlueprint): {
     created: string[];
@@ -450,46 +464,84 @@ ${
   } {
     const created: string[] = [];
     const errors: string[] = [];
+    const tempFiles: Array<{ path: string; isNew: boolean }> = [];
+
+    // Helper to write atomically (write to temp then rename)
+    const atomicWrite = (filePath: string, content: string, isNew: boolean): boolean => {
+      const fullPath = path.join(workspacePath, filePath);
+      const dir = path.dirname(fullPath);
+
+      try {
+        // Ensure directory exists
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // Write to temp file first
+        const tempPath = `${fullPath}.tmp.${Date.now()}`;
+        fs.writeFileSync(tempPath, content, 'utf-8');
+
+        // Rename to final location (atomic on most filesystems)
+        fs.renameSync(tempPath, fullPath);
+        tempFiles.push({ path: fullPath, isNew });
+        return true;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+        return false;
+      }
+    };
 
     try {
       // Write PROMPT.md
-      const promptPath = path.join(workspacePath, 'PROMPT.md');
-      fs.writeFileSync(promptPath, this.generatePromptMd(blueprint), 'utf-8');
+      if (!atomicWrite('PROMPT.md', this.generatePromptMd(blueprint), true)) {
+        this.rollbackFiles(tempFiles);
+        return { created, errors };
+      }
       created.push('PROMPT.md');
 
       // Write AGENT.md
-      const agentPath = path.join(workspacePath, 'AGENT.md');
-      fs.writeFileSync(agentPath, this.generateAgentMd(blueprint), 'utf-8');
+      if (!atomicWrite('AGENT.md', this.generateAgentMd(blueprint), true)) {
+        this.rollbackFiles(tempFiles);
+        return { created, errors };
+      }
       created.push('AGENT.md');
 
       // Write fix_plan.md
-      const fixPlanPath = path.join(workspacePath, 'fix_plan.md');
-      fs.writeFileSync(fixPlanPath, blueprint.fixPlan, 'utf-8');
+      if (!atomicWrite('fix_plan.md', blueprint.fixPlan, true)) {
+        this.rollbackFiles(tempFiles);
+        return { created, errors };
+      }
       created.push('fix_plan.md');
 
       // Write specs/
-      const specsDir = path.join(workspacePath, 'specs');
-      if (!fs.existsSync(specsDir)) {
-        fs.mkdirSync(specsDir, { recursive: true });
-        created.push('specs/');
+      const specsDir = 'specs';
+      const specsDirFull = path.join(workspacePath, specsDir);
+      if (!fs.existsSync(specsDirFull)) {
+        fs.mkdirSync(specsDirFull, { recursive: true });
       }
 
       // Write index
-      const indexPath = path.join(specsDir, 'index.md');
-      fs.writeFileSync(indexPath, this.generateSpecsIndex(blueprint), 'utf-8');
-      created.push('specs/index.md');
+      if (!atomicWrite(`${specsDir}/index.md`, this.generateSpecsIndex(blueprint), true)) {
+        this.rollbackFiles(tempFiles);
+        return { created, errors };
+      }
+      created.push(`${specsDir}/index.md`);
 
       // Write individual spec files
       for (const spec of blueprint.specs) {
-        const specPath = path.join(specsDir, `${spec.id}.md`);
-        fs.writeFileSync(specPath, this.generateSpecContent(spec), 'utf-8');
-        created.push(`specs/${spec.id}.md`);
+        if (!atomicWrite(`${specsDir}/${spec.id}.md`, this.generateSpecContent(spec), true)) {
+          this.rollbackFiles(tempFiles);
+          return { created, errors };
+        }
+        created.push(`${specsDir}/${spec.id}.md`);
       }
 
       // Write milestones
-      const milestonesPath = path.join(specsDir, 'milestones.md');
-      fs.writeFileSync(milestonesPath, this.generateMilestonesContent(blueprint.milestones), 'utf-8');
-      created.push('specs/milestones.md');
+      if (!atomicWrite(`${specsDir}/milestones.md`, this.generateMilestonesContent(blueprint.milestones), true)) {
+        this.rollbackFiles(tempFiles);
+        return { created, errors };
+      }
+      created.push(`${specsDir}/milestones.md`);
 
       // Write blueprint metadata
       const blueprintMeta = {
@@ -498,19 +550,36 @@ ${
         appName: blueprint.intake.appName,
         platform: blueprint.intake.targetPlatform,
       };
-      const metaPath = path.join(workspacePath, '.ralph', 'blueprint.json');
-      const metaDir = path.dirname(metaPath);
-      if (!fs.existsSync(metaDir)) {
-        fs.mkdirSync(metaDir, { recursive: true });
+      if (!atomicWrite('.ralph/blueprint.json', JSON.stringify(blueprintMeta, null, 2), true)) {
+        this.rollbackFiles(tempFiles);
+        return { created, errors };
       }
-      fs.writeFileSync(metaPath, JSON.stringify(blueprintMeta, null, 2), 'utf-8');
       created.push('.ralph/blueprint.json');
 
     } catch (error) {
+      this.rollbackFiles(tempFiles);
       errors.push(error instanceof Error ? error.message : String(error));
     }
 
     return { created, errors };
+  }
+
+  /**
+   * Rollback created files on failure
+   */
+  private rollbackFiles(files: Array<{ path: string; isNew: boolean }>): void {
+    // Remove files in reverse order (new files only)
+    for (const file of files.reverse()) {
+      if (file.isNew) {
+        try {
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        } catch {
+          // Best effort rollback
+        }
+      }
+    }
   }
 
   /**
