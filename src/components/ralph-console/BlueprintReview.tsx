@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { AppBlueprint } from '../../shared/preloadTypes';
 
+type BlueprintSection = 'intake' | 'specs' | 'milestones' | 'criteria';
+
 export interface BlueprintReviewProps {
   blueprint: AppBlueprint;
   onApprove: () => void;
@@ -18,9 +20,9 @@ export function BlueprintReview({
   isApproved,
   isSubmitting,
 }: BlueprintReviewProps) {
-  const [expandedSection, setExpandedSection] = useState<string | null>('intake');
+  const [expandedSection, setExpandedSection] = useState<BlueprintSection | null>('intake');
 
-  const toggleSection = (section: string) => {
+  const toggleSection = (section: BlueprintSection) => {
     setExpandedSection(expandedSection === section ? null : section);
   };
 

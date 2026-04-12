@@ -104,6 +104,27 @@ export function AppIntakeForm({
     setForbiddenPatterns(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  const handleCriterionKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddCriterion();
+    }
+  }, [handleAddCriterion]);
+
+  const handleStackKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddStack();
+    }
+  }, [handleAddStack]);
+
+  const handleForbiddenKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddForbidden();
+    }
+  }, [handleAddForbidden]);
+
   const handleSubmit = useCallback((e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -261,12 +282,7 @@ export function AppIntakeForm({
               onChange={e => setNewCriterion(e.target.value)}
               placeholder="Add a success criterion..."
               className="input flex-1"
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAddCriterion();
-                }
-              }}
+              onKeyDown={handleCriterionKeyDown}
             />
             <button
               type="button"
@@ -314,12 +330,7 @@ export function AppIntakeForm({
               onChange={e => setNewStack(e.target.value)}
               placeholder="Add custom stack..."
               className="input flex-1"
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAddStack();
-                }
-              }}
+              onKeyDown={handleStackKeyDown}
             />
             <button
               type="button"
@@ -358,12 +369,7 @@ export function AppIntakeForm({
               onChange={e => setNewForbidden(e.target.value)}
               placeholder="Add forbidden pattern..."
               className="input flex-1"
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAddForbidden();
-                }
-              }}
+              onKeyDown={handleForbiddenKeyDown}
             />
             <button
               type="button"

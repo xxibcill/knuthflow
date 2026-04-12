@@ -476,19 +476,25 @@ ${
     const created: string[] = [];
     const errors: string[] = [];
     const writtenFiles: Array<{ path: string; previousContent: string | null }> = [];
+    const createdDirs: string[] = [];
 
     // Helper to write atomically (write to temp then rename)
     const atomicWrite = (filePath: string, content: string): boolean => {
       const fullPath = path.join(workspacePath, filePath);
       const dir = path.dirname(fullPath);
       const previousContent = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf-8') : null;
-      const tempPath = `${fullPath}.tmp.${Date.now()}`;
 
       try {
-        // Ensure directory exists
+        // Ensure directory exists and track if newly created
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
+          createdDirs.push(dir);
         }
+
+        // Use mkstemp for unique, safe temp file
+        const tempDir = path.dirname(fullPath);
+        const tempFile = path.basename(fullPath);
+        const tempPath = path.join(tempDir, `.${tempFile}.tmp.${process.hrtime.bigint()}`);
 
         // Write to temp file first
         fs.writeFileSync(tempPath, content, 'utf-8');
@@ -498,12 +504,19 @@ ${
         writtenFiles.push({ path: fullPath, previousContent });
         return true;
       } catch (error) {
-        if (fs.existsSync(tempPath)) {
-          try {
-            fs.unlinkSync(tempPath);
-          } catch {
-            // Best effort temp cleanup
+        const tempPathGlob = path.join(dir, `.${path.basename(fullPath)}.*.tmp.*`);
+        // Best effort temp cleanup - try to find and remove any matching temp files
+        try {
+          const tempFiles = fs.readdirSync(dir).filter(f => f.startsWith(`.${path.basename(fullPath)}.*.tmp.`));
+          for (const tempFile of tempFiles) {
+            try {
+              fs.unlinkSync(path.join(dir, tempFile));
+            } catch {
+              // Best effort
+            }
           }
+        } catch {
+          // Best effort
         }
         errors.push(error instanceof Error ? error.message : String(error));
         return false;
@@ -513,21 +526,21 @@ ${
     try {
       // Write PROMPT.md
       if (!atomicWrite('PROMPT.md', this.generatePromptMd(blueprint))) {
-        this.rollbackFiles(writtenFiles);
+        this.rollbackFiles(writtenFiles, createdDirs);
         return { created, errors };
       }
       created.push('PROMPT.md');
 
       // Write AGENT.md
       if (!atomicWrite('AGENT.md', this.generateAgentMd(blueprint))) {
-        this.rollbackFiles(writtenFiles);
+        this.rollbackFiles(writtenFiles, createdDirs);
         return { created, errors };
       }
       created.push('AGENT.md');
 
       // Write fix_plan.md
       if (!atomicWrite('fix_plan.md', blueprint.fixPlan)) {
-        this.rollbackFiles(writtenFiles);
+        this.rollbackFiles(writtenFiles, createdDirs);
         return { created, errors };
       }
       created.push('fix_plan.md');
@@ -541,7 +554,7 @@ ${
 
       // Write index
       if (!atomicWrite(`${specsDir}/index.md`, this.generateSpecsIndex(blueprint))) {
-        this.rollbackFiles(writtenFiles);
+        this.rollbackFiles(writtenFiles, createdDirs);
         return { created, errors };
       }
       created.push(`${specsDir}/index.md`);
@@ -549,7 +562,7 @@ ${
       // Write individual spec files
       for (const spec of blueprint.specs) {
         if (!atomicWrite(`${specsDir}/${spec.id}.md`, this.generateSpecContent(spec))) {
-          this.rollbackFiles(writtenFiles);
+          this.rollbackFiles(writtenFiles, createdDirs);
           return { created, errors };
         }
         created.push(`${specsDir}/${spec.id}.md`);
@@ -557,7 +570,7 @@ ${
 
       // Write milestones
       if (!atomicWrite(`${specsDir}/milestones.md`, this.generateMilestonesContent(blueprint.milestones))) {
-        this.rollbackFiles(writtenFiles);
+        this.rollbackFiles(writtenFiles, createdDirs);
         return { created, errors };
       }
       created.push(`${specsDir}/milestones.md`);
@@ -570,13 +583,13 @@ ${
         platform: blueprint.intake.targetPlatform,
       };
       if (!atomicWrite(BLUEPRINT_METADATA_FILE, JSON.stringify(blueprintMeta, null, 2))) {
-        this.rollbackFiles(writtenFiles);
+        this.rollbackFiles(writtenFiles, createdDirs);
         return { created, errors };
       }
       created.push(BLUEPRINT_METADATA_FILE);
 
     } catch (error) {
-      this.rollbackFiles(writtenFiles);
+      this.rollbackFiles(writtenFiles, createdDirs);
       errors.push(error instanceof Error ? error.message : String(error));
     }
 
@@ -584,9 +597,13 @@ ${
   }
 
   /**
-   * Rollback created files on failure
+   * Rollback created files on failure and clean up newly created directories
    */
-  private rollbackFiles(files: Array<{ path: string; previousContent: string | null }>): void {
+  private rollbackFiles(
+    files: Array<{ path: string; previousContent: string | null }>,
+    createdDirs: string[],
+  ): void {
+    // First rollback files
     for (const file of files.reverse()) {
       try {
         if (file.previousContent === null) {
@@ -599,6 +616,21 @@ ${
         fs.writeFileSync(file.path, file.previousContent, 'utf-8');
       } catch {
         // Best effort rollback
+      }
+    }
+
+    // Then clean up newly created directories (deepest first)
+    const sortedDirs = [...createdDirs].sort((a, b) => b.split('/').length - a.split('/').length);
+    for (const dir of sortedDirs) {
+      try {
+        if (fs.existsSync(dir)) {
+          const contents = fs.readdirSync(dir);
+          if (contents.length === 0) {
+            fs.rmdirSync(dir);
+          }
+        }
+      } catch {
+        // Best effort cleanup
       }
     }
   }
