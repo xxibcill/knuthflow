@@ -491,10 +491,9 @@ ${
           createdDirs.push(dir);
         }
 
-        // Use mkstemp for unique, safe temp file
-        const tempDir = path.dirname(fullPath);
-        const tempFile = path.basename(fullPath);
-        const tempPath = path.join(tempDir, `.${tempFile}.tmp.${process.hrtime.bigint()}`);
+        // Create temp file with unique name using hrtime
+        const tempSuffix = process.hrtime.bigint().toString(36);
+        const tempPath = path.join(dir, `.${path.basename(fullPath)}.tmp.${tempSuffix}`);
 
         // Write to temp file first
         fs.writeFileSync(tempPath, content, 'utf-8');
@@ -504,13 +503,12 @@ ${
         writtenFiles.push({ path: fullPath, previousContent });
         return true;
       } catch (error) {
-        const tempPathGlob = path.join(dir, `.${path.basename(fullPath)}.*.tmp.*`);
-        // Best effort temp cleanup - try to find and remove any matching temp files
+        // Best effort temp file cleanup
         try {
-          const tempFiles = fs.readdirSync(dir).filter(f => f.startsWith(`.${path.basename(fullPath)}.*.tmp.`));
-          for (const tempFile of tempFiles) {
+          const files = fs.readdirSync(dir).filter(f => f.startsWith(`.${path.basename(fullPath)}.tmp.`));
+          for (const file of files) {
             try {
-              fs.unlinkSync(path.join(dir, tempFile));
+              fs.unlinkSync(path.join(dir, file));
             } catch {
               // Best effort
             }

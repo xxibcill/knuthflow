@@ -280,7 +280,7 @@ export function AppIntakeForm({
               type="text"
               value={newCriterion}
               onChange={e => setNewCriterion(e.target.value)}
-              placeholder="Add a success criterion..."
+              placeholder="Add a success criterion... (press Enter)"
               className="input flex-1"
               onKeyDown={handleCriterionKeyDown}
             />
@@ -328,7 +328,7 @@ export function AppIntakeForm({
               type="text"
               value={newStack}
               onChange={e => setNewStack(e.target.value)}
-              placeholder="Add custom stack..."
+              placeholder="Add custom stack... (press Enter)"
               className="input flex-1"
               onKeyDown={handleStackKeyDown}
             />
@@ -367,7 +367,7 @@ export function AppIntakeForm({
               type="text"
               value={newForbidden}
               onChange={e => setNewForbidden(e.target.value)}
-              placeholder="Add forbidden pattern..."
+              placeholder="Add forbidden pattern... (press Enter)"
               className="input flex-1"
               onKeyDown={handleForbiddenKeyDown}
             />

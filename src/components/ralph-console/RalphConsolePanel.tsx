@@ -426,6 +426,7 @@ export function RalphConsolePanel({
     setIsKickoffSubmitting(true);
     setKickoffError(null);
     setKickoffDraft(intake);
+    setGeneratedBlueprint(null);
 
     try {
       // Generate blueprint
@@ -444,12 +445,10 @@ export function RalphConsolePanel({
     }
   }, [workspace]);
 
-  const handleBlueprintEdit = useCallback((section: 'intake' | 'specs' | 'milestones' | 'fixPlan') => {
-    if (section === 'intake') {
-      setKickoffDraft((currentDraft) => currentDraft ?? generatedBlueprint?.intake ?? null);
-      setKickoffState('intake');
-      setKickoffError(null);
-    }
+  const handleBlueprintEdit = useCallback(() => {
+    setKickoffDraft((currentDraft) => currentDraft ?? generatedBlueprint?.intake ?? null);
+    setKickoffState('intake');
+    setKickoffError(null);
   }, [generatedBlueprint]);
 
   const handleBlueprintApprove = useCallback(async () => {
@@ -892,7 +891,7 @@ export function RalphConsolePanel({
                   <BlueprintReview
                     blueprint={generatedBlueprint}
                     onApprove={handleBlueprintApprove}
-                    onEdit={handleBlueprintEdit}
+                    onEditIntake={handleBlueprintEdit}
                     onCancel={handleKickoffCancel}
                     isApproved={false}
                     isSubmitting={isKickoffSubmitting}

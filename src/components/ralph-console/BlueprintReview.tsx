@@ -6,7 +6,7 @@ type BlueprintSection = 'intake' | 'specs' | 'milestones' | 'criteria';
 export interface BlueprintReviewProps {
   blueprint: AppBlueprint;
   onApprove: () => void;
-  onEdit: (section: 'intake' | 'specs' | 'milestones' | 'fixPlan') => void;
+  onEditIntake: () => void;
   onCancel: () => void;
   isApproved: boolean;
   isSubmitting: boolean;
@@ -15,7 +15,7 @@ export interface BlueprintReviewProps {
 export function BlueprintReview({
   blueprint,
   onApprove,
-  onEdit,
+  onEditIntake,
   onCancel,
   isApproved,
   isSubmitting,
@@ -58,7 +58,7 @@ export function BlueprintReview({
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                onEdit('intake');
+                onEditIntake();
               }}
               className="btn btn-ghost btn-sm"
               disabled={isSubmitting}
@@ -235,7 +235,7 @@ export function BlueprintReview({
 
         <div className="flex gap-3">
           <button
-            onClick={() => onEdit('intake')}
+            onClick={() => onEditIntake()}
             className="btn"
             disabled={isSubmitting}
           >
