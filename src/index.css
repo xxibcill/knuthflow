@@ -6,10 +6,10 @@
   color-scheme: dark;
   --font-sans: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'SF Mono', Consolas, monospace;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 26px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --shadow-panel: 0 24px 60px rgba(2, 12, 28, 0.28);
   --shadow-soft: 0 14px 30px rgba(2, 12, 28, 0.18);
   --bg-canvas: oklch(0.15 0.02 252);
@@ -131,20 +131,20 @@ button {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px;
+  gap: 10px;
+  padding: 10px;
 }
 
 .app-frame::before {
   content: '';
   position: absolute;
-  inset: 18px;
-  border-radius: 30px;
+  inset: 10px;
+  border-radius: 24px;
   background-image:
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 36px 36px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.26), transparent 45%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 45%);
   pointer-events: none;
 }
 
@@ -172,15 +172,15 @@ button {
 .shell-nav {
   z-index: 1;
   display: grid;
-  gap: 12px;
-  padding: 14px 18px;
+  gap: 10px;
+  padding: 10px 12px;
 }
 
 .shell-nav-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -193,11 +193,11 @@ button {
 .shell-header-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .shell-nav-meta {
-  row-gap: 8px;
+  row-gap: 6px;
 }
 
 .brand-kicker {
@@ -211,9 +211,9 @@ button {
 
 .brand-title {
   margin: 0;
-  font-size: clamp(1.45rem, 1.1rem + 1vw, 2rem);
+  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.5rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 .nav-title {
@@ -224,9 +224,9 @@ button {
 }
 
 .nav-subtitle {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   line-height: 1.4;
 }
 
@@ -279,25 +279,25 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .segmented-control {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 5px;
+  gap: 4px;
+  padding: 4px;
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  border-radius: 12px;
   background: color-mix(in oklab, var(--surface-0) 92%, transparent);
 }
 
 .segmented-button {
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
-  padding: 9px 13px;
+  padding: 7px 12px;
   font-size: 0.88rem;
   font-weight: 600;
   transition:
@@ -325,14 +325,14 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--border-subtle);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--surface-2);
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   transition:
     background-color 140ms ease,
@@ -392,8 +392,8 @@ button {
 }
 
 .btn-icon {
-  width: 40px;
-  min-width: 40px;
+  width: 36px;
+  min-width: 36px;
   padding: 0;
 }
 
@@ -401,11 +401,11 @@ button {
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 10px;
+  gap: 5px;
+  min-height: 24px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 0.77rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -437,19 +437,19 @@ button {
 .shell-tabbar {
   z-index: 1;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
-  padding: 0 8px 6px;
+  padding: 0 4px 4px;
 }
 
 .session-tab {
   display: inline-flex;
-  min-width: 220px;
+  min-width: 180px;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 8px 12px;
   border: 1px solid var(--border-subtle);
-  border-radius: 18px 18px 12px 12px;
+  border-radius: 12px 12px 8px 8px;
   background: color-mix(in oklab, var(--surface-1) 94%, transparent);
   color: var(--text-secondary);
   transition:
@@ -494,20 +494,20 @@ button {
 .workspace-page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   height: 100%;
   min-height: 0;
 }
 
 .workspace-hero {
-  padding: 20px 22px;
+  padding: 14px 16px;
 }
 
 .workspace-hero-main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
 }
 
 .workspace-page-body {
@@ -529,64 +529,64 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 22px 16px;
+  padding: 14px 16px 12px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .section-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .section-lead {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--text-muted);
   font-size: 0.88rem;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .toolbar-inline {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .list-pane {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 18px 22px 22px;
+  padding: 12px 14px 14px;
 }
 
 .stack-lg {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .stack-md {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .stack-sm {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .list-card {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
+  gap: 14px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
-  border-radius: 18px;
+  border-radius: 14px;
   background: linear-gradient(
     180deg,
     color-mix(in oklab, var(--surface-1) 92%, transparent) 0%,
@@ -614,7 +614,7 @@ button {
 
 .list-card-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
@@ -635,21 +635,21 @@ button {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .metric-card {
   border: 1px solid var(--border-subtle);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--surface-1);
-  padding: 16px 18px;
+  padding: 12px 14px;
 }
 
 .metric-label {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   color: var(--text-muted);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -658,18 +658,18 @@ button {
 .metric-value {
   margin: 0;
   color: var(--text-primary);
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .form-grid {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .field {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 
 .field-label {
@@ -719,10 +719,10 @@ button {
 .choice-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--surface-1);
 }
 
@@ -734,9 +734,9 @@ button {
 
 .empty-state {
   display: grid;
-  min-height: 240px;
+  min-height: 180px;
   place-items: center;
-  padding: 24px;
+  padding: 16px;
   color: var(--text-muted);
   text-align: center;
 }
@@ -759,7 +759,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px 16px;
-  padding: 12px 18px 16px;
+  padding: 8px 12px 10px;
   border-top: 1px solid var(--border-subtle);
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -770,30 +770,30 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: var(--danger-soft);
   color: var(--danger);
 }
 
 .toast-stack {
   position: fixed;
-  top: 22px;
-  right: 22px;
+  top: 14px;
+  right: 14px;
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: min(360px, calc(100vw - 44px));
+  gap: 8px;
+  width: min(360px, calc(100vw - 28px));
 }
 
 .toast {
   display: flex;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border-subtle);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--surface-1);
   box-shadow: var(--shadow-soft);
 }
@@ -817,14 +817,14 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 16px;
   background: rgba(6, 14, 28, 0.52);
   backdrop-filter: blur(10px);
 }
 
 .modal-panel {
-  width: min(1040px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
+  width: min(1040px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -840,8 +840,8 @@ button {
 .modal-nav {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 18px;
+  gap: 6px;
+  padding: 12px;
   border-right: 1px solid var(--border-subtle);
   background: color-mix(in oklab, var(--surface-0) 92%, transparent);
 }
@@ -850,12 +850,12 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
-  padding: 11px 12px;
+  padding: 8px 10px;
   text-align: left;
   font-size: 0.88rem;
   font-weight: 600;
@@ -899,7 +899,7 @@ button {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 18px;
+  border-radius: 14px;
   overflow: hidden;
   background: linear-gradient(
     180deg,
@@ -923,7 +923,7 @@ button {
 .terminal-shell {
   height: 100%;
   width: 100%;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid var(--terminal-border);
   background: linear-gradient(
     180deg,
@@ -934,17 +934,17 @@ button {
 
 .code-surface {
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--surface-0);
 }
 
 @media (max-width: 980px) {
   .app-frame {
-    padding: 14px;
+    padding: 10px;
   }
 
   .app-frame::before {
-    inset: 14px;
+    inset: 10px;
   }
 
   .modal-body {
@@ -962,13 +962,13 @@ button {
 @media (max-width: 720px) {
   .section-header,
   .list-pane {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 12px;
+    padding-right: 12px;
   }
 
   .shell-nav,
   .workspace-hero {
-    padding: 16px;
+    padding: 12px;
   }
 
   .shell-tabbar {

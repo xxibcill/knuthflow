@@ -419,20 +419,12 @@ export default function App() {
         <section className="surface-panel shell-nav">
           <div className="shell-nav-main">
             <div className="shell-nav-brand">
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1">
                 <p className="nav-subtitle">{activeWorkspaceLabel}</p>
                 <div className="toolbar-inline shell-nav-meta">
                   <span className={`badge ${statusBadge.className}`}>{statusBadge.label}</span>
-                  {appVersion && <span className="badge badge-neutral">App v{appVersion}</span>}
-                  {selectedWorkspace?.path && (
-                    <span className="badge badge-neutral text-mono" title={selectedWorkspace.path}>
-                      {selectedWorkspace.path}
-                    </span>
-                  )}
                   {!status?.installed && !loading && (
-                    <span className="badge badge-danger">
-                      Install Claude Code to launch sessions
-                    </span>
+                    <span className="badge badge-danger">Install Claude Code</span>
                   )}
                 </div>
               </div>
@@ -565,22 +557,7 @@ export default function App() {
                   <div className="workspace-hero-main">
                     <div className="stack-sm">
                       <h2 className="brand-title">Operator Workspace</h2>
-                      <div className="shell-header-meta">
-                        <span className="operator-chip">
-                          <span
-                            className={`status-dot ${loading ? 'warning' : status?.installed ? 'success' : 'danger'}`}
-                          />
-                          <strong>{claudeStatusLabel}</strong>
-                        </span>
-                        <span className="operator-chip">
-                          <span className="status-dot info" />
-                          <strong>{activeWorkspaceLabel}</strong>
-                        </span>
-                        <span className="operator-chip">
-                          <span className="status-dot info" />
-                          <strong>{getRunSummary(activeRun)}</strong>
-                        </span>
-                      </div>
+                      <p className="nav-subtitle">{claudeStatusLabel}</p>
                     </div>
                   </div>
                 </section>
