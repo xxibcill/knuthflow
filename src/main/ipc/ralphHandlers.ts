@@ -1,8 +1,18 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as path from 'path';
 import { getRalphBootstrap } from '../ralphBootstrap';
 import { getRalphValidator } from '../ralphValidator';
 import { getDatabase } from '../database';
+
+function getRunOrThrow(runId: string) {
+  const db = getDatabase();
+  const run = db.getLoopRun(runId);
+  if (!run) {
+    throw new Error('Run not found');
+  }
+  return run;
+}
 
 export function registerRalphHandlers(): void {
   const ralphBootstrap = getRalphBootstrap();
@@ -112,21 +122,13 @@ export function registerRalphHandlers(): void {
   });
 
   ipcMain.handle('ralph:replanRun', async (_event: IpcMainInvokeEvent, runId: string) => {
-    const db = getDatabase();
-    const run = db.getLoopRun(runId);
-    if (!run) {
-      throw new Error('Run not found');
-    }
+    getRunOrThrow(runId);
     // @TODO(Phase 12): Implement actual plan regeneration via runtime.triggerReplan when that method exists
     return { success: true, message: 'Plan regeneration queued' };
   });
 
   ipcMain.handle('ralph:validateRun', async (_event: IpcMainInvokeEvent, runId: string) => {
-    const db = getDatabase();
-    const run = db.getLoopRun(runId);
-    if (!run) {
-      throw new Error('Run not found');
-    }
+    getRunOrThrow(runId);
     // @TODO(Phase 12): Implement actual validation via runtime.triggerValidation when that method exists
     return { success: true, message: 'Validation queued' };
   });

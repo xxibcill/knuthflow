@@ -83,6 +83,20 @@ export class RalphValidator {
     const missingDirs = this.checkRequiredDirs(workspacePath);
     issues.push(...missingDirs);
 
+    const hasBootstrappedFiles =
+      hasMetadataFile ||
+      missingFiles.length < this.REQUIRED_FILES.length ||
+      missingDirs.length < this.REQUIRED_DIRS.length;
+
+    if (!project && hasBootstrappedFiles) {
+      issues.push({
+        code: 'MISSING_RALPH_PROJECT',
+        severity: 'error',
+        message: 'Ralph control files exist, but this workspace is not registered as a Ralph project yet',
+        recovery: 'Bootstrap Ralph for this workspace to create the project record before starting a loop.',
+      });
+    }
+
     // Check for malformed metadata
     if (hasMetadataFile) {
       const malformedIssue = this.validateMetadata(workspacePath);

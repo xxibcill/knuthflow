@@ -95,7 +95,7 @@ export function RalphConsolePanel({ onOpenWorkspace, onOpenFile }: RalphConsoleP
             }
           } else if (run.status === 'completed') {
             phase = 'completed';
-          } else if (run.status === 'failed') {
+          } else if (run.status === 'failed' || run.status === 'cancelled') {
             phase = 'failed';
           }
 

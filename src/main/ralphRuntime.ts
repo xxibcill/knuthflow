@@ -166,10 +166,14 @@ export class RalphRuntime extends EventEmitter {
     };
 
     activeRun.safetyStop = safetyStop;
-    activeRun.state = reason === 'error' ? 'failed' : 'completed';
+    const status = reason === 'error'
+      ? 'failed'
+      : reason === 'user_stopped'
+        ? 'cancelled'
+        : 'completed';
+    activeRun.state = status === 'failed' ? 'failed' : 'completed';
 
     // Update database
-    const status = reason === 'error' ? 'failed' : 'completed';
     this.db.endLoopRun(runId, status, null, null, message);
 
     this.emit('stateChanged', activeRun.state);
