@@ -6,22 +6,29 @@ interface AboutSettingsProps {
 
 export function AboutSettings({ diagnostics }: AboutSettingsProps) {
   return (
-    <div className="space-y-6">
-      <div className="text-center py-8">
-        <h1 className="text-2xl font-bold text-white mb-2">Knuthflow</h1>
-        <p className="text-gray-400">Version {diagnostics?.app.version ?? 'Unknown'}</p>
-        <p className="text-sm text-gray-500 mt-4">Desktop wrapper for Claude Code CLI</p>
-      </div>
+    <div className="stack-lg">
+      <section className="surface-panel-muted p-8 text-center">
+        <p className="brand-kicker">Knuthflow</p>
+        <h1 className="brand-title">Operator Desktop</h1>
+        <p className="mt-3 text-sm text-muted">
+          Version {diagnostics?.app.version ?? 'Unknown'} • Desktop wrapper for Claude Code CLI
+        </p>
+      </section>
 
-      <div className="bg-gray-700 rounded-lg p-4 space-y-2">
-        <h3 className="text-sm font-medium text-gray-300">System Information</h3>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <span className="text-gray-400">Platform:</span>
-          <span className="text-white">{navigator.platform}</span>
-          <span className="text-gray-400">Electron:</span>
-          <span className="text-white">{diagnostics?.app.electronVersion ?? 'Unknown'}</span>
+      <section className="metrics-grid">
+        <div className="metric-card">
+          <p className="metric-label">Platform</p>
+          <p className="metric-value">{navigator.platform}</p>
         </div>
-      </div>
+        <div className="metric-card">
+          <p className="metric-label">Electron</p>
+          <p className="metric-value">{diagnostics?.app.electronVersion ?? 'Unknown'}</p>
+        </div>
+        <div className="metric-card">
+          <p className="metric-label">Node</p>
+          <p className="metric-value">{diagnostics?.app.nodeVersion ?? 'Unknown'}</p>
+        </div>
+      </section>
     </div>
   );
 }

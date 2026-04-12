@@ -12,7 +12,7 @@ interface ProfilesSettingsProps {
   profileIsDefault: boolean;
   setShowAddProfile: (show: boolean) => void;
   setProfileName: (name: string) => void;
-  setProfileDescription: (desc: string) => void;
+  setProfileDescription: (description: string) => void;
   setProfileCliPath: (path: string) => void;
   setProfileArgs: (args: string) => void;
   setProfileWorkspaceId: (id: string | null) => void;
@@ -42,127 +42,136 @@ export function ProfilesSettings({
   onDeleteProfile,
 }: ProfilesSettingsProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-300">Launch Profiles</h3>
-        <button
-          onClick={() => setShowAddProfile(!showAddProfile)}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-        >
-          {showAddProfile ? 'Cancel' : 'Add Profile'}
-        </button>
-      </div>
-
-      {showAddProfile && (
-        <div className="bg-gray-700 rounded-lg p-4 space-y-3">
+    <div className="stack-lg">
+      <section className="surface-panel-muted p-5">
+        <div className="toolbar-inline justify-between">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Name</label>
-            <input
-              type="text"
-              value={profileName}
-              onChange={e => setProfileName(e.target.value)}
-              placeholder="My Profile"
-              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-            />
+            <p className="metric-label">Launch Profiles</p>
+            <p className="m-0 text-sm text-muted">Capture argument presets and workspace defaults for repeatable launches.</p>
           </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Description</label>
-            <input
-              type="text"
-              value={profileDescription}
-              onChange={e => setProfileDescription(e.target.value)}
-              placeholder="Optional description"
-              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">CLI Path Override</label>
-            <input
-              type="text"
-              value={profileCliPath}
-              onChange={e => setProfileCliPath(e.target.value)}
-              placeholder="Leave empty for default"
-              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Arguments</label>
-            <input
-              type="text"
-              value={profileArgs}
-              onChange={e => setProfileArgs(e.target.value)}
-              placeholder="--dangerously-skip-permissions --print"
-              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Workspace</label>
-            <select
-              value={profileWorkspaceId || ''}
-              onChange={e => setProfileWorkspaceId(e.target.value || null)}
-              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">None</option>
-              {workspaces.map(ws => (
-                <option key={ws.id} value={ws.id}>{ws.name}</option>
-              ))}
-            </select>
-          </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={profileIsDefault}
-              onChange={e => setProfileIsDefault(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-500 bg-gray-600 text-blue-500"
-            />
-            <span className="text-sm text-gray-300">Set as default profile</span>
-          </label>
-          <button
-            onClick={onAddProfile}
-            disabled={!profileName.trim()}
-            className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors"
-          >
-            Create Profile
+          <button onClick={() => setShowAddProfile(!showAddProfile)} className={`btn ${showAddProfile ? '' : 'btn-primary'}`}>
+            {showAddProfile ? 'Hide Form' : 'Add Profile'}
           </button>
         </div>
-      )}
 
-      <div className="space-y-2">
-        {profiles.length === 0 && !showAddProfile && (
-          <div className="text-center text-gray-400 py-8">
-            No profiles configured. Create a profile to save preset configurations.
+        {showAddProfile && (
+          <div className="mt-5 form-grid">
+            <label className="field">
+              <span className="field-label">Name</span>
+              <input
+                type="text"
+                value={profileName}
+                onChange={event => setProfileName(event.target.value)}
+                placeholder="Fast Iteration"
+                className="input"
+              />
+            </label>
+
+            <label className="field">
+              <span className="field-label">Description</span>
+              <input
+                type="text"
+                value={profileDescription}
+                onChange={event => setProfileDescription(event.target.value)}
+                placeholder="Optional description"
+                className="input"
+              />
+            </label>
+
+            <label className="field">
+              <span className="field-label">CLI Path Override</span>
+              <input
+                type="text"
+                value={profileCliPath}
+                onChange={event => setProfileCliPath(event.target.value)}
+                placeholder="Leave empty for app default"
+                className="input"
+              />
+            </label>
+
+            <label className="field">
+              <span className="field-label">Arguments</span>
+              <input
+                type="text"
+                value={profileArgs}
+                onChange={event => setProfileArgs(event.target.value)}
+                placeholder="--dangerously-skip-permissions --print"
+                className="input"
+              />
+            </label>
+
+            <label className="field">
+              <span className="field-label">Workspace</span>
+              <select
+                value={profileWorkspaceId || ''}
+                onChange={event => setProfileWorkspaceId(event.target.value || null)}
+                className="select"
+              >
+                <option value="">None</option>
+                {workspaces.map(workspace => (
+                  <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={profileIsDefault}
+                onChange={event => setProfileIsDefault(event.target.checked)}
+              />
+              <div>
+                <p className="m-0 text-sm font-semibold">Set as default profile</p>
+                <p className="mt-1 text-sm text-muted">Use this preset when a launch does not specify a profile explicitly.</p>
+              </div>
+            </label>
+
+            <div className="flex justify-end">
+              <button
+                onClick={onAddProfile}
+                disabled={!profileName.trim()}
+                className="btn btn-primary"
+              >
+                Create Profile
+              </button>
+            </div>
           </div>
         )}
-        {profiles.map(profile => (
-          <div
-            key={profile.id}
-            className="bg-gray-700 rounded-lg p-4 flex items-center justify-between"
-          >
+      </section>
+
+      <section className="stack-md">
+        {profiles.length === 0 && !showAddProfile ? (
+          <div className="empty-state surface-panel-muted">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white">{profile.name}</span>
-                {profile.isDefault && (
-                  <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded">Default</span>
-                )}
-              </div>
-              {profile.description && (
-                <p className="text-sm text-gray-400">{profile.description}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                {profile.cliPath || 'Default CLI'} • {profile.args.join(' ') || 'No args'}
-              </p>
+              <h3 className="text-lg font-semibold">No profiles configured</h3>
+              <p className="mt-2 text-sm text-muted">Create a launch preset for recurring workflows or workspace-specific runtime flags.</p>
             </div>
-            <button
-              onClick={() => onDeleteProfile(profile.id)}
-              className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
           </div>
-        ))}
-      </div>
+        ) : (
+          profiles.map(profile => (
+            <div key={profile.id} className="list-card">
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className="list-card-title">{profile.name}</h3>
+                  {profile.isDefault && <span className="badge badge-info">Default</span>}
+                </div>
+                {profile.description && (
+                  <p className="m-0 text-sm text-muted">{profile.description}</p>
+                )}
+                <p className="mt-2 text-xs text-mono text-muted">
+                  {(profile.cliPath || 'Default CLI')} • {(profile.args.join(' ') || 'No args')}
+                </p>
+              </div>
+
+              <button onClick={() => onDeleteProfile(profile.id)} className="btn btn-ghost btn-icon" title="Delete profile">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          ))
+        )}
+      </section>
     </div>
   );
 }

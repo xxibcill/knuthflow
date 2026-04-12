@@ -1,9 +1,51 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import type { Workspace } from '../preload';
 
 interface WorkspaceSelectorProps {
   onSelect: (workspace: Workspace) => void;
   selectedWorkspace: Workspace | null;
+}
+
+function WorkspaceCard({
+  workspace,
+  selected,
+  onSelect,
+  onDelete,
+}: {
+  workspace: Workspace;
+  selected: boolean;
+  onSelect: (workspace: Workspace) => void;
+  onDelete: (id: string, event: MouseEvent) => void;
+}) {
+  return (
+    <div
+      onClick={() => onSelect(workspace)}
+      className={`list-card cursor-pointer ${selected ? 'selected' : ''}`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center gap-2">
+          <h3 className="list-card-title truncate">{workspace.name}</h3>
+          {selected && <span className="badge badge-info">Active</span>}
+        </div>
+        <p className="list-card-path text-sm text-mono truncate" title={workspace.path}>
+          {workspace.path}
+        </p>
+        <p className="mt-2 text-xs text-dim">
+          Open this repository to launch or resume an operator session.
+        </p>
+      </div>
+
+      <button
+        onClick={(event) => onDelete(workspace.id, event)}
+        className="btn btn-ghost btn-icon"
+        title="Delete workspace"
+      >
+        <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSelectorProps) {
@@ -33,19 +75,19 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
   const handleAddWorkspace = async () => {
     setError('');
     if (!newName.trim() || !newPath.trim()) {
-      setError('Name and path are required');
+      setError('Name and path are required.');
       return;
     }
 
     const validation = await window.knuthflow.workspace.validatePath(newPath);
     if (!validation.valid) {
-      setError(validation.error || 'Invalid path');
+      setError(validation.error || 'Invalid path.');
       return;
     }
 
     const result = await window.knuthflow.workspace.create(newName.trim(), newPath.trim());
     if (!result.success) {
-      setError(result.error || 'Failed to create workspace');
+      setError(result.error || 'Failed to create workspace.');
       return;
     }
 
@@ -53,13 +95,14 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
     setNewPath('');
     setShowAddForm(false);
     await loadWorkspaces();
+
     if (result.workspace) {
       onSelect(result.workspace);
     }
   };
 
-  const handleDeleteWorkspace = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
+  const handleDeleteWorkspace = async (id: string, event: MouseEvent) => {
+    event.stopPropagation();
     await window.knuthflow.workspace.delete(id);
     await loadWorkspaces();
   };
@@ -71,151 +114,145 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
     }
   };
 
-  const handleSelectWorkspace = (workspace: Workspace) => {
-    onSelect(workspace);
-  };
-
   if (loading) {
     return (
-      <div className="p-4 text-center text-gray-400">
-        Loading workspaces...
+      <div className="empty-state">
+        <div>
+          <svg className="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          <h3 className="text-lg font-semibold">Loading workspaces</h3>
+          <p className="mt-2 text-sm text-muted">Reading recent repositories and saved paths.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-gray-700">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Select Workspace</h2>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-          >
-            {showAddForm ? 'Cancel' : 'Add Workspace'}
+    <div className="section-shell">
+      <div className="section-header">
+        <div>
+          <h2 className="section-title">Workspace Directory</h2>
+          <p className="section-lead">
+            Keep your repositories indexed and jump into the one you want to operate on next.
+          </p>
+        </div>
+        <div className="toolbar-inline">
+          <span className="badge badge-neutral">{workspaces.length} total</span>
+          <button onClick={() => setShowAddForm(value => !value)} className={`btn ${showAddForm ? '' : 'btn-primary'}`}>
+            {showAddForm ? 'Hide Form' : 'Add Workspace'}
           </button>
         </div>
-
-        {showAddForm && (
-          <div className="bg-gray-800 rounded-lg p-3 mb-3">
-            <input
-              type="text"
-              placeholder="Workspace name"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 mb-2"
-            />
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                placeholder="Directory path (e.g., /Users/jjae/projects/myapp)"
-                value={newPath}
-                onChange={e => setNewPath(e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                onClick={handleBrowsePath}
-                className="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
-                title="Browse"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-              </button>
-            </div>
-            {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
-            <button
-              onClick={handleAddWorkspace}
-              className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors"
-            >
-              Add Workspace
-            </button>
-          </div>
-        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {recentWorkspaces.length > 0 && (
-          <div className="p-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Recent</h3>
-            <div className="space-y-1">
-              {recentWorkspaces.map(ws => (
-                <div
-                  key={ws.id}
-                  onClick={() => handleSelectWorkspace(ws)}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedWorkspace?.id === ws.id
-                      ? 'bg-blue-600'
-                      : 'bg-gray-800 hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{ws.name}</div>
-                      <div className="text-sm text-gray-400 truncate">{ws.path}</div>
-                    </div>
-                    <button
-                      onClick={e => handleDeleteWorkspace(e, ws.id)}
-                      className="p-1 text-gray-400 hover:text-red-400"
-                      title="Delete workspace"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+      <div className="list-pane">
+        <div className="stack-lg">
+          {showAddForm && (
+            <div className="surface-panel-muted p-5">
+              <div className="mb-4">
+                <p className="metric-label">Register Workspace</p>
+                <p className="m-0 text-sm text-muted">
+                  Give the repository a clear label and point Knuthflow to the root directory.
+                </p>
+              </div>
+
+              <div className="form-grid">
+                <label className="field">
+                  <span className="field-label">Workspace Name</span>
+                  <input
+                    type="text"
+                    placeholder="Inference Service"
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    className="input"
+                  />
+                </label>
+
+                <div className="field">
+                  <span className="field-label">Directory Path</span>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      placeholder="/Users/jjae/projects/knuthflow"
+                      value={newPath}
+                      onChange={(event) => setNewPath(event.target.value)}
+                      className="input flex-1"
+                    />
+                    <button onClick={handleBrowsePath} className="btn" title="Browse for directory">
+                      Browse
                     </button>
                   </div>
+                  <span className="field-help">Use the project root so session state and file actions resolve correctly.</span>
+                  {error && <span className="field-error">{error}</span>}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {workspaces.length > 0 && (
-          <div className="p-4 pt-0">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">All Workspaces</h3>
-            <div className="space-y-1">
-              {workspaces.map(ws => (
-                <div
-                  key={ws.id}
-                  onClick={() => handleSelectWorkspace(ws)}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedWorkspace?.id === ws.id
-                      ? 'bg-blue-600'
-                      : 'bg-gray-800 hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{ws.name}</div>
-                      <div className="text-sm text-gray-400 truncate">{ws.path}</div>
-                    </div>
-                    <button
-                      onClick={e => handleDeleteWorkspace(e, ws.id)}
-                      className="p-1 text-gray-400 hover:text-red-400"
-                      title="Delete workspace"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setShowAddForm(false)} className="btn">Cancel</button>
+                  <button onClick={handleAddWorkspace} className="btn btn-primary">Save Workspace</button>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {workspaces.length === 0 && recentWorkspaces.length === 0 && !showAddForm && (
-          <div className="p-8 text-center text-gray-400">
-            <p className="mb-2">No workspaces configured</p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="text-blue-400 hover:text-blue-300"
-            >
-              Add your first workspace
-            </button>
-          </div>
-        )}
+          {recentWorkspaces.length > 0 && (
+            <section className="stack-md">
+              <div className="toolbar-inline justify-between">
+                <div>
+                  <p className="metric-label">Recent</p>
+                  <p className="m-0 text-sm text-muted">Repositories you touched most recently.</p>
+                </div>
+              </div>
+              <div className="stack-md">
+                {recentWorkspaces.map(workspace => (
+                  <WorkspaceCard
+                    key={workspace.id}
+                    workspace={workspace}
+                    selected={selectedWorkspace?.id === workspace.id}
+                    onSelect={onSelect}
+                    onDelete={handleDeleteWorkspace}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {workspaces.length > 0 && (
+            <section className="stack-md">
+              <div>
+                <p className="metric-label">All Workspaces</p>
+                <p className="m-0 text-sm text-muted">Saved repositories available to every session.</p>
+              </div>
+              <div className="stack-md">
+                {workspaces.map(workspace => (
+                  <WorkspaceCard
+                    key={workspace.id}
+                    workspace={workspace}
+                    selected={selectedWorkspace?.id === workspace.id}
+                    onSelect={onSelect}
+                    onDelete={handleDeleteWorkspace}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {workspaces.length === 0 && recentWorkspaces.length === 0 && !showAddForm && (
+            <div className="empty-state surface-panel-muted">
+              <div>
+                <svg className="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <h3 className="text-lg font-semibold">No workspaces configured</h3>
+                <p className="mt-2 text-sm text-muted">
+                  Add a repository to start routing Claude Code sessions through Knuthflow.
+                </p>
+                <button onClick={() => setShowAddForm(true)} className="btn btn-primary mt-4">
+                  Add First Workspace
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
