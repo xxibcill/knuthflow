@@ -123,28 +123,30 @@ export function Terminal({
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
-    xterm.open(containerRef.current);
-
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    let fitAttempts = 0;
-    const fitTerminal = () => {
-      if (!fitAddonRef.current || !containerRef.current) return;
+    // Only open xterm once container has proper dimensions
+    const openTerminal = () => {
+      if (!containerRef.current || !xtermRef.current || !fitAddonRef.current) return;
 
-      if (containerRef.current.offsetWidth > 0 && containerRef.current.offsetHeight > 0) {
-        fitAddonRef.current.fit();
-      } else if (fitAttempts < 3) {
-        fitAttempts += 1;
-        requestAnimationFrame(fitTerminal);
+      // Wait for container to have non-zero dimensions
+      if (containerRef.current.offsetWidth === 0 || containerRef.current.offsetHeight === 0) {
+        requestAnimationFrame(openTerminal);
+        return;
+      }
+
+      xtermRef.current.open(containerRef.current);
+
+      // Now fit - xterm is fully initialized
+      fitAddonRef.current.fit();
+
+      if (onResizeRef.current) {
+        onResizeRef.current(xterm.cols, xterm.rows);
       }
     };
 
-    requestAnimationFrame(fitTerminal);
-
-    if (onResizeRef.current) {
-      onResizeRef.current(xterm.cols, xterm.rows);
-    }
+    requestAnimationFrame(openTerminal);
 
     return () => {
       xterm.dispose();
