@@ -1,710 +1,755 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Terminal } from './components/Terminal';
-import { WorkspaceSelector } from './components/WorkspaceSelector';
-import { SessionHistory } from './components/SessionHistory';
-import { SettingsPanel } from './components/SettingsPanel';
-import { EditorPane } from './components/EditorPane';
-import { DiffViewer, type DiffFile } from './components/DiffViewer';
-import { SplitPane } from './components/SplitPane';
-import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel';
-import type { ClaudeCodeStatus, ClaudeRunState, Workspace, Session, SessionCrashedEvent, RecoveryNeededEvent, UpdateInfo } from './preload';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { Terminal } from './components/Terminal'
+import { WorkspaceSelector } from './components/WorkspaceSelector'
+import { SessionHistory } from './components/SessionHistory'
+import { SettingsPanel } from './components/SettingsPanel'
+import { EditorPane } from './components/EditorPane'
+import { DiffViewer, type DiffFile } from './components/DiffViewer'
+import { SplitPane } from './components/SplitPane'
+import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel'
+import { NotificationToast } from './components/NotificationToast'
+import type {
+  ClaudeCodeStatus,
+  ClaudeRunState,
+  Workspace,
+  Session,
+  SessionCrashedEvent,
+  RecoveryNeededEvent,
+  UpdateInfo,
+} from './preload'
+import type { AppSettings } from './shared/preloadTypes'
 
-type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console';
+type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console'
 
 interface ActiveRun {
-  runId: string;
-  sessionId: string;
-  state: ClaudeRunState;
-  exitCode?: number;
-  signal?: number;
-  error?: string;
+  runId: string
+  sessionId: string
+  state: ClaudeRunState
+  exitCode?: number
+  signal?: number
+  error?: string
 }
 
 interface Tab {
-  id: string;
-  name: string;
-  sessionId: string | null;
-  runId: string | null;
-  workspaceId: string | null;
-  crashed?: boolean;
-  crashMessage?: string;
+  id: string
+  name: string
+  sessionId: string | null
+  runId: string | null
+  workspaceId: string | null
+  crashed?: boolean
+  crashMessage?: string
 }
 
 interface Notification {
-  id: string;
-  type: 'error' | 'warning' | 'info';
-  title: string;
-  message: string;
-  timestamp: number;
+  id: string
+  type: 'error' | 'warning' | 'info'
+  title: string
+  message: string
+  timestamp: number
+}
+
+interface LaunchSessionOptions {
+  name: string
+  args?: string[]
+  workspace: Workspace | null
+  switchToTerminal?: boolean
+}
+
+interface LaunchSessionResult {
+  success: boolean
+  claudeRunId?: string
+  ptySessionId?: string
+  sessionRecordId?: string
+  error?: string
+}
+
+const VIEW_LABELS: Record<ViewMode, string> = {
+  terminal: 'Terminal',
+  workspaces: 'Workspaces',
+  history: 'History',
+  editor: 'Editor',
+  console: 'Console',
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  cliPath: null,
+  defaultArgs: [],
+  launchOnStartup: false,
+  restoreLastWorkspace: false,
+  defaultWorkspaceId: null,
+  confirmBeforeExit: true,
+  confirmBeforeKill: true,
+  autoSaveSessions: true,
+  fontSize: 14,
+  fontFamily: 'IBM Plex Mono, SFMono-Regular, Consolas, monospace',
+  cursorStyle: 'block',
+  showTabBar: true,
+  showStatusBar: true,
+  theme: 'dark',
+}
+
+function resolveTheme(theme: AppSettings['theme'], systemTheme: 'light' | 'dark') {
+  return theme === 'system' ? systemTheme : theme
+}
+
+function getRunSummary(activeRun: ActiveRun | null) {
+  if (!activeRun) return 'Ready'
+
+  if (activeRun.state === 'running') {
+    return `Run ${activeRun.runId.slice(0, 8)} active`
+  }
+
+  if (activeRun.state === 'starting') {
+    return 'Session booting'
+  }
+
+  if (activeRun.state === 'exited') {
+    return `Exited with code ${activeRun.exitCode ?? 0}`
+  }
+
+  if (activeRun.state === 'failed') {
+    return `Failed: ${activeRun.error || activeRun.exitCode || 'Unknown error'}`
+  }
+
+  return 'Ready'
+}
+
+function getRunBadge(activeRun: ActiveRun | null): { label: string; className: string } {
+  if (!activeRun) {
+    return { label: 'Idle', className: 'badge-neutral' }
+  }
+
+  if (activeRun.state === 'running') {
+    return { label: 'Running', className: 'badge-info' }
+  }
+
+  if (activeRun.state === 'starting') {
+    return { label: 'Starting', className: 'badge-warning' }
+  }
+
+  if (activeRun.state === 'failed') {
+    return { label: 'Failed', className: 'badge-danger' }
+  }
+
+  return { label: 'Exited', className: 'badge-neutral' }
 }
 
 export default function App() {
-  const [status, setStatus] = useState<ClaudeCodeStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('workspaces');
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [appVersion, setAppVersion] = useState<string>('');
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [status, setStatus] = useState<ClaudeCodeStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('workspaces')
+  const [tabs, setTabs] = useState<Tab[]>([])
+  const [activeTabId, setActiveTabId] = useState<string | null>(null)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>('dark')
 
-  // Editor state
-  const [editorFilePath, setEditorFilePath] = useState<string | null>(null);
-  const [diffFiles, setDiffFiles] = useState<DiffFile[]>([]);
-  const [showDiffViewer, setShowDiffViewer] = useState(false);
+  const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
+  const [diffFiles, setDiffFiles] = useState<DiffFile[]>([])
+  const [showDiffViewer, setShowDiffViewer] = useState(false)
 
-  // Add a notification
-  const addNotification = useCallback((type: Notification['type'], title: string, message: string) => {
-    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    setNotifications(prev => [...prev, { id, type, title, message, timestamp: Date.now() }]);
-    // Auto-dismiss after 8 seconds for errors, 5 seconds for others
-    const timeout = type === 'error' ? 8000 : 5000;
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, timeout);
-  }, []);
+  const addNotification = useCallback(
+    (type: Notification['type'], title: string, message: string) => {
+      const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+      setNotifications((prev) => [...prev, { id, type, title, message, timestamp: Date.now() }])
+      const timeout = type === 'error' ? 8000 : 5000
+      setTimeout(() => {
+        setNotifications((prev) => prev.filter((notification) => notification.id !== id))
+      }, timeout)
+    },
+    [],
+  )
 
-  // Dismiss a notification
   const dismissNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  }, []);
+    setNotifications((prev) => prev.filter((notification) => notification.id !== id))
+  }, [])
 
   useEffect(() => {
-    window.knuthflow.claude.detect().then((result: ClaudeCodeStatus) => {
-      setStatus(result);
-      setLoading(false);
-    });
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)')
+    const applySystemTheme = () => setSystemTheme(mediaQuery.matches ? 'light' : 'dark')
+    applySystemTheme()
+    mediaQuery.addEventListener('change', applySystemTheme)
+    return () => mediaQuery.removeEventListener('change', applySystemTheme)
+  }, [])
 
-    // Check for existing active sessions
-    window.knuthflow.session.listActive().then(activeSessions => {
-      if (activeSessions.length > 0) {
-        // Restore active sessions as tabs
-        const restoredTabs: Tab[] = activeSessions.map(session => ({
-          id: session.id,
-          name: session.name,
-          sessionId: session.ptySessionId,
-          runId: session.runId,
-          workspaceId: session.workspaceId,
-        }));
-        setTabs(restoredTabs);
-        if (restoredTabs.length > 0) {
-          setActiveTabId(restoredTabs[0].id);
-          setViewMode('terminal');
+  useEffect(() => {
+    let mounted = true
+
+    const boot = async () => {
+      try {
+        const [claudeStatus, activeSessions, update, appSettings] = await Promise.all([
+          window.knuthflow.claude.detect(),
+          window.knuthflow.session.listActive(),
+          window.knuthflow.update.check(),
+          window.knuthflow.settings.getAll().catch(() => DEFAULT_SETTINGS),
+        ])
+
+        if (!mounted) return
+
+        setStatus(claudeStatus)
+        setSettings(appSettings)
+
+        if (update.available) {
+          setUpdateInfo(update)
+          addNotification('info', 'Update Available', `Version ${update.version} is available.`)
+        }
+
+        if (activeSessions.length > 0) {
+          const restoredTabs: Tab[] = activeSessions.map((session) => ({
+            id: session.id,
+            name: session.name,
+            sessionId: session.ptySessionId,
+            runId: session.runId,
+            workspaceId: session.workspaceId,
+          }))
+          setTabs(restoredTabs)
+          setActiveTabId(restoredTabs[0]?.id ?? null)
+          setViewMode('terminal')
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false)
         }
       }
-    });
+    }
 
-    // Get app version and check for updates
-    window.knuthflow.update.getVersion().then(version => {
-      setAppVersion(version);
-    });
-
-    window.knuthflow.update.check().then(update => {
-      if (update.available) {
-        setUpdateInfo(update);
-        addNotification('info', 'Update Available', `Version ${update.version} is available. Click to download.`);
-      }
-    });
-  }, []);
-
-  // Listen for run state changes
-  useEffect(() => {
-    const handleRunStateChanged = (data: { runId: string; state: ClaudeRunState; exitCode?: number; signal?: number; error?: string }) => {
-      if (activeRun && data.runId === activeRun.runId) {
-        setActiveRun(prev => prev ? { ...prev, ...data } : null);
-      }
-    };
-
-    const unsubscribe = window.knuthflow.claude.onRunStateChanged(handleRunStateChanged);
+    boot()
 
     return () => {
-      unsubscribe();
-    };
-  }, [activeRun]);
+      mounted = false
+    }
+  }, [addNotification])
 
-  // Listen for PTY exit events to update session status
   useEffect(() => {
-    const unsubscribePtyExit = window.knuthflow.pty.onExit(async ({ sessionId, exitCode, signal }) => {
-      // Find the tab with this pty session
-      const tab = tabs.find(t => t.sessionId === sessionId);
-      if (tab) {
-        const isFailure = exitCode !== 0 || signal !== undefined;
+    const handleRunStateChanged = (data: {
+      runId: string
+      state: ClaudeRunState
+      exitCode?: number
+      signal?: number
+      error?: string
+    }) => {
+      if (activeRun && data.runId === activeRun.runId) {
+        setActiveRun((prev) => (prev ? { ...prev, ...data } : null))
+      }
+    }
 
-        // Update session in database
+    const unsubscribe = window.knuthflow.claude.onRunStateChanged(handleRunStateChanged)
+    return () => unsubscribe()
+  }, [activeRun])
+
+  useEffect(() => {
+    const unsubscribePtyExit = window.knuthflow.pty.onExit(
+      async ({ sessionId, exitCode, signal }) => {
+        const tab = tabs.find((item) => item.sessionId === sessionId)
+        if (!tab) return
+
+        const isFailure = exitCode !== 0 || signal !== undefined
+
         await window.knuthflow.session.updateEnd(
           tab.id,
           exitCode === 0 ? 'completed' : 'failed',
           exitCode,
-          signal ?? null
-        );
+          signal ?? null,
+        )
 
-        // If crashed, mark the tab and show notification
         if (isFailure) {
-          // Get explanation for the exit
-          const explanation = await window.knuthflow.supervisor.explainExit(exitCode, signal ?? undefined);
+          const explanation = await window.knuthflow.supervisor.explainExit(
+            exitCode,
+            signal ?? undefined,
+          )
 
-          // Update tab to show crash state
-          setTabs(prev => prev.map(t =>
-            t.id === tab.id
-              ? { ...t, crashed: true, crashMessage: explanation }
-              : t
-          ));
+          setTabs((prev) =>
+            prev.map((item) =>
+              item.id === tab.id ? { ...item, crashed: true, crashMessage: explanation } : item,
+            ),
+          )
 
-          // Add notification
-          addNotification('error', 'Session Crashed', explanation);
+          addNotification('error', 'Session Crashed', explanation)
         }
-      }
-    });
+      },
+    )
 
-    return () => {
-      unsubscribePtyExit();
-    };
-  }, [tabs, addNotification]);
+    return () => unsubscribePtyExit()
+  }, [tabs, addNotification])
 
-  // Listen for supervisor crash events
   useEffect(() => {
-    const unsubscribeCrash = window.knuthflow.supervisor.onSessionCrashed(async (data: SessionCrashedEvent) => {
-      const explanation = await window.knuthflow.supervisor.explainExit(data.exitCode, data.signal ?? undefined);
+    const unsubscribeCrash = window.knuthflow.supervisor.onSessionCrashed(
+      async (data: SessionCrashedEvent) => {
+        const explanation = await window.knuthflow.supervisor.explainExit(
+          data.exitCode,
+          data.signal ?? undefined,
+        )
 
-      // Find and update any tab associated with this session
-      setTabs(prev => prev.map(t => {
-        if (t.sessionId === data.ptySessionId) {
-          return { ...t, crashed: true, crashMessage: explanation };
+        setTabs((prev) =>
+          prev.map((item) =>
+            item.sessionId === data.ptySessionId
+              ? { ...item, crashed: true, crashMessage: explanation }
+              : item,
+          ),
+        )
+
+        addNotification('error', 'Session Crashed', explanation)
+      },
+    )
+
+    const unsubscribeRecovery = window.knuthflow.supervisor.onRecoveryNeeded(
+      (data: RecoveryNeededEvent) => {
+        if (data.type === 'notify') {
+          addNotification('warning', 'Recovery Information', data.reason)
         }
-        return t;
-      }));
-
-      addNotification('error', 'Session Crashed', explanation);
-    });
-
-    const unsubscribeRecovery = window.knuthflow.supervisor.onRecoveryNeeded((data: RecoveryNeededEvent) => {
-      if (data.type === 'notify') {
-        addNotification('warning', 'Recovery Information', data.reason);
-      }
-    });
+      },
+    )
 
     const unsubscribeOrphan = window.knuthflow.supervisor.onOrphanCleaned(({ sessionId }) => {
-      console.log(`[App] Orphaned session cleaned: ${sessionId}`);
-    });
+      console.log(`[App] Orphaned session cleaned: ${sessionId}`)
+    })
 
     return () => {
-      unsubscribeCrash();
-      unsubscribeRecovery();
-      unsubscribeOrphan();
-    };
-  }, [addNotification]);
+      unsubscribeCrash()
+      unsubscribeRecovery()
+      unsubscribeOrphan()
+    }
+  }, [addNotification])
 
   const handleWorkspaceSelect = async (workspace: Workspace) => {
-    setSelectedWorkspace(workspace);
-    await window.knuthflow.workspace.updateLastOpened(workspace.id);
-    setViewMode('terminal');
-  };
+    setSelectedWorkspace(workspace)
+    await window.knuthflow.workspace.updateLastOpened(workspace.id)
+    setViewMode('terminal')
+  }
+
+  const launchClaudeSession = useCallback(
+    async ({
+      name,
+      args = [],
+      workspace,
+      switchToTerminal = true,
+    }: LaunchSessionOptions): Promise<LaunchSessionResult> => {
+      const result = await window.knuthflow.claude.launch({
+        args,
+        cwd: workspace?.path,
+      })
+
+      if (!result.success || !result.runId || !result.sessionId) {
+        return {
+          success: false,
+          error: result.error || 'Failed to launch Claude session',
+        }
+      }
+
+      const savedSession = await window.knuthflow.session.create(
+        name,
+        workspace?.id || null,
+        result.runId,
+        result.sessionId,
+      )
+
+      const newTab: Tab = {
+        id: savedSession.id,
+        name,
+        sessionId: result.sessionId,
+        runId: result.runId,
+        workspaceId: workspace?.id || null,
+      }
+
+      setTabs((prev) => [...prev, newTab])
+      setActiveTabId(savedSession.id)
+      setActiveRun({
+        runId: result.runId,
+        sessionId: result.sessionId,
+        state: 'starting',
+      })
+
+      if (switchToTerminal) {
+        setViewMode('terminal')
+      }
+
+      return {
+        success: true,
+        claudeRunId: result.runId,
+        ptySessionId: result.sessionId,
+        sessionRecordId: savedSession.id,
+      }
+    },
+    [],
+  )
 
   const handleStartClaude = async () => {
-    if (!status?.installed) return;
+    if (!status?.installed) return
 
-    const sessionName = `Session ${new Date().toLocaleTimeString()}`;
-    const result = await window.knuthflow.claude.launch([]);
-
-    if (!result.success) {
-      return;
-    }
-
-    if (!result.runId || !result.sessionId) {
-      return;
-    }
-
-    // Create a new tab for this session
-    const newTab: Tab = {
-      id: result.sessionId,
+    const sessionName = `Session ${new Date().toLocaleTimeString()}`
+    const launch = await launchClaudeSession({
       name: sessionName,
-      sessionId: result.sessionId,
-      runId: result.runId,
-      workspaceId: selectedWorkspace?.id || null,
-    };
-    setTabs(prev => [...prev, newTab]);
-    setActiveTabId(newTab.id);
+      workspace: selectedWorkspace,
+    })
 
-    setActiveRun({
-      runId: result.runId,
-      sessionId: result.sessionId,
-      state: 'starting',
-    });
-
-    // Create session in database
-    await window.knuthflow.session.create(
-      sessionName,
-      selectedWorkspace?.id || null,
-      result.runId,
-      result.sessionId
-    );
-
-    setViewMode('terminal');
-  };
+    if (!launch.success && launch.error) {
+      addNotification('error', 'Unable to Start Session', launch.error)
+    }
+  }
 
   const handleStopClaude = async () => {
-    if (!activeRun) return;
-
-    await window.knuthflow.claude.kill(activeRun.runId);
-    setActiveRun(null);
-  };
+    if (!activeRun) return
+    await window.knuthflow.claude.kill(activeRun.runId)
+    setActiveRun(null)
+  }
 
   const handleCloseTab = async (tabId: string) => {
-    const tab = tabs.find(t => t.id === tabId);
+    const tab = tabs.find((item) => item.id === tabId)
     if (tab?.runId) {
-      await window.knuthflow.claude.kill(tab.runId);
+      await window.knuthflow.claude.kill(tab.runId)
     }
 
-    setTabs(prev => {
-      const remainingTabs = prev.filter(t => t.id !== tabId);
-      // If we closed the active tab, switch to another
+    setTabs((prev) => {
+      const remainingTabs = prev.filter((item) => item.id !== tabId)
       if (activeTabId === tabId && remainingTabs.length > 0) {
-        // Schedule the tab switch after the state update
-        setTimeout(() => setActiveTabId(remainingTabs[0].id), 0);
+        setTimeout(() => setActiveTabId(remainingTabs[0].id), 0)
       } else if (remainingTabs.length === 0) {
-        setViewMode('workspaces');
-        setActiveRun(null);
+        setViewMode('workspaces')
+        setActiveRun(null)
       }
-      return remainingTabs;
-    });
-  };
+      return remainingTabs
+    })
+  }
 
   const handleRestoreSession = (session: Session) => {
-    // Session restoration is not yet implemented
-    // For now, just log the request - completed/failed sessions cannot be restored
     if (session.status === 'active') {
-      console.log('Session is already active:', session);
+      console.log('Session is already active:', session)
     } else {
-      console.log('Session restoration requested for completed/failed session:', session);
+      console.log('Session restoration requested for completed/failed session:', session)
     }
-  };
+  }
 
-  // Editor handlers
   const handleOpenFile = useCallback(async () => {
     const result = await window.knuthflow.dialog.openFile({
       defaultPath: selectedWorkspace?.path,
-    });
+    })
     if (!result.canceled && result.filePath) {
-      setEditorFilePath(result.filePath);
-      setViewMode('editor');
+      setEditorFilePath(result.filePath)
+      setViewMode('editor')
     }
-  }, [selectedWorkspace]);
+  }, [selectedWorkspace])
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _handleOpenDiff = useCallback((files: DiffFile[]) => {
-    setDiffFiles(files);
-    setShowDiffViewer(true);
-    setViewMode('editor');
-  }, []);
+  const handleSaveFile = useCallback(
+    async (filePath: string, content: string) => {
+      await window.knuthflow.filesystem.writeFile(filePath, content)
+      const fileName = filePath.split('/').pop() || filePath
+      addNotification('info', 'File Saved', `${fileName} updated.`)
+    },
+    [addNotification],
+  )
 
   const handleCloseDiff = useCallback(() => {
-    setShowDiffViewer(false);
-    setDiffFiles([]);
-  }, []);
+    setShowDiffViewer(false)
+    setDiffFiles([])
+  }, [])
 
-  const activeTab = tabs.find(t => t.id === activeTabId);
-  const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null;
+  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+  const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null
+  const resolvedTheme = resolveTheme(settings.theme, systemTheme)
+  const statusBadge = getRunBadge(activeRun)
+  const claudeStatusLabel = loading
+    ? 'Checking Claude Code'
+    : status?.installed
+      ? `Claude Code ${status.version || 'ready'}`
+      : 'Claude Code missing'
+
+  const rootStyle = useMemo(
+    () =>
+      ({
+        '--terminal-font-size': `${settings.fontSize}px`,
+        '--terminal-font-family': settings.fontFamily || DEFAULT_SETTINGS.fontFamily,
+      }) as CSSProperties,
+    [settings.fontFamily, settings.fontSize],
+  )
+
+  const activeWorkspaceLabel = selectedWorkspace ? selectedWorkspace.name : 'No workspace selected'
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col" data-testid="app-shell">
-      {/* Header */}
-      <header className="flex-none bg-gray-800 border-b border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Knuthflow</h1>
-            {selectedWorkspace && viewMode === 'terminal' && (
-              <p className="text-sm text-gray-400">{selectedWorkspace.name}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            {/* View mode switcher */}
-            <div className="flex items-center gap-1 bg-gray-700 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('terminal')}
-                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                  viewMode === 'terminal'
-                    ? 'bg-gray-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Terminal
-              </button>
-              <button
-                onClick={() => setViewMode('workspaces')}
-                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                  viewMode === 'workspaces'
-                    ? 'bg-gray-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Workspaces
-              </button>
-              <button
-                onClick={() => setViewMode('history')}
-                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                  viewMode === 'history'
-                    ? 'bg-gray-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                History
-              </button>
-              <button
-                onClick={() => setViewMode('editor')}
-                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                  viewMode === 'editor'
-                    ? 'bg-gray-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Editor
-              </button>
-              <button
-                onClick={() => setViewMode('console')}
-                className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
-                  viewMode === 'console'
-                    ? 'bg-gray-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Console
-              </button>
+    <div className="app-shell" data-theme={resolvedTheme} data-testid="app-shell" style={rootStyle}>
+      <div className="app-frame">
+        <section className="surface-panel shell-nav">
+          <div className="shell-nav-main">
+            <div className="shell-nav-brand">
+              <div className="flex flex-col gap-1">
+                <p className="nav-subtitle">{activeWorkspaceLabel}</p>
+                <div className="toolbar-inline shell-nav-meta">
+                  <span className={`badge ${statusBadge.className}`}>{statusBadge.label}</span>
+                  {!status?.installed && !loading && (
+                    <span className="badge badge-danger">Install Claude Code</span>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Quick file open button */}
-            <button
-              onClick={handleOpenFile}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
-              title="Open File"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </button>
-
-            {/* Run status indicator */}
-            {activeRun && viewMode === 'terminal' && (
-              <div className="flex items-center gap-2">
-                {activeRun.state === 'starting' && (
-                  <>
-                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-                    <span className="text-yellow-400 text-sm">Starting...</span>
-                  </>
-                )}
-                {activeRun.state === 'running' && (
-                  <>
-                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                    <span className="text-blue-400 text-sm">Running</span>
-                  </>
-                )}
-                {activeRun.state === 'exited' && (
-                  <>
-                    <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
-                    <span className="text-gray-400 text-sm">Exited (0)</span>
-                  </>
-                )}
-                {activeRun.state === 'failed' && (
-                  <>
-                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                    <span className="text-red-400 text-sm">Failed{activeRun.exitCode !== undefined ? ` (${activeRun.exitCode})` : ''}</span>
-                  </>
-                )}
+            <div className="toolbar-cluster">
+              <div className="segmented-control" aria-label="View mode">
+                {(Object.keys(VIEW_LABELS) as ViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`segmented-button ${viewMode === mode ? 'active' : ''}`}
+                  >
+                    {VIEW_LABELS[mode]}
+                  </button>
+                ))}
               </div>
-            )}
 
-            {loading ? (
-              <span className="text-gray-500 text-sm">Checking...</span>
-            ) : status?.installed ? (
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                <span className="text-green-400 text-sm font-medium">
-                  Claude Code {status.version || 'installed'}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                <span className="text-red-400 text-sm font-medium">Not installed</span>
-              </div>
-            )}
+              <button onClick={handleOpenFile} className="btn btn-ghost btn-icon" title="Open file">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </button>
 
-            {/* App version and update button */}
-            <div className="flex items-center gap-2">
-              {appVersion && (
-                <span className="text-gray-500 text-xs">v{appVersion}</span>
-              )}
               {updateInfo?.available && updateInfo.downloadUrl && (
                 <button
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  onClick={() => window.knuthflow.update.openDownload(updateInfo.downloadUrl!)}
-                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors flex items-center gap-1"
+                  onClick={() => {
+                    if (updateInfo.downloadUrl) {
+                      window.knuthflow.update.openDownload(updateInfo.downloadUrl)
+                    }
+                  }}
+                  className="btn"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-5l-4 4m0 0l-4-4m4 4V4"
+                    />
                   </svg>
-                  Update to {updateInfo.version}
+                  Update {updateInfo.version}
                 </button>
               )}
+
+              <button
+                onClick={() => setShowSettings(true)}
+                className="btn btn-ghost btn-icon"
+                title="Settings"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </button>
+
+              {!loading &&
+                status?.installed &&
+                viewMode === 'terminal' &&
+                (activeRun && (activeRun.state === 'starting' || activeRun.state === 'running') ? (
+                  <button onClick={handleStopClaude} className="btn btn-danger">
+                    Stop Session
+                  </button>
+                ) : (
+                  <button onClick={handleStartClaude} className="btn btn-primary">
+                    New Session
+                  </button>
+                ))}
             </div>
-            {/* Settings button */}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
-              title="Settings"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-
-            {/* Start/Stop button */}
-            {!loading && status?.installed && viewMode === 'terminal' && (
-              activeRun && (activeRun.state === 'starting' || activeRun.state === 'running') ? (
-                <button
-                  onClick={handleStopClaude}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-colors"
-                >
-                  Stop
-                </button>
-              ) : (
-                <button
-                  onClick={handleStartClaude}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-                >
-                  New Session
-                </button>
-              )
-            )}
           </div>
-        </div>
-      </header>
+        </section>
 
-      {/* Tab bar */}
-      {tabs.length > 0 && viewMode === 'terminal' && (
-        <div className="flex-none bg-gray-800 border-b border-gray-700 px-2">
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {tabs.map(tab => (
+        {settings.showTabBar && tabs.length > 0 && viewMode === 'terminal' && (
+          <div className="shell-tabbar">
+            {tabs.map((tab) => (
               <div
                 key={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-t cursor-pointer transition-colors min-w-0 ${
-                  activeTabId === tab.id
-                    ? 'bg-gray-900 text-white border-b-2 border-blue-500'
-                    : tab.crashed
-                    ? 'bg-gray-700 hover:bg-gray-600 text-red-300'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                }`}
+                className={`session-tab ${activeTabId === tab.id ? 'active' : ''} ${tab.crashed ? 'is-crashed' : ''}`}
               >
-                {tab.crashed ? (
-                  <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" title="Session crashed" />
-                ) : (
-                  <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
-                )}
-                <span className="truncate text-sm">{tab.name}</span>
+                <span className={`status-dot ${tab.crashed ? 'danger' : 'success'}`} />
+                <span className="min-w-0 flex-1 truncate">{tab.name}</span>
                 <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    handleCloseTab(tab.id);
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleCloseTab(tab.id)
                   }}
-                  className="p-0.5 hover:text-red-400 flex-shrink-0"
+                  className="btn btn-ghost btn-icon h-8 min-h-8 w-8 min-w-8"
+                  title="Close tab"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Notification toasts */}
-      {notifications.length > 0 && (
-        <div className="fixed top-16 right-4 z-50 flex flex-col gap-2 max-w-sm">
-          {notifications.map(notif => (
-            <div
-              key={notif.id}
-              className={`flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg ${
-                notif.type === 'error'
-                  ? 'bg-red-900 border border-red-700'
-                  : notif.type === 'warning'
-                  ? 'bg-yellow-900 border border-yellow-700'
-                  : 'bg-blue-900 border border-blue-700'
-              }`}
-            >
-              <div className="flex-shrink-0 mt-0.5">
-                {notif.type === 'error' && (
-                  <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                {notif.type === 'warning' && (
-                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                )}
-                {notif.type === 'info' && (
-                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${
-                  notif.type === 'error' ? 'text-red-200' : notif.type === 'warning' ? 'text-yellow-200' : 'text-blue-200'
-                }`}>
-                  {notif.title}
-                </p>
-                <p className={`text-xs mt-1 ${
-                  notif.type === 'error' ? 'text-red-300' : notif.type === 'warning' ? 'text-yellow-300' : 'text-blue-300'
-                }`}>
-                  {notif.message}
-                </p>
-              </div>
-              <button
-                onClick={() => dismissNotification(notif.id)}
-                className="flex-shrink-0 p-1 hover:opacity-70"
-              >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-h-0">
-        {viewMode === 'workspaces' && (
-          <div className="flex-1 min-h-0">
-            <WorkspaceSelector
-              onSelect={handleWorkspaceSelect}
-              selectedWorkspace={selectedWorkspace}
-            />
-          </div>
         )}
 
-        {viewMode === 'history' && (
-          <div className="flex-1 min-h-0">
-            <SessionHistory
-              onRestore={handleRestoreSession}
-              currentWorkspaceId={selectedWorkspace?.id || null}
-            />
-          </div>
-        )}
+        <main className="main-stage">
+          <div className="stage-content">
+            {viewMode === 'workspaces' && (
+              <div className="workspace-page">
+                <section className="surface-panel-muted workspace-hero">
+                  <div className="workspace-hero-main">
+                    <div className="stack-sm">
+                      <h2 className="brand-title">Operator Workspace</h2>
+                      <p className="nav-subtitle">{claudeStatusLabel}</p>
+                    </div>
+                  </div>
+                </section>
 
-        {viewMode === 'terminal' && (
-          <>
-            {/* Terminal View */}
-            <div className="flex-1 min-h-0">
-              <Terminal
-                className="h-full"
-                sessionId={activeSessionId}
-              />
-            </div>
-
-            {/* Status Bar */}
-            <footer className="flex-none bg-gray-800 border-t border-gray-700 px-4 py-2">
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>
-                  {selectedWorkspace
-                    ? `Workspace: ${selectedWorkspace.path}`
-                    : status?.installed
-                    ? `Claude Code: ${status.executablePath}`
-                    : 'Claude Code not detected'}
-                </span>
-                <span>
-                  {activeRun ? (
-                    activeRun.state === 'running'
-                      ? `Run: ${activeRun.runId}`
-                      : activeRun.state === 'exited'
-                      ? `Exited with code ${activeRun.exitCode}`
-                      : activeRun.state === 'failed'
-                      ? `Failed: ${activeRun.error || activeRun.exitCode}`
-                      : 'Ready'
-                  ) : 'Ready'}
-                </span>
-              </div>
-              {/* Crash message bar */}
-              {activeTab?.crashed && activeTab.crashMessage && (
-                <div className="flex items-center justify-between mt-1 px-2 py-1 bg-red-900 rounded text-xs">
-                  <span className="text-red-300">
-                    <span className="font-medium">Session crashed:</span> {activeTab.crashMessage}
-                  </span>
-                  <button
-                    onClick={() => {
-                      // Close crashed tab and switch to workspaces
-                      handleCloseTab(activeTab.id);
-                    }}
-                    className="text-red-400 hover:text-red-200 underline ml-2"
-                  >
-                    Dismiss
-                  </button>
+                <div className="workspace-page-body">
+                  <WorkspaceSelector
+                    onSelect={handleWorkspaceSelect}
+                    selectedWorkspace={selectedWorkspace}
+                  />
                 </div>
-              )}
-            </footer>
-          </>
-        )}
-
-        {viewMode === 'editor' && (
-          <>
-            {showDiffViewer ? (
-              <SplitPane direction="horizontal" className="flex-1">
-                <EditorPane
-                  filePath={editorFilePath}
-                  readOnly={true}
-                  className="h-full"
-                />
-                <DiffViewer
-                  files={diffFiles}
-                  onClose={handleCloseDiff}
-                  className="h-full"
-                />
-              </SplitPane>
-            ) : (
-              <SplitPane direction="horizontal" className="flex-1">
-                <Terminal
-                  className="h-full"
-                  sessionId={activeSessionId}
-                />
-                <EditorPane
-                  filePath={editorFilePath}
-                  readOnly={true}
-                  className="h-full"
-                />
-              </SplitPane>
+              </div>
             )}
-          </>
-        )}
 
-        {viewMode === 'console' && (
-          <RalphConsolePanel
-            workspacePath={selectedWorkspace?.path ?? null}
-            onOpenWorkspace={(path) => {
-              // Navigate to the workspace
-              window.knuthflow.workspace.list().then(workspaces => {
-                const ws = workspaces.find(w => w.path === path);
-                if (ws) {
-                  setSelectedWorkspace(ws);
+            {viewMode === 'history' && (
+              <SessionHistory
+                onRestore={handleRestoreSession}
+                currentWorkspaceId={selectedWorkspace?.id || null}
+              />
+            )}
+
+            {viewMode === 'terminal' && (
+              <div className="section-shell">
+                <div className="list-pane !p-3">
+                  <div className="h-full code-surface p-3">
+                    <Terminal
+                      key={`terminal-${activeSessionId ?? 'fresh'}`}
+                      className="h-full"
+                      sessionId={activeSessionId}
+                      themeVariant={resolvedTheme}
+                      fontFamily={settings.fontFamily}
+                      fontSize={settings.fontSize}
+                      cursorStyle={settings.cursorStyle}
+                    />
+                  </div>
+                </div>
+                {settings.showStatusBar && (
+                  <footer className="status-bar">
+                    <span className="text-mono">
+                      {selectedWorkspace
+                        ? `Workspace ${selectedWorkspace.path}`
+                        : status?.installed
+                          ? `Claude Code ${status.executablePath}`
+                          : 'Claude Code not detected'}
+                    </span>
+                    <span>{getRunSummary(activeRun)}</span>
+                    {activeTab?.crashed && activeTab.crashMessage && (
+                      <div className="status-alert">
+                        <span>
+                          <strong>Session crashed.</strong> {activeTab.crashMessage}
+                        </span>
+                        <button
+                          onClick={() => handleCloseTab(activeTab.id)}
+                          className="btn btn-ghost"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+                  </footer>
+                )}
+              </div>
+            )}
+
+            {viewMode === 'editor' &&
+              (showDiffViewer ? (
+                <SplitPane direction="horizontal" className="h-full">
+                  <EditorPane
+                    filePath={editorFilePath}
+                    readOnly={false}
+                    onSave={handleSaveFile}
+                    className="h-full"
+                    themeVariant={resolvedTheme}
+                  />
+                  <DiffViewer files={diffFiles} onClose={handleCloseDiff} className="h-full" />
+                </SplitPane>
+              ) : (
+                <SplitPane direction="horizontal" className="h-full">
+                  <Terminal
+                    key={`editor-terminal-${activeSessionId ?? 'fresh'}`}
+                    className="h-full"
+                    sessionId={activeSessionId}
+                    themeVariant={resolvedTheme}
+                    fontFamily={settings.fontFamily}
+                    fontSize={settings.fontSize}
+                    cursorStyle={settings.cursorStyle}
+                  />
+                  <EditorPane
+                    filePath={editorFilePath}
+                    readOnly={false}
+                    onSave={handleSaveFile}
+                    className="h-full"
+                    themeVariant={resolvedTheme}
+                  />
+                </SplitPane>
+              ))}
+
+            {viewMode === 'console' && (
+              <RalphConsolePanel
+                workspace={selectedWorkspace}
+                onOpenWorkspace={(path) => {
+                  window.knuthflow.workspace.list().then((workspaces) => {
+                    const workspace = workspaces.find((item) => item.path === path)
+                    if (workspace) {
+                      setSelectedWorkspace(workspace)
+                    }
+                  })
+                  setViewMode('terminal')
+                }}
+                onOpenFile={(filePath) => {
+                  setEditorFilePath(filePath)
+                  setViewMode('editor')
+                }}
+                onLaunchClaudeSession={({ name, workspace }) =>
+                  launchClaudeSession({
+                    name,
+                    args: ['--no-input'],
+                    workspace,
+                    switchToTerminal: false,
+                  })
                 }
-              });
-              setViewMode('terminal');
-            }}
-            /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-            onOpenFile={(filePath, _lineNumber) => {
-              setEditorFilePath(filePath);
-              setViewMode('editor');
+              />
+            )}
+          </div>
+        </main>
+
+        <NotificationToast notifications={notifications} onDismiss={dismissNotification} />
+
+        {showSettings && (
+          <SettingsPanel
+            onClose={() => setShowSettings(false)}
+            onSaved={(nextSettings) => {
+              setSettings(nextSettings)
+              setShowSettings(false)
             }}
           />
         )}
-      </main>
-
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      </div>
     </div>
-  );
+  )
 }

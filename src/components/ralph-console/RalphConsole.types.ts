@@ -101,6 +101,8 @@ export interface SafetyAlert {
 export interface RalphRunDashboardItem {
   runId: string;
   projectId: string;
+  sessionId: string | null;
+  ptySessionId: string | null;
   workspaceName: string;
   workspacePath: string;
   name: string;

@@ -3,117 +3,126 @@ import type { AppSettings, Workspace } from '../../shared/preloadTypes';
 interface GeneralSettingsProps {
   settings: AppSettings;
   workspaces: Workspace[];
+  errors: { cliPath?: string };
   onSettingChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
 
-export function GeneralSettings({ settings, workspaces, onSettingChange }: GeneralSettingsProps) {
+export function GeneralSettings({ settings, workspaces, errors, onSettingChange }: GeneralSettingsProps) {
   return (
-    <div className="space-y-6">
-      {/* CLI Configuration */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-300 mb-3">CLI Configuration</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Claude Code Path</label>
+    <div className="stack-lg">
+      <section className="surface-panel-muted p-5">
+        <p className="metric-label">CLI Configuration</p>
+        <div className="form-grid">
+          <label className="field">
+            <span className="field-label">Claude Code Path</span>
             <input
               type="text"
               value={settings.cliPath || ''}
-              onChange={e => onSettingChange('cliPath', e.target.value || null)}
+              onChange={event => onSettingChange('cliPath', event.target.value || null)}
               placeholder="Auto-detected"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="input"
             />
-            <p className="text-xs text-gray-500 mt-1">Leave empty to use auto-detected path</p>
-          </div>
+            <span className="field-help">Leave blank to use the executable discovered from your environment.</span>
+            {errors.cliPath && <span className="field-error">{errors.cliPath}</span>}
+          </label>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Default Arguments</label>
+          <label className="field">
+            <span className="field-label">Default Arguments</span>
             <input
               type="text"
               value={settings.defaultArgs.join(' ')}
-              onChange={e => onSettingChange('defaultArgs', e.target.value.split(' ').filter(s => s))}
+              onChange={event => onSettingChange('defaultArgs', event.target.value.split(' ').filter(Boolean))}
               placeholder="--dangerously-skip-permissions"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="input"
             />
-            <p className="text-xs text-gray-500 mt-1">Space-separated arguments passed to Claude Code</p>
-          </div>
+            <span className="field-help">Applied to every launch unless a profile overrides them.</span>
+          </label>
         </div>
-      </div>
+      </section>
 
-      {/* Launch Behavior */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Launch Behavior</h3>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer">
+      <section className="surface-panel-muted p-5">
+        <p className="metric-label">Startup Behavior</p>
+        <div className="stack-sm">
+          <label className="toggle-row">
             <input
               type="checkbox"
               checked={settings.launchOnStartup}
-              onChange={e => onSettingChange('launchOnStartup', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+              onChange={event => onSettingChange('launchOnStartup', event.target.checked)}
             />
-            <span className="text-sm text-gray-300">Launch Claude Code on app startup</span>
+            <div>
+              <p className="m-0 text-sm font-semibold">Launch Claude Code on startup</p>
+              <p className="mt-1 text-sm text-muted">Open the runtime immediately when the desktop app boots.</p>
+            </div>
           </label>
 
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="toggle-row">
             <input
               type="checkbox"
               checked={settings.restoreLastWorkspace}
-              onChange={e => onSettingChange('restoreLastWorkspace', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+              onChange={event => onSettingChange('restoreLastWorkspace', event.target.checked)}
             />
-            <span className="text-sm text-gray-300">Restore last workspace on startup</span>
+            <div>
+              <p className="m-0 text-sm font-semibold">Restore last workspace</p>
+              <p className="mt-1 text-sm text-muted">Return to the repository you were operating on most recently.</p>
+            </div>
           </label>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Default Workspace</label>
+          <label className="field">
+            <span className="field-label">Default Workspace</span>
             <select
               value={settings.defaultWorkspaceId || ''}
-              onChange={e => onSettingChange('defaultWorkspaceId', e.target.value || null)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
+              onChange={event => onSettingChange('defaultWorkspaceId', event.target.value || null)}
+              className="select"
             >
               <option value="">None</option>
-              {workspaces.map(ws => (
-                <option key={ws.id} value={ws.id}>{ws.name}</option>
+              {workspaces.map(workspace => (
+                <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
               ))}
             </select>
-          </div>
+          </label>
         </div>
-      </div>
+      </section>
 
-      {/* Safety */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Safety</h3>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer">
+      <section className="surface-panel-muted p-5">
+        <p className="metric-label">Safety Defaults</p>
+        <div className="stack-sm">
+          <label className="toggle-row">
             <input
               type="checkbox"
               checked={settings.confirmBeforeExit}
-              onChange={e => onSettingChange('confirmBeforeExit', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+              onChange={event => onSettingChange('confirmBeforeExit', event.target.checked)}
             />
-            <span className="text-sm text-gray-300">Confirm before closing app with active sessions</span>
+            <div>
+              <p className="m-0 text-sm font-semibold">Confirm before closing with active sessions</p>
+              <p className="mt-1 text-sm text-muted">Prevents accidental teardown during long-running work.</p>
+            </div>
           </label>
 
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="toggle-row">
             <input
               type="checkbox"
               checked={settings.confirmBeforeKill}
-              onChange={e => onSettingChange('confirmBeforeKill', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+              onChange={event => onSettingChange('confirmBeforeKill', event.target.checked)}
             />
-            <span className="text-sm text-gray-300">Confirm before stopping running sessions</span>
+            <div>
+              <p className="m-0 text-sm font-semibold">Confirm before stopping running sessions</p>
+              <p className="mt-1 text-sm text-muted">Adds a deliberate checkpoint before terminating agent work.</p>
+            </div>
           </label>
 
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="toggle-row">
             <input
               type="checkbox"
               checked={settings.autoSaveSessions}
-              onChange={e => onSettingChange('autoSaveSessions', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+              onChange={event => onSettingChange('autoSaveSessions', event.target.checked)}
             />
-            <span className="text-sm text-gray-300">Automatically save session history</span>
+            <div>
+              <p className="m-0 text-sm font-semibold">Automatically save session history</p>
+              <p className="mt-1 text-sm text-muted">Keeps the execution ledger intact for review and recovery.</p>
+            </div>
           </label>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

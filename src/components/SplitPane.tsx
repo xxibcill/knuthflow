@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 
 export type PanelDirection = 'horizontal' | 'vertical';
 
@@ -18,7 +18,7 @@ export interface SplitPaneProps {
   onResize?: (sizes: [number, number]) => void;
 }
 
-const KEYBOARD_STEP = 5; // % to move per key press
+const KEYBOARD_STEP = 5;
 
 export function SplitPane({
   children,
@@ -30,9 +30,7 @@ export function SplitPane({
 }: SplitPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sizes, setSizes] = useState<[number, number]>(() => {
-    if (initialSizes) {
-      return [initialSizes[0] ?? 50, initialSizes[1] ?? 50];
-    }
+    if (initialSizes) return [initialSizes[0] ?? 50, initialSizes[1] ?? 50];
     return [50, 50];
   });
   const [isDragging, setIsDragging] = useState(false);
@@ -43,68 +41,62 @@ export function SplitPane({
   const maxSize2 = panelConfigs?.[1]?.maxSize ?? 90;
 
   const applyResize = useCallback((newFirstSize: number) => {
-    newFirstSize = Math.max(minSize1, Math.min(maxSize1, newFirstSize));
-    const newSecondSize = 100 - newFirstSize;
+    const clampedFirst = Math.max(minSize1, Math.min(maxSize1, newFirstSize));
+    const second = 100 - clampedFirst;
 
-    if (newSecondSize >= minSize2 && newSecondSize <= maxSize2) {
-      const newSizes: [number, number] = [newFirstSize, newSecondSize];
-      setSizes(newSizes);
-      onResize?.(newSizes);
-    }
-  }, [minSize1, maxSize1, minSize2, maxSize2, onResize]);
+    if (second < minSize2 || second > maxSize2) return;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
+    const nextSizes: [number, number] = [clampedFirst, second];
+    setSizes(nextSizes);
+    onResize?.(nextSizes);
+  }, [maxSize1, maxSize2, minSize1, minSize2, onResize]);
+
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
     setIsDragging(true);
   }, []);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const handleMouseMove = useCallback((event: MouseEvent) => {
     if (!isDragging || !containerRef.current) return;
 
-    const container = containerRef.current;
-    const rect = container.getBoundingClientRect();
+    const rect = containerRef.current.getBoundingClientRect();
+    const nextSize = direction === 'horizontal'
+      ? ((event.clientX - rect.left) / rect.width) * 100
+      : ((event.clientY - rect.top) / rect.height) * 100;
 
-    let newFirstSize: number;
-    if (direction === 'horizontal') {
-      newFirstSize = ((e.clientX - rect.left) / rect.width) * 100;
-    } else {
-      newFirstSize = ((e.clientY - rect.top) / rect.height) * 100;
-    }
+    applyResize(nextSize);
+  }, [applyResize, direction, isDragging]);
 
-    applyResize(newFirstSize);
-  }, [isDragging, direction, applyResize]);
+  const handleMouseUp = useCallback(() => setIsDragging(false), []);
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    let delta = 0;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      delta = -KEYBOARD_STEP;
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      delta = KEYBOARD_STEP;
-    } else if (e.key === 'Home') {
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key === 'Home') {
       applyResize(minSize1);
       return;
-    } else if (e.key === 'End') {
+    }
+
+    if (event.key === 'End') {
       applyResize(maxSize1);
       return;
     }
 
-    if (delta !== 0) {
-      e.preventDefault();
-      applyResize(sizes[0] + delta);
-    }
-  }, [sizes, applyResize, minSize1, maxSize1]);
+    let delta = 0;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') delta = -KEYBOARD_STEP;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') delta = KEYBOARD_STEP;
+
+    if (delta === 0) return;
+
+    event.preventDefault();
+    applyResize(sizes[0] + delta);
+  }, [applyResize, maxSize1, minSize1, sizes]);
 
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize';
-      document.body.style.userSelect = 'none';
-    }
+    if (!isDragging) return undefined;
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize';
+    document.body.style.userSelect = 'none';
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
@@ -112,7 +104,7 @@ export function SplitPane({
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDragging, handleMouseMove, handleMouseUp, direction]);
+  }, [direction, handleMouseMove, handleMouseUp, isDragging]);
 
   const isHorizontal = direction === 'horizontal';
   const firstChild = Array.isArray(children) ? children[0] : children;
@@ -121,33 +113,21 @@ export function SplitPane({
   return (
     <div
       ref={containerRef}
-      className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} ${className} ${
-        isDragging ? 'select-none' : ''
-      }`}
+      className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} ${className} ${isDragging ? 'select-none' : ''}`}
       style={isHorizontal ? { height: '100%' } : { width: '100%' }}
     >
-      {/* First panel */}
       <div
-        className="overflow-hidden flex-shrink-0"
-        style={
-          isHorizontal
-            ? { width: `${sizes[0]}%`, minWidth: 0 }
-            : { height: `${sizes[0]}%`, minHeight: 0 }
-        }
+        className="min-h-0 min-w-0 overflow-hidden"
+        style={isHorizontal ? { width: `${sizes[0]}%` } : { height: `${sizes[0]}%` }}
       >
         {firstChild}
       </div>
 
-      {/* Resizer */}
       <div
         onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
         tabIndex={0}
-        className={`flex-shrink-0 ${
-          isHorizontal
-            ? 'w-1 cursor-col-resize hover:bg-blue-500/50 active:bg-blue-500'
-            : 'h-1 cursor-row-resize hover:bg-blue-500/50 active:bg-blue-500'
-        } ${isDragging ? 'bg-blue-500' : 'bg-gray-700'}`}
+        className={`split-handle ${isHorizontal ? 'w-3 cursor-col-resize split-handle-horizontal' : 'h-3 cursor-row-resize split-handle-vertical'}`}
         role="separator"
         aria-orientation={direction}
         aria-valuenow={sizes[0]}
@@ -155,14 +135,9 @@ export function SplitPane({
         aria-valuemax={maxSize1}
       />
 
-      {/* Second panel */}
       <div
-        className="overflow-hidden flex-shrink-0"
-        style={
-          isHorizontal
-            ? { width: `${sizes[1]}%`, minWidth: 0 }
-            : { height: `${sizes[1]}%`, minHeight: 0 }
-        }
+        className="min-h-0 min-w-0 overflow-hidden"
+        style={isHorizontal ? { width: `${sizes[1]}%` } : { height: `${sizes[1]}%` }}
       >
         {secondChild}
       </div>

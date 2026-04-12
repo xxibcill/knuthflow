@@ -1,4 +1,4 @@
-# Knuthflow Roadmap
+# Roadmap
 
 This roadmap turns the current PRD direction into an execution plan for a desktop wrapper around Claude Code CLI.
 
@@ -23,6 +23,7 @@ Current product bias:
 | [Phase 09](./phases/phase-09-evidence-and-plan-repair.md) | Evidence and Plan Repair | Ralph can search the codebase, validate changes, analyze artifacts, and regenerate the fix plan from evidence |
 | [Phase 10](./phases/phase-10-operator-console.md) | Operator Console | Users can monitor Ralph runs, inspect backlog and artifacts, and intervene safely from the desktop UI |
 | [Phase 11](./phases/phase-11-recovery-and-release-readiness.md) | Recovery and Release Readiness | Autonomous runs can checkpoint, recover, and ship with test harnesses and operator documentation |
+| [Phase 12](./phases/phase-12-ralph-flow-upgrade.md) | Ralph Flow Upgrade | Ralph mode becomes a coherent end-to-end loop with deterministic control files, stable plan semantics, and implemented operator actions |
 
 ## Sequencing Logic
 
@@ -37,6 +38,33 @@ Current product bias:
 9. Layer search, validation backpressure, artifact analysis, and plan repair on top of the scheduler.
 10. Expose operator-facing controls and observability once the loop can make grounded decisions.
 11. Finish with checkpointing, crash recovery, dry-run testing, and release documentation for autonomous mode.
+12. Consolidate the accumulated Ralph modules into a single real loop flow before scaling autonomous usage further.
+
+## Creating a New Phase
+
+### 1. Create the Phase Document
+
+Copy `phases/PHASE-TEMPLATE.md` to `phases/phase-XX-[slug].md` and fill in:
+
+- **Phase number and name** — Sequential number based on current phases
+- **Functional Feature Outcome** — One sentence describing user value
+- **Why This Phase Exists** — Motivation paragraph
+- **Scope** — Bullet list of major areas
+- **Tasks** — Table linking to task documents
+- **Dependencies** — Prerequisites for starting
+- **Exit Criteria** — Observable outcomes that mark completion
+
+### 2. Create Task Documents
+
+For each task in the phase:
+
+1. Create `tasks/phase-XX/pX-tX-[slug].md` from the template
+2. Fill in the task details
+3. Update the phase document's task table
+
+### 3. Update Roadmap README
+
+Add the new phase to the Phase Overview table and Sequencing Logic if needed.
 
 ## Task Structure
 
@@ -49,3 +77,74 @@ Task naming convention:
 
 - `P1-T1` means Phase 01, Task 01
 - `P4-T3` means Phase 04, Task 03
+
+## Phase and Task Templates
+
+### Phase Template
+
+```markdown
+# Phase XX - [Phase Name]
+
+## Functional Feature Outcome
+
+[One sentence describing what the user gets when this phase is complete]
+
+## Why This Phase Exists
+
+[One paragraph explaining the motivation and why this phase matters to the product]
+
+## Scope
+
+- [Bullet point]
+- [Bullet point]
+
+## Tasks
+
+| Task | Summary |
+| --- | --- |
+| [PX-T1](../tasks/phase-XX/pX-t1-[task-slug].md) | [Task summary] |
+| [PX-T2](../tasks/phase-XX/pX-t2-[task-slug].md) | [Task summary] |
+| [PX-T3](../tasks/phase-XX/pX-t3-[task-slug].md) | [Task summary] |
+
+## Dependencies
+
+- [What must be true before this phase starts]
+- [Any external requirements]
+
+## Exit Criteria
+
+- [Observable outcome 1]
+- [Observable outcome 2]
+- [Observable outcome 3]
+```
+
+### Task Template
+
+```markdown
+# PX-TX - [Task Title]
+
+## Phase
+
+[Phase Name](../phases/phase-XX-name.md)
+
+## Objective
+
+[One sentence describing the deliverable]
+
+## Deliverables
+
+- [Deliverable 1]
+- [Deliverable 2]
+- [Deliverable 3]
+
+## Dependencies
+
+- [What must exist or be completed first]
+- [Any external constraints]
+
+## Acceptance Criteria
+
+- [Observable outcome 1]
+- [Observable outcome 2]
+- [Observable outcome 3]
+```
