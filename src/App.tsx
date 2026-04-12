@@ -48,6 +48,21 @@ interface Notification {
   timestamp: number
 }
 
+interface LaunchSessionOptions {
+  name: string
+  args?: string[]
+  workspace: Workspace | null
+  switchToTerminal?: boolean
+}
+
+interface LaunchSessionResult {
+  success: boolean
+  claudeRunId?: string
+  ptySessionId?: string
+  sessionRecordId?: string
+  error?: string
+}
+
 const VIEW_LABELS: Record<ViewMode, string> = {
   terminal: 'Terminal',
   workspaces: 'Workspaces',
@@ -128,7 +143,6 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [appVersion, setAppVersion] = useState<string>('')
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
@@ -167,10 +181,9 @@ export default function App() {
 
     const boot = async () => {
       try {
-        const [claudeStatus, activeSessions, version, update, appSettings] = await Promise.all([
+        const [claudeStatus, activeSessions, update, appSettings] = await Promise.all([
           window.knuthflow.claude.detect(),
           window.knuthflow.session.listActive(),
-          window.knuthflow.update.getVersion(),
           window.knuthflow.update.check(),
           window.knuthflow.settings.getAll().catch(() => DEFAULT_SETTINGS),
         ])
@@ -178,7 +191,6 @@ export default function App() {
         if (!mounted) return
 
         setStatus(claudeStatus)
-        setAppVersion(version)
         setSettings(appSettings)
 
         if (update.available) {
@@ -309,40 +321,74 @@ export default function App() {
     setViewMode('terminal')
   }
 
+  const launchClaudeSession = useCallback(
+    async ({
+      name,
+      args = [],
+      workspace,
+      switchToTerminal = true,
+    }: LaunchSessionOptions): Promise<LaunchSessionResult> => {
+      const result = await window.knuthflow.claude.launch({
+        args,
+        cwd: workspace?.path,
+      })
+
+      if (!result.success || !result.runId || !result.sessionId) {
+        return {
+          success: false,
+          error: result.error || 'Failed to launch Claude session',
+        }
+      }
+
+      const savedSession = await window.knuthflow.session.create(
+        name,
+        workspace?.id || null,
+        result.runId,
+        result.sessionId,
+      )
+
+      const newTab: Tab = {
+        id: savedSession.id,
+        name,
+        sessionId: result.sessionId,
+        runId: result.runId,
+        workspaceId: workspace?.id || null,
+      }
+
+      setTabs((prev) => [...prev, newTab])
+      setActiveTabId(savedSession.id)
+      setActiveRun({
+        runId: result.runId,
+        sessionId: result.sessionId,
+        state: 'starting',
+      })
+
+      if (switchToTerminal) {
+        setViewMode('terminal')
+      }
+
+      return {
+        success: true,
+        claudeRunId: result.runId,
+        ptySessionId: result.sessionId,
+        sessionRecordId: savedSession.id,
+      }
+    },
+    [],
+  )
+
   const handleStartClaude = async () => {
     if (!status?.installed) return
 
     const sessionName = `Session ${new Date().toLocaleTimeString()}`
-    const result = await window.knuthflow.claude.launch([])
-
-    if (!result.success || !result.runId || !result.sessionId) {
-      return
-    }
-
-    const newTab: Tab = {
-      id: result.sessionId,
+    const launch = await launchClaudeSession({
       name: sessionName,
-      sessionId: result.sessionId,
-      runId: result.runId,
-      workspaceId: selectedWorkspace?.id || null,
-    }
-
-    setTabs((prev) => [...prev, newTab])
-    setActiveTabId(newTab.id)
-    setActiveRun({
-      runId: result.runId,
-      sessionId: result.sessionId,
-      state: 'starting',
+      workspace: selectedWorkspace,
     })
 
-    await window.knuthflow.session.create(
-      sessionName,
-      selectedWorkspace?.id || null,
-      result.runId,
-      result.sessionId,
-    )
-
-    setViewMode('terminal')
+    if (!launch.success && launch.error) {
+      addNotification('error', 'Unable to Start Session', launch.error)
+    }
   }
 
   const handleStopClaude = async () => {
@@ -386,6 +432,15 @@ export default function App() {
       setViewMode('editor')
     }
   }, [selectedWorkspace])
+
+  const handleSaveFile = useCallback(
+    async (filePath: string, content: string) => {
+      await window.knuthflow.filesystem.writeFile(filePath, content)
+      const fileName = filePath.split('/').pop() || filePath
+      addNotification('info', 'File Saved', `${fileName} updated.`)
+    },
+    [addNotification],
+  )
 
   const handleCloseDiff = useCallback(() => {
     setShowDiffViewer(false)
@@ -626,7 +681,8 @@ export default function App() {
                 <SplitPane direction="horizontal" className="h-full">
                   <EditorPane
                     filePath={editorFilePath}
-                    readOnly={true}
+                    readOnly={false}
+                    onSave={handleSaveFile}
                     className="h-full"
                     themeVariant={resolvedTheme}
                   />
@@ -645,7 +701,8 @@ export default function App() {
                   />
                   <EditorPane
                     filePath={editorFilePath}
-                    readOnly={true}
+                    readOnly={false}
+                    onSave={handleSaveFile}
                     className="h-full"
                     themeVariant={resolvedTheme}
                   />
@@ -654,7 +711,7 @@ export default function App() {
 
             {viewMode === 'console' && (
               <RalphConsolePanel
-                workspacePath={selectedWorkspace?.path ?? null}
+                workspace={selectedWorkspace}
                 onOpenWorkspace={(path) => {
                   window.knuthflow.workspace.list().then((workspaces) => {
                     const workspace = workspaces.find((item) => item.path === path)
@@ -668,6 +725,14 @@ export default function App() {
                   setEditorFilePath(filePath)
                   setViewMode('editor')
                 }}
+                onLaunchClaudeSession={({ name, workspace }) =>
+                  launchClaudeSession({
+                    name,
+                    args: ['--no-input'],
+                    workspace,
+                    switchToTerminal: false,
+                  })
+                }
               />
             )}
           </div>

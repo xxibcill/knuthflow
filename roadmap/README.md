@@ -23,6 +23,7 @@ Current product bias:
 | [Phase 09](./phases/phase-09-evidence-and-plan-repair.md) | Evidence and Plan Repair | Ralph can search the codebase, validate changes, analyze artifacts, and regenerate the fix plan from evidence |
 | [Phase 10](./phases/phase-10-operator-console.md) | Operator Console | Users can monitor Ralph runs, inspect backlog and artifacts, and intervene safely from the desktop UI |
 | [Phase 11](./phases/phase-11-recovery-and-release-readiness.md) | Recovery and Release Readiness | Autonomous runs can checkpoint, recover, and ship with test harnesses and operator documentation |
+| [Phase 12](./phases/phase-12-ralph-flow-upgrade.md) | Ralph Flow Upgrade | Ralph mode becomes a coherent end-to-end loop with deterministic control files, stable plan semantics, and implemented operator actions |
 
 ## Sequencing Logic
 
@@ -37,6 +38,7 @@ Current product bias:
 9. Layer search, validation backpressure, artifact analysis, and plan repair on top of the scheduler.
 10. Expose operator-facing controls and observability once the loop can make grounded decisions.
 11. Finish with checkpointing, crash recovery, dry-run testing, and release documentation for autonomous mode.
+12. Consolidate the accumulated Ralph modules into a single real loop flow before scaling autonomous usage further.
 
 ## Creating a New Phase
 
