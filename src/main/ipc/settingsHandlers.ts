@@ -21,6 +21,7 @@ export function registerSettingsHandlers(): void {
     db.setSetting(key as keyof AppSettings, value as AppSettings[keyof AppSettings]);
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('settings:getAll', async (_event: IpcMainInvokeEvent) => {
     const db = getDatabase();
     return db.getAllSettings();

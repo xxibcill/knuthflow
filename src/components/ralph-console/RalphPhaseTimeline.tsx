@@ -24,12 +24,14 @@ const phaseLabels: Record<RalphPhase, string> = {
   validating: 'Validate',
   paused: 'Paused',
   failed: 'Failed',
+  cancelled: 'Cancelled',
   completed: 'Done',
 };
 
 function getPhaseBadge(phase: RalphPhase) {
   if (phase === 'completed') return 'badge badge-success';
   if (phase === 'failed') return 'badge badge-danger';
+  if (phase === 'cancelled') return 'badge badge-warning';
   if (phase === 'paused' || phase === 'starting') return 'badge badge-warning';
   if (phase === 'planning' || phase === 'executing' || phase === 'validating') return 'badge badge-info';
   return 'badge badge-neutral';
@@ -83,7 +85,7 @@ export function RalphPhaseTimeline({ events, currentIteration, onSelectEvent }: 
               >
                 <div className="flex min-w-0 flex-1 items-start gap-4">
                   <div className="mt-1">
-                    <span className={`status-dot ${event.phase === 'failed' ? 'danger' : event.phase === 'completed' ? 'success' : 'info'}`} />
+                    <span className={`status-dot ${event.phase === 'failed' ? 'danger' : event.phase === 'completed' ? 'success' : event.phase === 'cancelled' ? 'warning' : 'info'}`} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-2">

@@ -11,12 +11,14 @@ function getStatusBadge(status: RalphRunDashboardItem['status']) {
   if (status === 'running') return 'badge badge-info';
   if (status === 'paused') return 'badge badge-warning';
   if (status === 'completed') return 'badge badge-success';
-  if (status === 'failed' || status === 'cancelled') return 'badge badge-danger';
+  if (status === 'cancelled') return 'badge badge-warning';
+  if (status === 'failed') return 'badge badge-danger';
   return 'badge badge-neutral';
 }
 
 function getPhaseTone(phase: RalphPhase) {
   if (phase === 'failed') return 'text-red-400';
+  if (phase === 'cancelled') return 'text-yellow-400';
   if (phase === 'completed') return 'text-green-400';
   if (phase === 'paused' || phase === 'starting') return 'text-yellow-400';
   if (phase === 'planning' || phase === 'executing' || phase === 'validating') return 'text-blue-400';
@@ -56,7 +58,7 @@ export function RalphRunCard({ run, isSelected, onSelect, onOpenWorkspace }: Ral
           <span className={`text-sm font-semibold ${getPhaseTone(run.phase)}`}>
             {run.phase.charAt(0).toUpperCase() + run.phase.slice(1)}
           </span>
-          {run.phase !== 'idle' && run.phase !== 'completed' && run.phase !== 'failed' && (
+          {run.phase !== 'idle' && run.phase !== 'completed' && run.phase !== 'failed' && run.phase !== 'cancelled' && (
             <span className="status-dot info" />
           )}
         </div>

@@ -49,6 +49,7 @@ export function registerProcessHandlers(): void {
     }
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('process:list', async (_event: IpcMainInvokeEvent) => {
     return Array.from(activeProcesses.entries()).map(([pid, proc]) => ({
       pid,

@@ -1,8 +1,18 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as path from 'path';
 import { getRalphBootstrap } from '../ralphBootstrap';
 import { getRalphValidator } from '../ralphValidator';
 import { getDatabase } from '../database';
+
+function getRunOrThrow(runId: string) {
+  const db = getDatabase();
+  const run = db.getLoopRun(runId);
+  if (!run) {
+    throw new Error('Run not found');
+  }
+  return run;
+}
 
 export function registerRalphHandlers(): void {
   const ralphBootstrap = getRalphBootstrap();
@@ -109,5 +119,15 @@ export function registerRalphHandlers(): void {
   ipcMain.handle('ralph:deleteProject', async (_event: IpcMainInvokeEvent, projectId: string) => {
     const db = getDatabase();
     db.deleteRalphProject(projectId);
+  });
+
+  ipcMain.handle('ralph:replanRun', async (_event: IpcMainInvokeEvent, runId: string) => {
+    getRunOrThrow(runId);
+    throw new Error('Replan is not implemented yet');
+  });
+
+  ipcMain.handle('ralph:validateRun', async (_event: IpcMainInvokeEvent, runId: string) => {
+    getRunOrThrow(runId);
+    throw new Error('Validation is not implemented yet');
   });
 }

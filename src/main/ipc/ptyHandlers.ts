@@ -20,6 +20,7 @@ export function registerPtyHandlers(mainWindowGetter: () => BrowserWindow | null
     return ptyManager.kill(sessionId, signal);
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('pty:list', async (_event: IpcMainInvokeEvent) => {
     return ptyManager.list().map(session => ({
       id: session.id,

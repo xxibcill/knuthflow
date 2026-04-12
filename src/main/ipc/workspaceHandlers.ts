@@ -19,6 +19,7 @@ export function registerWorkspaceHandlers(): void {
     return db.getWorkspace(id);
   });
 
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   ipcMain.handle('workspace:list', async (_event: IpcMainInvokeEvent) => {
     const db = getDatabase();
     return db.listWorkspaces();
