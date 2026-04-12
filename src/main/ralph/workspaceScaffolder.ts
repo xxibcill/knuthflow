@@ -559,6 +559,8 @@ const TEMPLATES: AppTemplate[] = [
   MOBILE_TEMPLATE,
 ];
 
+const SCAFFOLD_METADATA_FILE = '.ralph.scaffold.json';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Workspace Scaffolder
 // ─────────────────────────────────────────────────────────────────────────────
@@ -597,6 +599,22 @@ export class WorkspaceScaffolder {
     const errors: string[] = [];
 
     try {
+      const reservedPaths = [
+        ...template.files.map((file) => file.path),
+        SCAFFOLD_METADATA_FILE,
+      ];
+      const conflictingPaths = reservedPaths.filter((filePath) =>
+        fs.existsSync(path.join(workspacePath, filePath))
+      );
+      if (conflictingPaths.length > 0) {
+        return {
+          success: false,
+          createdFiles,
+          errors: conflictingPaths.map((filePath) => `Refusing to overwrite existing file: ${filePath}`),
+          templateUsed: templateType,
+        };
+      }
+
       // Create all directories first
       const directories = new Set<string>();
       for (const file of template.files) {
@@ -618,7 +636,9 @@ export class WorkspaceScaffolder {
         const fullPath = path.join(workspacePath, file.path);
 
         // Substitute app name placeholder if present
-        let content = file.content.replace(/\${APP_NAME}/g, appName).replace(/APP_NAME/g, appName.replace(/[^a-zA-Z0-9]/g, '_'));
+        const content = file.content
+          .replace(/\${APP_NAME}/g, appName)
+          .replace(/APP_NAME/g, appName.replace(/[^a-zA-Z0-9]/g, '_'));
 
         fs.writeFileSync(fullPath, content, 'utf-8');
         createdFiles.push(file.path);
@@ -634,7 +654,7 @@ export class WorkspaceScaffolder {
       }
 
       // Write template metadata for audit trail
-      const metadataPath = path.join(workspacePath, '.ralph', 'scaffold.json');
+      const metadataPath = path.join(workspacePath, SCAFFOLD_METADATA_FILE);
       const metadataDir = path.dirname(metadataPath);
       if (!fs.existsSync(metadataDir)) {
         fs.mkdirSync(metadataDir, { recursive: true });
@@ -649,7 +669,7 @@ export class WorkspaceScaffolder {
       };
 
       fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
-      createdFiles.push('.ralph/scaffold.json');
+      createdFiles.push(SCAFFOLD_METADATA_FILE);
 
       return {
         success: true,
@@ -672,7 +692,7 @@ export class WorkspaceScaffolder {
    * Get scaffold metadata from a workspace
    */
   getScaffoldMetadata(workspacePath: string): { template: TemplateType; scaffoldAt: number; appName: string } | null {
-    const metadataPath = path.join(workspacePath, '.ralph', 'scaffold.json');
+    const metadataPath = path.join(workspacePath, SCAFFOLD_METADATA_FILE);
 
     if (!fs.existsSync(metadataPath)) {
       return null;
@@ -695,7 +715,7 @@ export class WorkspaceScaffolder {
    * Validate that a workspace has been scaffolded
    */
   isScaffolded(workspacePath: string): boolean {
-    const metadataPath = path.join(workspacePath, '.ralph', 'scaffold.json');
+    const metadataPath = path.join(workspacePath, SCAFFOLD_METADATA_FILE);
     return fs.existsSync(metadataPath);
   }
 

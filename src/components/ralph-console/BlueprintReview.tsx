@@ -1,33 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import type { AppBlueprint } from '../../shared/preloadTypes';
 
 export interface BlueprintReviewProps {
-  blueprint: {
-    version: string;
-    generatedAt: number;
-    intake: {
-      appName: string;
-      appBrief: string;
-      targetPlatform: string;
-      successCriteria: string[];
-      stackPreferences: string[];
-      deliveryFormat: string;
-    };
-    specs: Array<{
-      id: string;
-      title: string;
-      description: string;
-      acceptanceCriteria: string[];
-    }>;
-    milestones: Array<{
-      id: string;
-      title: string;
-      description: string;
-      tasks: string[];
-      acceptanceGate: string;
-      order: number;
-    }>;
-    fixPlan: string;
-  };
+  blueprint: AppBlueprint;
   onApprove: () => void;
   onEdit: (section: 'intake' | 'specs' | 'milestones' | 'fixPlan') => void;
   onCancel: () => void;
@@ -70,15 +45,28 @@ export function BlueprintReview({
       <div className="blueprint-section">
         <div
           className="blueprint-section-header"
-          onClick={() => { toggleSection('intake'); onEdit('intake'); }}
+          onClick={() => toggleSection('intake')}
         >
           <div>
             <h3>App Intake</h3>
             <p className="text-sm text-muted">{blueprint.intake.appName}</p>
           </div>
-          <span className={`badge ${expandedSection === 'intake' ? 'badge-info' : 'badge-neutral'}`}>
-            {expandedSection === 'intake' ? 'Expanded' : 'Click to edit'}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit('intake');
+              }}
+              className="btn btn-ghost btn-sm"
+              disabled={isSubmitting}
+            >
+              Edit Intake
+            </button>
+            <span className={`badge ${expandedSection === 'intake' ? 'badge-info' : 'badge-neutral'}`}>
+              {expandedSection === 'intake' ? 'Expanded' : 'View'}
+            </span>
+          </div>
         </div>
 
         {expandedSection === 'intake' && (
@@ -121,14 +109,14 @@ export function BlueprintReview({
       <div className="blueprint-section">
         <div
           className="blueprint-section-header"
-          onClick={() => { toggleSection('specs'); onEdit('specs'); }}
+          onClick={() => toggleSection('specs')}
         >
           <div>
             <h3>Specifications ({blueprint.specs.length})</h3>
             <p className="text-sm text-muted">Technical requirements and acceptance criteria</p>
           </div>
           <span className={`badge ${expandedSection === 'specs' ? 'badge-info' : 'badge-neutral'}`}>
-            {expandedSection === 'specs' ? 'Expanded' : 'Click to edit'}
+            {expandedSection === 'specs' ? 'Expanded' : 'View'}
           </span>
         </div>
 
@@ -159,20 +147,20 @@ export function BlueprintReview({
       <div className="blueprint-section">
         <div
           className="blueprint-section-header"
-          onClick={() => { toggleSection('milestones'); onEdit('milestones'); }}
+          onClick={() => toggleSection('milestones')}
         >
           <div>
             <h3>Milestones ({blueprint.milestones.length})</h3>
             <p className="text-sm text-muted">Execution phases and tasks</p>
           </div>
           <span className={`badge ${expandedSection === 'milestones' ? 'badge-info' : 'badge-neutral'}`}>
-            {expandedSection === 'milestones' ? 'Expanded' : 'Click to edit'}
+            {expandedSection === 'milestones' ? 'Expanded' : 'View'}
           </span>
         </div>
 
         {expandedSection === 'milestones' && (
           <div className="blueprint-section-content">
-            {blueprint.milestones
+            {[...blueprint.milestones]
               .sort((a, b) => a.order - b.order)
               .map((milestone) => (
                 <div key={milestone.id} className="milestone-card">
@@ -188,7 +176,7 @@ export function BlueprintReview({
                       {milestone.tasks.map((task, i) => (
                         <li key={i} className="text-sm flex items-start gap-2">
                           <span className="text-muted">- [ ]</span>
-                          <span>{task.replace('- [ ] ', '')}</span>
+                          <span>{task}</span>
                         </li>
                       ))}
                     </ul>
@@ -245,11 +233,11 @@ export function BlueprintReview({
 
         <div className="flex gap-3">
           <button
-            onClick={() => onEdit('fixPlan')}
+            onClick={() => onEdit('intake')}
             className="btn"
             disabled={isSubmitting}
           >
-            Edit Fix Plan
+            Revise Intake
           </button>
 
           <button

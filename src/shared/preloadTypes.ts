@@ -102,6 +102,45 @@ export interface Workspace {
   lastOpenedAt: number | null;
 }
 
+export interface AppIntakeDraft {
+  appName: string;
+  appBrief: string;
+  targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
+  successCriteria: string[];
+  stackPreferences: string[];
+  forbiddenPatterns: string[];
+  maxBuildTime: number;
+  supportedBrowsers: string[];
+  deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
+}
+
+export interface AppBlueprintSpec {
+  id: string;
+  title: string;
+  description: string;
+  acceptanceCriteria: string[];
+  priority: 'high' | 'medium' | 'low';
+  relatedSpecIds: string[];
+}
+
+export interface AppBlueprintMilestone {
+  id: string;
+  title: string;
+  description: string;
+  tasks: string[];
+  acceptanceGate: string;
+  order: number;
+}
+
+export interface AppBlueprint {
+  version: string;
+  generatedAt: number;
+  intake: AppIntakeDraft;
+  specs: AppBlueprintSpec[];
+  milestones: AppBlueprintMilestone[];
+  fixPlan: string;
+}
+
 export interface Session {
   id: string;
   workspaceId: string | null;
@@ -397,87 +436,25 @@ export interface KnuthflowAPI {
     validateRun(runId: string): Promise<void>;
   };
   appintake: {
-    generateBlueprint(intake: {
-      appName: string;
-      appBrief: string;
-      targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
-      successCriteria: string[];
-      stackPreferences: string[];
-      forbiddenPatterns: string[];
-      maxBuildTime: number;
-      supportedBrowsers: string[];
-      deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
-    }): Promise<{
+    generateBlueprint(intake: AppIntakeDraft): Promise<{
       success: boolean;
-      blueprint?: {
-        version: string;
-        generatedAt: number;
-        intake: {
-          appName: string;
-          appBrief: string;
-          targetPlatform: string;
-          successCriteria: string[];
-          stackPreferences: string[];
-          deliveryFormat: string;
-        };
-        specs: Array<{
-          id: string;
-          title: string;
-          description: string;
-          acceptanceCriteria: string[];
-        }>;
-        milestones: Array<{
-          id: string;
-          title: string;
-          description: string;
-          tasks: string[];
-          acceptanceGate: string;
-          order: number;
-        }>;
-        fixPlan: string;
-      };
+      blueprint?: AppBlueprint;
       error?: string;
       code?: string;
     }>;
-    writeBlueprintFiles(workspacePath: string, blueprint: {
-      version: string;
-      generatedAt: number;
-      intake: {
-        appName: string;
-        appBrief: string;
-        targetPlatform: string;
-        successCriteria: string[];
-        stackPreferences: string[];
-        deliveryFormat: string;
-      };
-      specs: Array<{
-        id: string;
-        title: string;
-        description: string;
-        acceptanceCriteria: string[];
-      }>;
-      milestones: Array<{
-        id: string;
-        title: string;
-        description: string;
-        tasks: string[];
-        acceptanceGate: string;
-        order: number;
-      }>;
-      fixPlan: string;
-    }): Promise<{
+    writeBlueprintFiles(workspacePath: string, blueprint: AppBlueprint): Promise<{
       success: boolean;
       filesCreated?: string[];
       error?: string;
       code?: string;
     }>;
-    validateIntake(intake: {
-      appName: string;
-      appBrief: string;
-      targetPlatform: string;
-      deliveryFormat: string;
-      maxBuildTime: number;
-    }): Promise<{
+    validateIntake(intake: Pick<AppIntakeDraft,
+      'appName' |
+      'appBrief' |
+      'targetPlatform' |
+      'deliveryFormat' |
+      'maxBuildTime'
+    >): Promise<{
       valid: boolean;
       issues: string[];
     }>;

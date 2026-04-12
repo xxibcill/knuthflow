@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Workspace } from '../../preload';
-import type { LoopRun, RalphProject, ReadinessReport } from '../../shared/preloadTypes';
+import type {
+  AppBlueprint,
+  AppIntakeDraft,
+  LoopRun,
+  RalphProject,
+  ReadinessReport,
+} from '../../shared/preloadTypes';
 import type {
   LoopSummary,
   OperatorConfirmation,
@@ -86,7 +92,7 @@ interface RalphConsolePanelProps {
 
 type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts';
 type WorkspaceActionState = 'bootstrap' | 'repair' | 'start' | null;
-type KickoffState = 'idle' | 'intake' | 'review' | 'scaffolding' | 'approved';
+type KickoffState = 'idle' | 'intake' | 'review' | 'approved';
 
 interface TimelineEvent {
   iteration: number;
@@ -180,33 +186,8 @@ export function RalphConsolePanel({
 
   // Kickoff workflow state (Phase 13)
   const [kickoffState, setKickoffState] = useState<KickoffState>('idle');
-  const [generatedBlueprint, setGeneratedBlueprint] = useState<{
-    version: string;
-    generatedAt: number;
-    intake: {
-      appName: string;
-      appBrief: string;
-      targetPlatform: string;
-      successCriteria: string[];
-      stackPreferences: string[];
-      deliveryFormat: string;
-    };
-    specs: Array<{
-      id: string;
-      title: string;
-      description: string;
-      acceptanceCriteria: string[];
-    }>;
-    milestones: Array<{
-      id: string;
-      title: string;
-      description: string;
-      tasks: string[];
-      acceptanceGate: string;
-      order: number;
-    }>;
-    fixPlan: string;
-  } | null>(null);
+  const [kickoffDraft, setKickoffDraft] = useState<AppIntakeDraft | null>(null);
+  const [generatedBlueprint, setGeneratedBlueprint] = useState<AppBlueprint | null>(null);
   const [kickoffError, setKickoffError] = useState<string | null>(null);
   const [isKickoffSubmitting, setIsKickoffSubmitting] = useState(false);
 
@@ -434,25 +415,17 @@ export function RalphConsolePanel({
 
   const handleStartKickoff = useCallback(() => {
     setKickoffState('intake');
+    setKickoffDraft(null);
     setGeneratedBlueprint(null);
     setKickoffError(null);
   }, []);
 
-  const handleIntakeSubmit = useCallback(async (intake: {
-    appName: string;
-    appBrief: string;
-    targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
-    successCriteria: string[];
-    stackPreferences: string[];
-    forbiddenPatterns: string[];
-    maxBuildTime: number;
-    supportedBrowsers: string[];
-    deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
-  }) => {
+  const handleIntakeSubmit = useCallback(async (intake: AppIntakeDraft) => {
     if (!workspace) return;
 
     setIsKickoffSubmitting(true);
     setKickoffError(null);
+    setKickoffDraft(intake);
 
     try {
       // Generate blueprint
@@ -472,13 +445,12 @@ export function RalphConsolePanel({
   }, [workspace]);
 
   const handleBlueprintEdit = useCallback((section: 'intake' | 'specs' | 'milestones' | 'fixPlan') => {
-    // For now, allow re-editing the intake form
     if (section === 'intake') {
+      setKickoffDraft((currentDraft) => currentDraft ?? generatedBlueprint?.intake ?? null);
       setKickoffState('intake');
+      setKickoffError(null);
     }
-    // Specs and milestones editing would require more complex inline editing
-    // For now, we just allow going back to intake
-  }, []);
+  }, [generatedBlueprint]);
 
   const handleBlueprintApprove = useCallback(async () => {
     if (!workspace || !generatedBlueprint) return;
@@ -518,6 +490,7 @@ export function RalphConsolePanel({
 
   const handleKickoffCancel = useCallback(() => {
     setKickoffState('idle');
+    setKickoffDraft(null);
     setGeneratedBlueprint(null);
     setKickoffError(null);
   }, []);
@@ -904,6 +877,7 @@ export function RalphConsolePanel({
                     onSubmit={handleIntakeSubmit}
                     onCancel={handleKickoffCancel}
                     isSubmitting={isKickoffSubmitting}
+                    initialData={kickoffDraft ?? generatedBlueprint?.intake}
                   />
                   {kickoffError && (
                     <div className="mt-4 p-4 border border-red-500 rounded">

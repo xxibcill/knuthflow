@@ -1,16 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
+import type { AppIntakeDraft } from '../../shared/preloadTypes';
 
-export interface AppIntakeFormData {
-  appName: string;
-  appBrief: string;
-  targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
-  successCriteria: string[];
-  stackPreferences: string[];
-  forbiddenPatterns: string[];
-  maxBuildTime: number;
-  supportedBrowsers: string[];
-  deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
-}
+export type AppIntakeFormData = AppIntakeDraft;
 
 export interface AppIntakeFormProps {
   onSubmit: (intake: AppIntakeFormData) => void;
@@ -61,7 +52,7 @@ export function AppIntakeForm({
     initialData?.targetPlatform ?? 'web'
   );
   const [successCriteria, setSuccessCriteria] = useState<string[]>(
-    initialData?.successCriteria ?? ['']
+    initialData?.successCriteria ?? []
   );
   const [stackPreferences, setStackPreferences] = useState<string[]>(
     initialData?.stackPreferences ?? ['React + TypeScript + Vite']
@@ -113,7 +104,7 @@ export function AppIntakeForm({
     setForbiddenPatterns(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const intake: AppIntakeFormData = {

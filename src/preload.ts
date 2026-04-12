@@ -34,6 +34,8 @@ import type {
   BootstrapResult,
   RalphControlFiles,
   ArtifactType,
+  AppIntakeDraft,
+  AppBlueprint,
 } from './shared/preloadTypes';
 
 // Re-export all types from shared module
@@ -72,6 +74,8 @@ export type {
   BootstrapResult,
   RalphControlFiles,
   ArtifactType,
+  AppIntakeDraft,
+  AppBlueprint,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -344,53 +348,17 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('ralphRuntime:getState', runId),
   },
   appintake: {
-    generateBlueprint: (intake: {
-      appName: string;
-      appBrief: string;
-      targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
-      successCriteria: string[];
-      stackPreferences: string[];
-      forbiddenPatterns: string[];
-      maxBuildTime: number;
-      supportedBrowsers: string[];
-      deliveryFormat: 'electron' | 'web' | 'mobile' | 'api';
-    }) =>
+    generateBlueprint: (intake: AppIntakeDraft) =>
       ipcRenderer.invoke('appintake:generateBlueprint', intake),
-    writeBlueprintFiles: (workspacePath: string, blueprint: {
-      version: string;
-      generatedAt: number;
-      intake: {
-        appName: string;
-        appBrief: string;
-        targetPlatform: string;
-        successCriteria: string[];
-        stackPreferences: string[];
-        deliveryFormat: string;
-      };
-      specs: Array<{
-        id: string;
-        title: string;
-        description: string;
-        acceptanceCriteria: string[];
-      }>;
-      milestones: Array<{
-        id: string;
-        title: string;
-        description: string;
-        tasks: string[];
-        acceptanceGate: string;
-        order: number;
-      }>;
-      fixPlan: string;
-    }) =>
+    writeBlueprintFiles: (workspacePath: string, blueprint: AppBlueprint) =>
       ipcRenderer.invoke('appintake:writeBlueprintFiles', workspacePath, blueprint),
-    validateIntake: (intake: {
-      appName: string;
-      appBrief: string;
-      targetPlatform: string;
-      deliveryFormat: string;
-      maxBuildTime: number;
-    }) =>
+    validateIntake: (intake: Pick<AppIntakeDraft,
+      'appName' |
+      'appBrief' |
+      'targetPlatform' |
+      'deliveryFormat' |
+      'maxBuildTime'
+    >) =>
       ipcRenderer.invoke('appintake:validateIntake', intake),
   },
   scaffolding: {
