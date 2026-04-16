@@ -18,4 +18,5 @@ export { registerRalphSafetyHandlers } from './ralphSafetyHandlers';
 export { registerAppIntakeHandlers } from './appIntakeHandlers';
 export { registerWorkspaceScaffoldingHandlers } from './scaffoldingHandlers';
 export { registerDeliveryHandlers } from './deliveryHandlers';
+export { registerMilestoneValidationHandlers } from './milestoneValidationHandlers';
 export { detectClaudeCode } from '../utils/claudeDetection';

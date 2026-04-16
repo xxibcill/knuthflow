@@ -574,4 +574,117 @@ export interface KnuthflowAPI {
       error?: string;
     }>;
   };
+  milestoneValidation: {
+    runPreviewValidation(workspacePath: string, timeoutMs?: number): Promise<{
+      success: boolean;
+      result?: {
+        passed: boolean;
+        output: string;
+        exitCode: number | null;
+        durationMs: number;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      };
+      error?: string;
+    }>;
+    runBuildValidation(workspacePath: string, timeoutMs?: number): Promise<{
+      success: boolean;
+      result?: {
+        passed: boolean;
+        output: string;
+        exitCode: number | null;
+        durationMs: number;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      };
+      error?: string;
+    }>;
+    runTestValidation(workspacePath: string, timeoutMs?: number): Promise<{
+      success: boolean;
+      result?: {
+        passed: boolean;
+        output: string;
+        exitCode: number | null;
+        durationMs: number;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      };
+      error?: string;
+    }>;
+    runLintValidation(workspacePath: string, timeoutMs?: number): Promise<{
+      success: boolean;
+      result?: {
+        passed: boolean;
+        output: string;
+        exitCode: number | null;
+        durationMs: number;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      };
+      error?: string;
+    }>;
+    runMilestoneValidation(
+      projectId: string,
+      runId: string,
+      milestoneId: string,
+      workspacePath: string,
+      timeoutMs?: number
+    ): Promise<{
+      success: boolean;
+      result?: {
+        milestoneId: string;
+        validatedAt: number;
+        evidence: Array<{
+          type: string;
+          passed: boolean;
+          output: string;
+          exitCode: number | null;
+          durationMs: number;
+        }>;
+      };
+      error?: string;
+    }>;
+    determineFeedback(evidence: {
+      milestoneId: string;
+      type: string;
+      passed: boolean;
+      output: string;
+      exitCode: number | null;
+      durationMs: number;
+      errors: Array<{ code: string; message: string }>;
+      warnings: Array<{ code: string; message: string }>;
+      validatedAt: number;
+    }): Promise<{
+      success: boolean;
+      feedback?: {
+        action: string;
+        reason: string;
+        suggestedTasks?: string[];
+      };
+      error?: string;
+    }>;
+    canCompleteMilestone(
+      projectId: string,
+      runId: string,
+      milestoneId: string
+    ): Promise<{
+      success: boolean;
+      canComplete: boolean;
+      reason?: string;
+      error?: string;
+    }>;
+    completeMilestone(
+      projectId: string,
+      runId: string,
+      milestoneId: string
+    ): Promise<{
+      success: boolean;
+      result?: {
+        completed: boolean;
+        milestoneId: string;
+        completedAt: number;
+      };
+      error?: string;
+    }>;
+  };
 }

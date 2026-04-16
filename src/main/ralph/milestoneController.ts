@@ -9,8 +9,7 @@ import type {
   PlanTask,
   AcceptanceGate,
 } from '../../shared/ralphTypes';
-import { parsePlanContent } from './planParser';
-import { extractPriority } from './planParser';
+import { parsePlanContent , extractPriority } from './planParser';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Milestone Controller

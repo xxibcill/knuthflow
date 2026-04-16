@@ -381,6 +381,24 @@ const api: KnuthflowAPI = {
     confirmRelease: (workspacePath: string) =>
       ipcRenderer.invoke('delivery:confirmRelease', workspacePath),
   },
+  milestoneValidation: {
+    runPreviewValidation: (workspacePath: string, timeoutMs?: number) =>
+      ipcRenderer.invoke('milestoneValidation:runPreviewValidation', workspacePath, timeoutMs),
+    runBuildValidation: (workspacePath: string, timeoutMs?: number) =>
+      ipcRenderer.invoke('milestoneValidation:runBuildValidation', workspacePath, timeoutMs),
+    runTestValidation: (workspacePath: string, timeoutMs?: number) =>
+      ipcRenderer.invoke('milestoneValidation:runTestValidation', workspacePath, timeoutMs),
+    runLintValidation: (workspacePath: string, timeoutMs?: number) =>
+      ipcRenderer.invoke('milestoneValidation:runLintValidation', workspacePath, timeoutMs),
+    runMilestoneValidation: (projectId: string, runId: string, milestoneId: string, workspacePath: string, timeoutMs?: number) =>
+      ipcRenderer.invoke('milestoneValidation:runMilestoneValidation', projectId, runId, milestoneId, workspacePath, timeoutMs),
+    determineFeedback: (evidence: unknown) =>
+      ipcRenderer.invoke('milestoneValidation:determineFeedback', evidence),
+    canCompleteMilestone: (projectId: string, runId: string, milestoneId: string) =>
+      ipcRenderer.invoke('milestoneValidation:canCompleteMilestone', projectId, runId, milestoneId),
+    completeMilestone: (projectId: string, runId: string, milestoneId: string) =>
+      ipcRenderer.invoke('milestoneValidation:completeMilestone', projectId, runId, milestoneId),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

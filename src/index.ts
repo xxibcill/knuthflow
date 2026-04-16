@@ -21,6 +21,8 @@ import {
   registerRalphSafetyHandlers,
   registerAppIntakeHandlers,
   registerWorkspaceScaffoldingHandlers,
+  registerDeliveryHandlers,
+  registerMilestoneValidationHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -164,6 +166,12 @@ function registerIpcHandlers(): void {
 
   // Workspace scaffolding handlers
   registerWorkspaceScaffoldingHandlers();
+
+  // Delivery handlers
+  registerDeliveryHandlers();
+
+  // Milestone validation handlers
+  registerMilestoneValidationHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
