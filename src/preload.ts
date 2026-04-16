@@ -36,9 +36,10 @@ import type {
   ArtifactType,
   AppIntakeDraft,
   AppBlueprint,
+  Portfolio,
+  PortfolioProject,
+  LoopState,
 } from './shared/preloadTypes';
-
-// Re-export all types from shared module
 export type {
   ProcessSpawnResult,
   ProcessInfo,
@@ -76,6 +77,9 @@ export type {
   ArtifactType,
   AppIntakeDraft,
   AppBlueprint,
+  Portfolio,
+  PortfolioProject,
+  LoopState,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -398,6 +402,87 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('milestoneValidation:canCompleteMilestone', projectId, runId, milestoneId),
     completeMilestone: (projectId: string, runId: string, milestoneId: string) =>
       ipcRenderer.invoke('milestoneValidation:completeMilestone', projectId, runId, milestoneId),
+  },
+  portfolio: {
+    create: (name: string, description?: string) =>
+      ipcRenderer.invoke('portfolio:create', name, description),
+    get: (id: string) =>
+      ipcRenderer.invoke('portfolio:get', id),
+    list: () =>
+      ipcRenderer.invoke('portfolio:list'),
+    update: (id: string, updates: { name?: string; description?: string }) =>
+      ipcRenderer.invoke('portfolio:update', id, updates),
+    delete: (id: string) =>
+      ipcRenderer.invoke('portfolio:delete', id),
+    addProject: (portfolioId: string, projectId: string, priority?: number) =>
+      ipcRenderer.invoke('portfolio:addProject', portfolioId, projectId, priority),
+    getProject: (id: string) =>
+      ipcRenderer.invoke('portfolio:getProject', id),
+    listProjects: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolio:listProjects', portfolioId),
+    updateProject: (id: string, updates: {
+      priority?: number;
+      status?: 'active' | 'paused' | 'completed' | 'archived';
+      dependencyGraph?: Record<string, string[]>;
+    }) =>
+      ipcRenderer.invoke('portfolio:updateProject', id, updates),
+    removeProject: (id: string) =>
+      ipcRenderer.invoke('portfolio:removeProject', id),
+    getProjectByProjectId: (portfolioId: string, projectId: string) =>
+      ipcRenderer.invoke('portfolio:getProjectByProjectId', portfolioId, projectId),
+    listPortfoliosByProject: (projectId: string) =>
+      ipcRenderer.invoke('portfolio:listPortfoliosByProject', projectId),
+  },
+  portfolioRuntime: {
+    start: (portfolioId: string, projectId: string, name: string, sessionId: string, ptySessionId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:start', portfolioId, projectId, name, sessionId, ptySessionId),
+    getQueuedRuns: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getQueuedRuns', portfolioId),
+    getQueueLength: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getQueueLength', portfolioId),
+    cancelQueuedRun: (queuedRunId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:cancelQueuedRun', queuedRunId),
+    getActiveRunCount: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getActiveRunCount', portfolioId),
+    getPortfolioActiveRuns: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getPortfolioActiveRuns', portfolioId),
+    updatePriority: (portfolioProjectId: string, newPriority: number) =>
+      ipcRenderer.invoke('portfolioRuntime:updatePriority', portfolioProjectId, newPriority),
+    setMaxConcurrentRuns: (max: number) =>
+      ipcRenderer.invoke('portfolioRuntime:setMaxConcurrentRuns', max),
+    getMaxConcurrentRuns: () =>
+      ipcRenderer.invoke('portfolioRuntime:getMaxConcurrentRuns'),
+    pauseAll: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:pauseAll', portfolioId),
+    resumeAll: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:resumeAll', portfolioId),
+    stopAll: (portfolioId: string, reason?: 'user_stopped' | 'error' | 'completed') =>
+      ipcRenderer.invoke('portfolioRuntime:stopAll', portfolioId, reason),
+    register: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:register', portfolioId),
+    unregister: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:unregister', portfolioId),
+    addProject: (portfolioId: string, projectId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:addProject', portfolioId, projectId),
+    removeProject: (portfolioId: string, projectId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:removeProject', portfolioId, projectId),
+    // Dependency Resolution (P16-T4)
+    getDependencyGraph: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getDependencyGraph', portfolioId),
+    detectCycles: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:detectCycles', portfolioId),
+    getBuildOrder: (portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getBuildOrder', portfolioId),
+    checkProjectCanStart: (projectId: string, portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:checkProjectCanStart', projectId, portfolioId),
+    parseAndStoreDependencies: (portfolioProjectId: string, fixPlanContent: string) =>
+      ipcRenderer.invoke('portfolioRuntime:parseAndStoreDependencies', portfolioProjectId, fixPlanContent),
+    getAvailableArtifacts: (projectId: string, portfolioId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:getAvailableArtifacts', projectId, portfolioId),
+    propagateArtifact: (projectId: string, artifactPath: string, artifactType: string) =>
+      ipcRenderer.invoke('portfolioRuntime:propagateArtifact', projectId, artifactPath, artifactType),
+    clearProjectArtifacts: (projectId: string) =>
+      ipcRenderer.invoke('portfolioRuntime:clearProjectArtifacts', projectId),
   },
 };
 

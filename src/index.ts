@@ -23,6 +23,8 @@ import {
   registerWorkspaceScaffoldingHandlers,
   registerDeliveryHandlers,
   registerMilestoneValidationHandlers,
+  registerPortfolioHandlers,
+  registerPortfolioRuntimeHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -172,6 +174,12 @@ function registerIpcHandlers(): void {
 
   // Milestone validation handlers
   registerMilestoneValidationHandlers();
+
+  // Portfolio handlers
+  registerPortfolioHandlers();
+
+  // Portfolio runtime handlers
+  registerPortfolioRuntimeHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

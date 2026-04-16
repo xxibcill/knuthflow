@@ -8,6 +8,7 @@ import { DiffViewer, type DiffFile } from './components/DiffViewer'
 import { SplitPane } from './components/SplitPane'
 import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel'
 import { NotificationToast } from './components/NotificationToast'
+import { PortfolioDashboard } from './components/portfolio/PortfolioDashboard'
 import type {
   ClaudeCodeStatus,
   ClaudeRunState,
@@ -19,7 +20,7 @@ import type {
 } from './preload'
 import type { AppSettings } from './shared/preloadTypes'
 
-type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console'
+type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console' | 'portfolio'
 
 interface ActiveRun {
   runId: string
@@ -69,6 +70,7 @@ const VIEW_LABELS: Record<ViewMode, string> = {
   history: 'History',
   editor: 'Editor',
   console: 'Console',
+  portfolio: 'Portfolio',
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -735,6 +737,8 @@ export default function App() {
                 }
               />
             )}
+
+            {viewMode === 'portfolio' && <PortfolioDashboard />}
           </div>
         </main>
 

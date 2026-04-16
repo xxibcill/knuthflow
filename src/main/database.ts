@@ -98,6 +98,28 @@ export interface DatabaseSchema {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Portfolio Types (Phase 16)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PortfolioProject {
+  id: string;
+  portfolioId: string;
+  projectId: string;
+  priority: number;
+  status: 'active' | 'paused' | 'completed' | 'archived';
+  dependencyGraph: Record<string, string[]>;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Ralph Artifact & Learning Types (Phase 09)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1097,6 +1119,166 @@ class SessionDatabase {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // Portfolio Operations (Phase 16)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createPortfolio(name: string, description = ''): Portfolio {
+    const id = `portfolio-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO portfolios (id, name, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, name, description, now, now);
+    return { id, name, description, createdAt: now, updatedAt: now };
+  }
+
+  getPortfolio(id: string): Portfolio | null {
+    const row = this.db.prepare('SELECT * FROM portfolios WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      description: (row.description as string) || '',
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  listPortfolios(): Portfolio[] {
+    const rows = this.db.prepare('SELECT * FROM portfolios ORDER BY created_at DESC').all() as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      name: row.name as string,
+      description: (row.description as string) || '',
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    }));
+  }
+
+  updatePortfolio(id: string, updates: Partial<{ name: string; description: string }>): Portfolio | null {
+    const existing = this.getPortfolio(id);
+    if (!existing) return null;
+    const now = Date.now();
+    const name = updates.name ?? existing.name;
+    const description = updates.description ?? existing.description;
+    this.db.prepare('UPDATE portfolios SET name = ?, description = ?, updated_at = ? WHERE id = ?')
+      .run(name, description, now, id);
+    return { ...existing, name, description, updatedAt: now };
+  }
+
+  deletePortfolio(id: string): void {
+    // Delete portfolio projects first (cascade)
+    this.db.prepare('DELETE FROM portfolio_projects WHERE portfolio_id = ?').run(id);
+    this.db.prepare('DELETE FROM portfolios WHERE id = ?').run(id);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Portfolio Project Operations (Phase 16)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  addProjectToPortfolio(portfolioId: string, projectId: string, priority = 0): PortfolioProject {
+    const id = `pp-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO portfolio_projects (id, portfolio_id, project_id, priority, status, dependency_graph, created_at)
+      VALUES (?, ?, ?, ?, 'active', '{}', ?)
+    `).run(id, portfolioId, projectId, priority, now);
+    return {
+      id,
+      portfolioId,
+      projectId,
+      priority,
+      status: 'active',
+      dependencyGraph: {},
+      createdAt: now,
+    };
+  }
+
+  getPortfolioProject(id: string): PortfolioProject | null {
+    const row = this.db.prepare('SELECT * FROM portfolio_projects WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPortfolioProject(row);
+  }
+
+  getPortfolioProjectByProjectId(portfolioId: string, projectId: string): PortfolioProject | null {
+    const row = this.db.prepare(
+      'SELECT * FROM portfolio_projects WHERE portfolio_id = ? AND project_id = ?'
+    ).get(portfolioId, projectId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPortfolioProject(row);
+  }
+
+  listPortfolioProjects(portfolioId: string): PortfolioProject[] {
+    const rows = this.db.prepare(
+      'SELECT * FROM portfolio_projects WHERE portfolio_id = ? ORDER BY priority DESC, created_at ASC'
+    ).all(portfolioId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPortfolioProject(row));
+  }
+
+  updatePortfolioProject(id: string, updates: Partial<{
+    priority: number;
+    status: PortfolioProject['status'];
+    dependencyGraph: Record<string, string[]>;
+  }>): PortfolioProject | null {
+    const existing = this.getPortfolioProject(id);
+    if (!existing) return null;
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (updates.priority !== undefined) {
+      setClauses.push('priority = ?');
+      values.push(updates.priority);
+    }
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.dependencyGraph !== undefined) {
+      setClauses.push('dependency_graph = ?');
+      values.push(JSON.stringify(updates.dependencyGraph));
+    }
+
+    if (setClauses.length === 0) return existing;
+
+    values.push(id);
+    this.db.prepare(`UPDATE portfolio_projects SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    return this.getPortfolioProject(id);
+  }
+
+  removeProjectFromPortfolio(id: string): void {
+    this.db.prepare('DELETE FROM portfolio_projects WHERE id = ?').run(id);
+  }
+
+  listPortfoliosByProject(projectId: string): Portfolio[] {
+    const rows = this.db.prepare(`
+      SELECT p.* FROM portfolios p
+      INNER JOIN portfolio_projects pp ON p.id = pp.portfolio_id
+      WHERE pp.project_id = ?
+      ORDER BY p.created_at DESC
+    `).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      name: row.name as string,
+      description: (row.description as string) || '',
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    }));
+  }
+
+  private rowToPortfolioProject(row: Record<string, unknown>): PortfolioProject {
+    return {
+      id: row.id as string,
+      portfolioId: row.portfolio_id as string,
+      projectId: row.project_id as string,
+      priority: row.priority as number,
+      status: row.status as PortfolioProject['status'],
+      dependencyGraph: JSON.parse(row.dependency_graph as string || '{}'),
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Milestone State Operations (Phase 14)
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1565,6 +1747,72 @@ class SessionDatabase {
       suggestedAction: row.suggested_action as string | null,
       createdAt: row.created_at as number,
     }));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Portfolio Artifact Reference Operations (Phase 16)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createArtifactReference(params: {
+    projectId: string;
+    artifactPath: string;
+    artifactType: string;
+  }): { id: string; projectId: string; artifactPath: string; artifactType: string; createdAt: number } {
+    const id = `artifact-ref-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO portfolio_artifact_references (id, project_id, artifact_path, artifact_type, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, params.projectId, params.artifactPath, params.artifactType, now);
+    return { id, ...params, createdAt: now };
+  }
+
+  listArtifactReferences(projectIds: string[]): Array<{
+    id: string;
+    projectId: string;
+    artifactPath: string;
+    artifactType: string;
+    createdAt: number;
+  }> {
+    if (projectIds.length === 0) return [];
+    const placeholders = projectIds.map(() => '?').join(',');
+    const rows = this.db.prepare(`
+      SELECT * FROM portfolio_artifact_references
+      WHERE project_id IN (${placeholders})
+      ORDER BY created_at DESC
+    `).all(...projectIds) as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      projectId: row.project_id as string,
+      artifactPath: row.artifact_path as string,
+      artifactType: row.artifact_type as string,
+      createdAt: row.created_at as number,
+    }));
+  }
+
+  listArtifactReferencesByProject(projectId: string): Array<{
+    id: string;
+    projectId: string;
+    artifactPath: string;
+    artifactType: string;
+    createdAt: number;
+  }> {
+    const rows = this.db.prepare(`
+      SELECT * FROM portfolio_artifact_references
+      WHERE project_id = ?
+      ORDER BY created_at DESC
+    `).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      projectId: row.project_id as string,
+      artifactPath: row.artifact_path as string,
+      artifactType: row.artifact_type as string,
+      createdAt: row.created_at as number,
+    }));
+  }
+
+  deleteArtifactReferencesByProject(projectId: string): void {
+    this.db.prepare('DELETE FROM portfolio_artifact_references WHERE project_id = ?').run(projectId);
   }
 
   close(): void {
