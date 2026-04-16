@@ -19,6 +19,7 @@ import type {
 } from './RalphConsole.types';
 import { AppIntakeForm } from './AppIntakeForm';
 import { BlueprintReview } from './BlueprintReview';
+import { DeliveryPanel } from './DeliveryPanel';
 import { RalphArtifactViewer } from './RalphArtifactViewer';
 import { RalphFixPlanPanel } from './RalphFixPlanPanel';
 import { RalphLoopHistoryPanel } from './RalphLoopHistoryPanel';
@@ -90,7 +91,7 @@ interface RalphConsolePanelProps {
   }>;
 }
 
-type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts';
+type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts' | 'delivery';
 type WorkspaceActionState = 'bootstrap' | 'repair' | 'start' | null;
 type KickoffState = 'idle' | 'intake' | 'review' | 'approved';
 
@@ -734,6 +735,7 @@ export function RalphConsolePanel({
     { id: 'history', label: 'History', count: loopSummaries.length },
     { id: 'controls', label: 'Controls' },
     { id: 'alerts', label: 'Alerts', count: alerts.length },
+    { id: 'delivery', label: 'Delivery' },
   ];
 
   const workspaceBadge = getReadinessBadge(workspaceReadiness);
@@ -1078,6 +1080,15 @@ export function RalphConsolePanel({
                     alerts={alerts}
                     onDismiss={(id) => setAlerts((prev) => prev.filter((alert) => alert.id !== id))}
                     onViewDetails={(alert) => console.debug('Alert details:', alert)}
+                  />
+                )}
+
+                {activeTab === 'delivery' && (
+                  <DeliveryPanel
+                    blueprint={generatedBlueprint}
+                    workspacePath={selectedRun?.workspacePath ?? workspace?.path ?? null}
+                    onOpenFile={onOpenFile}
+                    onRefresh={() => void loadSelectedRunDetails(selectedRun!)}
                   />
                 )}
               </div>

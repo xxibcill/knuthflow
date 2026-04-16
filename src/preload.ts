@@ -373,6 +373,14 @@ const api: KnuthflowAPI = {
     getBuildCommands: (workspacePath: string) =>
       ipcRenderer.invoke('scaffolding:getBuildCommands', workspacePath),
   },
+  delivery: {
+    getHandoffBundle: (workspacePath: string) =>
+      ipcRenderer.invoke('delivery:getHandoffBundle', workspacePath),
+    runPackaging: (workspacePath: string, deliveryFormat: string) =>
+      ipcRenderer.invoke('delivery:runPackaging', workspacePath, deliveryFormat),
+    confirmRelease: (workspacePath: string) =>
+      ipcRenderer.invoke('delivery:confirmRelease', workspacePath),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

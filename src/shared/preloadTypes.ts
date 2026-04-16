@@ -488,4 +488,90 @@ export interface KnuthflowAPI {
     start(projectId: string, name: string, sessionId: string, ptySessionId: string): Promise<{ success: boolean; run?: LoopRun; error?: string }>;
     getState(runId: string): Promise<{ success: boolean; state?: LoopState }>;
   };
+  delivery: {
+    getHandoffBundle(workspacePath: string): Promise<{
+      success: boolean;
+      bundle?: {
+        appName: string;
+        deliveryFormat: string;
+        artifacts: Array<{
+          id: string;
+          name: string;
+          type: string;
+          path: string;
+          size?: string;
+          validated: boolean;
+          validatedAt?: number;
+          gate?: string;
+        }>;
+        gates: Array<{
+          id: string;
+          name: string;
+          description: string;
+          status: string;
+          evidence?: string;
+          passedAt?: number;
+        }>;
+        completedAt?: number;
+        summary: string;
+      };
+      error?: string;
+    }>;
+    runPackaging(workspacePath: string, deliveryFormat: string): Promise<{
+      success: boolean;
+      bundle?: {
+        appName: string;
+        deliveryFormat: string;
+        artifacts: Array<{
+          id: string;
+          name: string;
+          type: string;
+          path: string;
+          size?: string;
+          validated: boolean;
+          validatedAt?: number;
+          gate?: string;
+        }>;
+        gates: Array<{
+          id: string;
+          name: string;
+          description: string;
+          status: string;
+          evidence?: string;
+          passedAt?: number;
+        }>;
+        completedAt?: number;
+        summary: string;
+      };
+      error?: string;
+    }>;
+    confirmRelease(workspacePath: string): Promise<{
+      success: boolean;
+      bundle?: {
+        appName: string;
+        deliveryFormat: string;
+        artifacts: Array<{
+          id: string;
+          name: string;
+          type: string;
+          path: string;
+          size?: string;
+          validated: boolean;
+          validatedAt?: number;
+          gate?: string;
+        }>;
+        gates: Array<{
+          id: string;
+          name: string;
+          description: string;
+          status: string;
+          evidence?: string;
+          passedAt?: number;
+        }>;
+        completedAt?: number;
+        summary: string;
+      };
+      error?: string;
+    }>;
+  };
 }
