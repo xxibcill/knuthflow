@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Workspace } from '../../preload';
-import type { LoopRun, RalphProject, ReadinessReport } from '../../shared/preloadTypes';
+import type {
+  AppBlueprint,
+  AppIntakeDraft,
+  LoopRun,
+  RalphProject,
+  ReadinessReport,
+} from '../../shared/preloadTypes';
 import type {
   LoopSummary,
   OperatorConfirmation,
@@ -11,6 +17,8 @@ import type {
   RalphRunDashboardItem,
   SafetyAlert,
 } from './RalphConsole.types';
+import { AppIntakeForm } from './AppIntakeForm';
+import { BlueprintReview } from './BlueprintReview';
 import { RalphArtifactViewer } from './RalphArtifactViewer';
 import { RalphFixPlanPanel } from './RalphFixPlanPanel';
 import { RalphLoopHistoryPanel } from './RalphLoopHistoryPanel';
@@ -18,6 +26,51 @@ import { RalphOperatorControls } from './RalphOperatorControls';
 import { RalphPhaseTimeline } from './RalphPhaseTimeline';
 import { RalphRunCard } from './RalphRunCard';
 import { RalphSafetyAlerts } from './RalphSafetyAlerts';
+
+// Error boundary for kickoff workflow
+interface KickoffErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class KickoffErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset: () => void },
+  KickoffErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode; onReset: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): KickoffErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    console.error('Kickoff workflow error:', error, errorInfo);
+  }
+
+  render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 border border-red-500 rounded">
+          <h3 className="text-red-300 font-semibold">Something went wrong</h3>
+          <p className="text-sm text-muted mt-2">{this.state.error?.message}</p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset();
+            }}
+            className="btn btn-primary mt-4"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export type { RalphRunDashboardItem } from './RalphConsole.types';
 
@@ -39,6 +92,7 @@ interface RalphConsolePanelProps {
 
 type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts';
 type WorkspaceActionState = 'bootstrap' | 'repair' | 'start' | null;
+type KickoffState = 'idle' | 'intake' | 'review' | 'approved';
 
 interface TimelineEvent {
   iteration: number;
@@ -129,6 +183,13 @@ export function RalphConsolePanel({
   const [workspaceNotice, setWorkspaceNotice] = useState<WorkspaceNotice | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Kickoff workflow state (Phase 13)
+  const [kickoffState, setKickoffState] = useState<KickoffState>('idle');
+  const [kickoffDraft, setKickoffDraft] = useState<AppIntakeDraft | null>(null);
+  const [generatedBlueprint, setGeneratedBlueprint] = useState<AppBlueprint | null>(null);
+  const [kickoffError, setKickoffError] = useState<string | null>(null);
+  const [isKickoffSubmitting, setIsKickoffSubmitting] = useState(false);
 
   const loadRunsRef = useRef<(() => Promise<RalphRunDashboardItem[]>) | null>(null);
   const loadSelectedRunDetailsRef = useRef<((run: RalphRunDashboardItem) => Promise<void>) | null>(null);
@@ -347,6 +408,96 @@ export function RalphConsolePanel({
     if (!workspace) return;
     onOpenFile(`${workspace.path}/${fileName}`, 1);
   }, [onOpenFile, workspace]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Kickoff Workflow (Phase 13: Goal To App Bootstrap)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const handleStartKickoff = useCallback(() => {
+    setKickoffState('intake');
+    setKickoffDraft(null);
+    setGeneratedBlueprint(null);
+    setKickoffError(null);
+  }, []);
+
+  const handleIntakeSubmit = useCallback(async (intake: AppIntakeDraft) => {
+    if (!workspace) return;
+
+    setIsKickoffSubmitting(true);
+    setKickoffError(null);
+    setKickoffDraft(intake);
+    setGeneratedBlueprint(null);
+
+    try {
+      // Generate blueprint
+      const result = await window.knuthflow.appintake.generateBlueprint(intake);
+      if (!result.success || !result.blueprint) {
+        setKickoffError(result.error || 'Failed to generate blueprint');
+        return;
+      }
+
+      setGeneratedBlueprint(result.blueprint);
+      setKickoffState('review');
+    } catch (error) {
+      setKickoffError(error instanceof Error ? error.message : 'Failed to generate blueprint');
+    } finally {
+      setIsKickoffSubmitting(false);
+    }
+  }, [workspace]);
+
+  // Ref to avoid stale closure in handleBlueprintEdit
+  const generatedBlueprintRef = useRef(generatedBlueprint);
+  generatedBlueprintRef.current = generatedBlueprint;
+
+  const handleBlueprintEdit = useCallback(() => {
+    const intake = kickoffDraft ?? generatedBlueprintRef.current?.intake ?? null;
+    setKickoffDraft(intake);
+    setKickoffState('intake');
+    setKickoffError(null);
+  }, [kickoffDraft]);
+
+  const handleBlueprintApprove = useCallback(async () => {
+    if (!workspace || !generatedBlueprint) return;
+
+    setIsKickoffSubmitting(true);
+
+    try {
+      // Write blueprint files to workspace
+      const writeResult = await window.knuthflow.appintake.writeBlueprintFiles(
+        workspace.path,
+        generatedBlueprint
+      );
+
+      if (!writeResult.success) {
+        setKickoffError(writeResult.error || 'Failed to write blueprint files');
+        return;
+      }
+
+      // Bootstrap Ralph in the workspace
+      const bootstrapResult = await window.knuthflow.ralph.bootstrap(workspace.id, workspace.path, false);
+      if (!bootstrapResult.success) {
+        setKickoffError(bootstrapResult.error || 'Failed to bootstrap Ralph');
+        return;
+      }
+
+      setKickoffState('approved');
+
+      // Reload workspace context
+      await loadWorkspaceContext();
+      await loadRuns();
+    } catch (error) {
+      setKickoffError(error instanceof Error ? error.message : 'Failed to finalize blueprint');
+    } finally {
+      setIsKickoffSubmitting(false);
+    }
+  }, [workspace, generatedBlueprint, loadWorkspaceContext, loadRuns]);
+
+  const handleKickoffCancel = useCallback(() => {
+    setKickoffState('idle');
+    setKickoffDraft(null);
+    setGeneratedBlueprint(null);
+    setKickoffError(null);
+  }, []);
 
   const handleBootstrap = useCallback(async (force = false) => {
     if (!workspace) return;
@@ -629,6 +780,13 @@ export function RalphConsolePanel({
 
               <div className="flex flex-wrap gap-3">
                 <button
+                  onClick={() => void handleStartKickoff()}
+                  disabled={!workspace || kickoffState !== 'idle'}
+                  className="btn btn-primary"
+                >
+                  New App
+                </button>
+                <button
                   onClick={() => void handleStartLoop()}
                   disabled={!canStartLoop}
                   className="btn btn-primary"
@@ -712,6 +870,62 @@ export function RalphConsolePanel({
                 <p className="mt-2 text-sm text-muted">Ralph starts from the currently selected repository, not from the global run list.</p>
               </div>
             </div>
+          )}
+
+          {/* Kickoff Workflow (Phase 13) */}
+          {(kickoffState === 'intake' || kickoffState === 'review' || kickoffState === 'approved') && (
+            <KickoffErrorBoundary onReset={handleKickoffCancel}>
+              {kickoffState === 'intake' && (
+                <div className="kickoff-intake">
+                  <AppIntakeForm
+                    onSubmit={handleIntakeSubmit}
+                    onCancel={handleKickoffCancel}
+                    isSubmitting={isKickoffSubmitting}
+                    initialData={kickoffDraft ?? generatedBlueprint?.intake}
+                  />
+                  {kickoffError && (
+                    <div className="mt-4 p-4 border border-red-500 rounded">
+                      <p className="text-red-300">{kickoffError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {kickoffState === 'review' && generatedBlueprint && (
+                <div className="kickoff-review">
+                  <BlueprintReview
+                    blueprint={generatedBlueprint}
+                    onApprove={handleBlueprintApprove}
+                    onEditIntake={handleBlueprintEdit}
+                    onCancel={handleKickoffCancel}
+                    isSubmitting={isKickoffSubmitting}
+                  />
+                  {kickoffError && (
+                    <div className="mt-4 p-4 border border-red-500 rounded">
+                      <p className="text-red-300">{kickoffError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {kickoffState === 'approved' && (
+                <div className="kickoff-approved p-6">
+                  <div className="text-center">
+                    <span className="badge badge-success text-lg py-3 px-4">Blueprint Approved</span>
+                    <h3 className="text-xl font-semibold mt-4">Your app is ready to build!</h3>
+                    <p className="mt-2 text-muted">
+                      The blueprint has been written to the workspace. Start the Ralph loop when ready.
+                    </p>
+                    <button
+                      onClick={() => setKickoffState('idle')}
+                      className="btn btn-primary mt-4"
+                    >
+                      Start Building
+                    </button>
+                  </div>
+                </div>
+              )}
+            </KickoffErrorBoundary>
           )}
         </div>
       </div>
