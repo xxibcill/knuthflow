@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { getBlueprintGenerator, type AppIntakeForm, type AppBlueprint } from '../ralph/blueprintGenerator';
 
 export interface IntakeGenerationResult {

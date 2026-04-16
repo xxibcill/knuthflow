@@ -1096,6 +1096,477 @@ class SessionDatabase {
     };
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Milestone State Operations (Phase 14)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMilestoneState(params: {
+    projectId: string;
+    runId: string;
+    milestoneId: string;
+    title: string;
+    description: string;
+    acceptanceGate: string;
+    order: number;
+    tasks: string[];
+  }): import('../shared/ralphTypes').MilestoneState {
+    const id = `ms-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO milestone_states (id, project_id, run_id, milestone_id, title, description, status, acceptance_gate, "order", tasks, completed_tasks, blocked_tasks, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, '[]', '[]', ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.runId,
+      params.milestoneId,
+      params.title,
+      params.description,
+      params.acceptanceGate,
+      params.order,
+      JSON.stringify(params.tasks),
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      runId: params.runId,
+      milestoneId: params.milestoneId,
+      title: params.title,
+      description: params.description,
+      status: 'pending',
+      acceptanceGate: params.acceptanceGate,
+      order: params.order,
+      tasks: params.tasks,
+      completedTasks: [],
+      blockedTasks: [],
+      startedAt: null,
+      completedAt: null,
+      validationResult: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getMilestoneState(id: string): import('../shared/ralphTypes').MilestoneState | null {
+    const row = this.db.prepare('SELECT * FROM milestone_states WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMilestoneState(row);
+  }
+
+  getMilestoneStateByMilestoneId(projectId: string, runId: string, milestoneId: string): import('../shared/ralphTypes').MilestoneState | null {
+    const row = this.db.prepare(`
+      SELECT * FROM milestone_states WHERE project_id = ? AND run_id = ? AND milestone_id = ?
+    `).get(projectId, runId, milestoneId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMilestoneState(row);
+  }
+
+  listMilestoneStates(projectId: string, runId: string): import('../shared/ralphTypes').MilestoneState[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_states WHERE project_id = ? AND run_id = ? ORDER BY "order" ASC
+    `).all(projectId, runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMilestoneState(row));
+  }
+
+  listMilestoneStatesByStatus(projectId: string, runId: string, status: string): import('../shared/ralphTypes').MilestoneState[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_states WHERE project_id = ? AND run_id = ? AND status = ? ORDER BY "order" ASC
+    `).all(projectId, runId, status) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMilestoneState(row));
+  }
+
+  updateMilestoneState(id: string, updates: Partial<{
+    status: import('../shared/ralphTypes').MilestoneStatus;
+    completedTasks: string[];
+    blockedTasks: string[];
+    startedAt: number | null;
+    completedAt: number | null;
+    validationResult: import('../shared/ralphTypes').MilestoneValidationResult | null;
+  }>): void {
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.completedTasks !== undefined) {
+      setClauses.push('completed_tasks = ?');
+      values.push(JSON.stringify(updates.completedTasks));
+    }
+    if (updates.blockedTasks !== undefined) {
+      setClauses.push('blocked_tasks = ?');
+      values.push(JSON.stringify(updates.blockedTasks));
+    }
+    if (updates.startedAt !== undefined) {
+      setClauses.push('started_at = ?');
+      values.push(updates.startedAt);
+    }
+    if (updates.completedAt !== undefined) {
+      setClauses.push('completed_at = ?');
+      values.push(updates.completedAt);
+    }
+    if (updates.validationResult !== undefined) {
+      setClauses.push('validation_result = ?');
+      values.push(JSON.stringify(updates.validationResult));
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE milestone_states SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  private rowToMilestoneState(row: Record<string, unknown>): import('../shared/ralphTypes').MilestoneState {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      milestoneId: row.milestone_id as string,
+      title: row.title as string,
+      description: row.description as string,
+      status: row.status as import('../shared/ralphTypes').MilestoneStatus,
+      acceptanceGate: row.acceptance_gate as string,
+      order: row.order as number,
+      tasks: JSON.parse(row.tasks as string || '[]'),
+      completedTasks: JSON.parse(row.completed_tasks as string || '[]'),
+      blockedTasks: JSON.parse(row.blocked_tasks as string || '[]'),
+      startedAt: row.started_at as number | null,
+      completedAt: row.completed_at as number | null,
+      validationResult: row.validation_result ? JSON.parse(row.validation_result as string) : null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Milestone Task Operations (Phase 14)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMilestoneTask(params: {
+    projectId: string;
+    runId: string;
+    milestoneId: string;
+    taskId: string;
+    title: string;
+    priority?: number;
+    dependencies?: string[];
+  }): import('../shared/ralphTypes').MilestoneTask {
+    const id = `mt-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO milestone_tasks (id, project_id, run_id, milestone_id, task_id, title, status, priority, dependencies, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.runId,
+      params.milestoneId,
+      params.taskId,
+      params.title,
+      params.priority ?? 2,
+      JSON.stringify(params.dependencies ?? []),
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      runId: params.runId,
+      milestoneId: params.milestoneId,
+      taskId: params.taskId,
+      title: params.title,
+      status: 'pending',
+      priority: params.priority ?? 2,
+      dependencies: params.dependencies ?? [],
+      blockedReason: null,
+      selectedAt: null,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getMilestoneTask(id: string): import('../shared/ralphTypes').MilestoneTask | null {
+    const row = this.db.prepare('SELECT * FROM milestone_tasks WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMilestoneTask(row);
+  }
+
+  getMilestoneTaskByTaskId(projectId: string, runId: string, taskId: string): import('../shared/ralphTypes').MilestoneTask | null {
+    const row = this.db.prepare(`
+      SELECT * FROM milestone_tasks WHERE project_id = ? AND run_id = ? AND task_id = ?
+    `).get(projectId, runId, taskId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMilestoneTask(row);
+  }
+
+  listMilestoneTasks(projectId: string, runId: string): import('../shared/ralphTypes').MilestoneTask[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_tasks WHERE project_id = ? AND run_id = ? ORDER BY priority ASC
+    `).all(projectId, runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMilestoneTask(row));
+  }
+
+  listMilestoneTasksByMilestone(projectId: string, runId: string, milestoneId: string): import('../shared/ralphTypes').MilestoneTask[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_tasks WHERE project_id = ? AND run_id = ? AND milestone_id = ? ORDER BY priority ASC
+    `).all(projectId, runId, milestoneId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMilestoneTask(row));
+  }
+
+  listPendingMilestoneTasks(projectId: string, runId: string): import('../shared/ralphTypes').MilestoneTask[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_tasks WHERE project_id = ? AND run_id = ? AND status = 'pending' ORDER BY priority ASC
+    `).all(projectId, runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMilestoneTask(row));
+  }
+
+  updateMilestoneTask(id: string, updates: Partial<{
+    status: 'pending' | 'in_progress' | 'completed' | 'deferred' | 'blocked';
+    blockedReason: string | null;
+    selectedAt: number | null;
+    completedAt: number | null;
+  }>): void {
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.blockedReason !== undefined) {
+      setClauses.push('blocked_reason = ?');
+      values.push(updates.blockedReason);
+    }
+    if (updates.selectedAt !== undefined) {
+      setClauses.push('selected_at = ?');
+      values.push(updates.selectedAt);
+    }
+    if (updates.completedAt !== undefined) {
+      setClauses.push('completed_at = ?');
+      values.push(updates.completedAt);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE milestone_tasks SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  private rowToMilestoneTask(row: Record<string, unknown>): import('../shared/ralphTypes').MilestoneTask {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      milestoneId: row.milestone_id as string,
+      taskId: row.task_id as string,
+      title: row.title as string,
+      status: row.status as 'pending' | 'in_progress' | 'completed' | 'deferred' | 'blocked',
+      priority: row.priority as number,
+      dependencies: JSON.parse(row.dependencies as string || '[]'),
+      blockedReason: row.blocked_reason as string | null,
+      selectedAt: row.selected_at as number | null,
+      completedAt: row.completed_at as number | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Task Dependency Operations (Phase 14)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createTaskDependency(params: {
+    projectId: string;
+    taskId: string;
+    dependsOnTaskId: string;
+    milestoneId?: string | null;
+  }): import('../shared/ralphTypes').TaskDependency {
+    const id = `td-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO task_dependencies (id, project_id, task_id, depends_on_task_id, milestone_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, params.projectId, params.taskId, params.dependsOnTaskId, params.milestoneId ?? null, now);
+    return {
+      id,
+      projectId: params.projectId,
+      taskId: params.taskId,
+      dependsOnTaskId: params.dependsOnTaskId,
+      milestoneId: params.milestoneId ?? null,
+      createdAt: now,
+    };
+  }
+
+  listTaskDependencies(projectId: string, taskId: string): import('../shared/ralphTypes').TaskDependency[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM task_dependencies WHERE project_id = ? AND task_id = ?
+    `).all(projectId, taskId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      projectId: row.project_id as string,
+      taskId: row.task_id as string,
+      dependsOnTaskId: row.depends_on_task_id as string,
+      milestoneId: row.milestone_id as string | null,
+      createdAt: row.created_at as number,
+    }));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Milestone Snapshot Operations (Phase 14)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMilestoneSnapshot(params: {
+    projectId: string;
+    runId: string;
+    iteration: number;
+    milestones: import('../shared/ralphTypes').MilestoneState[];
+    taskGraph: import('../shared/ralphTypes').MilestoneTask[];
+    compressedContext?: import('../shared/ralphTypes').CompressedContext | null;
+  }): import('../shared/ralphTypes').MilestoneSnapshot {
+    const id = `msnap-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO milestone_snapshots (id, project_id, run_id, iteration, milestones, task_graph, compressed_context, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.runId,
+      params.iteration,
+      JSON.stringify(params.milestones),
+      JSON.stringify(params.taskGraph),
+      params.compressedContext ? JSON.stringify(params.compressedContext) : null,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      runId: params.runId,
+      iteration: params.iteration,
+      milestones: params.milestones,
+      taskGraph: params.taskGraph,
+      compressedContext: params.compressedContext ?? null,
+      createdAt: now,
+    };
+  }
+
+  getMilestoneSnapshot(id: string): import('../shared/ralphTypes').MilestoneSnapshot | null {
+    const row = this.db.prepare('SELECT * FROM milestone_snapshots WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMilestoneSnapshot(row);
+  }
+
+  listMilestoneSnapshots(runId: string): import('../shared/ralphTypes').MilestoneSnapshot[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_snapshots WHERE run_id = ? ORDER BY iteration ASC
+    `).all(runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMilestoneSnapshot(row));
+  }
+
+  getLatestMilestoneSnapshot(runId: string): import('../shared/ralphTypes').MilestoneSnapshot | null {
+    const row = this.db.prepare(`
+      SELECT * FROM milestone_snapshots WHERE run_id = ? ORDER BY iteration DESC LIMIT 1
+    `).get(runId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMilestoneSnapshot(row);
+  }
+
+  private rowToMilestoneSnapshot(row: Record<string, unknown>): import('../shared/ralphTypes').MilestoneSnapshot {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      iteration: row.iteration as number,
+      milestones: JSON.parse(row.milestones as string || '[]'),
+      taskGraph: JSON.parse(row.task_graph as string || '[]'),
+      compressedContext: row.compressed_context ? JSON.parse(row.compressed_context as string) : null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Milestone Feedback Operations (Phase 14)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMilestoneFeedback(params: {
+    projectId: string;
+    runId: string;
+    milestoneId: string;
+    taskId?: string | null;
+    type: 'accept' | 'reject' | 'rework' | 'rollback' | 'replan';
+    reason: string;
+    evidence: string;
+    suggestedAction?: string | null;
+  }): import('../shared/ralphTypes').MilestoneFeedback {
+    const id = `mfb-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO milestone_feedback (id, project_id, run_id, milestone_id, task_id, type, reason, evidence, suggested_action, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.runId,
+      params.milestoneId,
+      params.taskId ?? null,
+      params.type,
+      params.reason,
+      params.evidence,
+      params.suggestedAction ?? null,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      runId: params.runId,
+      milestoneId: params.milestoneId,
+      taskId: params.taskId ?? null,
+      type: params.type,
+      reason: params.reason,
+      evidence: params.evidence,
+      suggestedAction: params.suggestedAction ?? null,
+      createdAt: now,
+    };
+  }
+
+  listMilestoneFeedback(projectId: string, runId: string): import('../shared/ralphTypes').MilestoneFeedback[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_feedback WHERE project_id = ? AND run_id = ? ORDER BY created_at DESC
+    `).all(projectId, runId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      milestoneId: row.milestone_id as string,
+      taskId: row.task_id as string | null,
+      type: row.type as 'accept' | 'reject' | 'rework' | 'rollback' | 'replan',
+      reason: row.reason as string,
+      evidence: row.evidence as string,
+      suggestedAction: row.suggested_action as string | null,
+      createdAt: row.created_at as number,
+    }));
+  }
+
+  listMilestoneFeedbackByMilestone(projectId: string, runId: string, milestoneId: string): import('../shared/ralphTypes').MilestoneFeedback[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM milestone_feedback WHERE project_id = ? AND run_id = ? AND milestone_id = ? ORDER BY created_at DESC
+    `).all(projectId, runId, milestoneId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      milestoneId: row.milestone_id as string,
+      taskId: row.task_id as string | null,
+      type: row.type as 'accept' | 'reject' | 'rework' | 'rollback' | 'replan',
+      reason: row.reason as string,
+      evidence: row.evidence as string,
+      suggestedAction: row.suggested_action as string | null,
+      createdAt: row.created_at as number,
+    }));
+  }
+
   close(): void {
     this.db.close();
   }

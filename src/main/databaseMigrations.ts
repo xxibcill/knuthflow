@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -28,6 +28,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 4 to 5 (add checkpoint metadata)
   if (currentVersion < 5) {
     migrateToV5(db);
+  }
+
+  // Migrate from version 5 to 6 (add milestone state and task graph for Phase 14)
+  if (currentVersion < 6) {
+    migrateToV6(db);
   }
 
   // Update schema version
@@ -274,5 +279,120 @@ function migrateToV5(db: Database.Database): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_checkpoint_run_id ON checkpoint_metadata(run_id);
     CREATE INDEX IF NOT EXISTS idx_checkpoint_commit_sha ON checkpoint_metadata(commit_sha);
+  `);
+}
+
+function migrateToV6(db: Database.Database): void {
+  // Create milestone_states table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_states (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      milestone_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      acceptance_gate TEXT NOT NULL,
+      "order" INTEGER NOT NULL,
+      tasks TEXT NOT NULL DEFAULT '[]',
+      completed_tasks TEXT NOT NULL DEFAULT '[]',
+      blocked_tasks TEXT NOT NULL DEFAULT '[]',
+      started_at INTEGER,
+      completed_at INTEGER,
+      validation_result TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create milestone_tasks table (task graph)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      milestone_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      priority INTEGER NOT NULL DEFAULT 2,
+      dependencies TEXT NOT NULL DEFAULT '[]',
+      blocked_reason TEXT,
+      selected_at INTEGER,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create task_dependencies table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      depends_on_task_id TEXT NOT NULL,
+      milestone_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create milestone_snapshots table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_snapshots (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      iteration INTEGER NOT NULL,
+      milestones TEXT NOT NULL DEFAULT '[]',
+      task_graph TEXT NOT NULL DEFAULT '[]',
+      compressed_context TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create milestone_feedback table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS milestone_feedback (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      milestone_id TEXT NOT NULL,
+      task_id TEXT,
+      type TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      suggested_action TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create indexes for milestone queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_milestone_states_project_id ON milestone_states(project_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_states_run_id ON milestone_states(run_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_states_milestone_id ON milestone_states(milestone_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_states_status ON milestone_states(project_id, status);
+    CREATE INDEX IF NOT EXISTS idx_milestone_tasks_project_id ON milestone_tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_tasks_run_id ON milestone_tasks(run_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_tasks_milestone_id ON milestone_tasks(milestone_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_tasks_task_id ON milestone_tasks(task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_dependencies_project_id ON task_dependencies(project_id);
+    CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_snapshots_project_id ON milestone_snapshots(project_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_snapshots_run_id ON milestone_snapshots(run_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_feedback_project_id ON milestone_feedback(project_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_feedback_run_id ON milestone_feedback(run_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_feedback_milestone_id ON milestone_feedback(milestone_id);
   `);
 }

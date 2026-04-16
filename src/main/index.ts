@@ -5,3 +5,6 @@ export { RalphRuntime, RalphRuntimeEvents, RalphRuntimeEvent, getRalphRuntime, g
 export { RalphScheduler, getRalphScheduler, getAllRalphSchedulers, resetRalphScheduler } from './ralphScheduler';
 export { RalphExecutionAdapter, RalphExecutionEvents, RalphExecutionEvent, getRalphExecution, getAllRalphExecutions, resetRalphExecution } from './ralphExecution';
 export { RalphSafetyMonitor, RalphSafetyEvents, RalphSafetyEvent, getRalphSafety, getAllRalphSafety, resetRalphSafety } from './ralphSafety';
+export { MilestoneController, getMilestoneController, resetMilestoneController } from './ralph/milestoneController';
+export { ContextCompression, getContextCompression, resetContextCompression } from './ralph/contextCompression';
+export { MilestoneValidation, getMilestoneValidation, resetMilestoneValidation } from './ralph/milestoneValidation';
