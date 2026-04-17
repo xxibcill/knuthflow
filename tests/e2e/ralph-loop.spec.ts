@@ -1,6 +1,6 @@
 import { expect, test } from './support/electron';
 import path from 'path';
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
 import os from 'node:os';
 
 /**
@@ -16,11 +16,11 @@ import os from 'node:os';
 /* ─────────────────────────────────────────────────────────────────────────────
  * Helper: Create a workspace for Ralph testing
  * ───────────────────────────────────────────────────────────────────────────── */
-async function createRalphTestWorkspace(): Promise<{ path: string; cleanup: () => Promise<void> }> {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'knuthflow-ralph-test-'));
+function createRalphTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'knuthflow-ralph-test-'));
 
   // Create package.json
-  await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({
+  fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
     name: 'ralph-test-app',
     version: '1.0.0',
     scripts: {
@@ -32,14 +32,14 @@ async function createRalphTestWorkspace(): Promise<{ path: string; cleanup: () =
   }, null, 2));
 
   // Create source file
-  await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
-  await fs.writeFile(path.join(tmpDir, 'src', 'index.ts'), 'console.log("hello");');
+  fs.mkdirSync(path.join(tmpDir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, 'src', 'index.ts'), 'console.log("hello");');
 
   return {
     path: tmpDir,
     cleanup: async () => {
       try {
-        await fs.rm(tmpDir, { recursive: true, force: true });
+        fs.rmSync(tmpDir, { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }
@@ -50,11 +50,11 @@ async function createRalphTestWorkspace(): Promise<{ path: string; cleanup: () =
 /* ─────────────────────────────────────────────────────────────────────────────
  * Helper: Create a bootstrapped Ralph workspace
  * ───────────────────────────────────────────────────────────────────────────── */
-async function createBootstrappedRalphWorkspace(): Promise<{ path: string; cleanup: () => Promise<void> }> {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'knuthflow-ralph-ws-'));
+function createBootstrappedRalphWorkspace(): { path: string; cleanup: () => Promise<void> } {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'knuthflow-ralph-ws-'));
 
   // Create package.json
-  await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({
+  fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
     name: 'ralph-test-app',
     version: '1.0.0',
     scripts: {
@@ -66,19 +66,19 @@ async function createBootstrappedRalphWorkspace(): Promise<{ path: string; clean
   }, null, 2));
 
   // Create Ralph control files (bootstrap simulation)
-  await fs.writeFile(path.join(tmpDir, 'PROMPT.md'), '# Prompt\nWork on the task.');
-  await fs.writeFile(path.join(tmpDir, 'AGENT.md'), '# Agent\nExecute tasks.');
-  await fs.writeFile(path.join(tmpDir, 'fix_plan.md'), '- [ ] Implement feature\n- [ ] Test feature');
-  await fs.writeFile(path.join(tmpDir, 'SPEC.md'), '# Spec\nA test application.');
+  fs.writeFileSync(path.join(tmpDir, 'PROMPT.md'), '# Prompt\nWork on the task.');
+  fs.writeFileSync(path.join(tmpDir, 'AGENT.md'), '# Agent\nExecute tasks.');
+  fs.writeFileSync(path.join(tmpDir, 'fix_plan.md'), '- [ ] Implement feature\n- [ ] Test feature');
+  fs.writeFileSync(path.join(tmpDir, 'SPEC.md'), '# Spec\nA test application.');
 
   // Create .ralph directory
-  await fs.mkdir(path.join(tmpDir, '.ralph'), { recursive: true });
+  fs.mkdirSync(path.join(tmpDir, '.ralph'), { recursive: true });
 
   return {
     path: tmpDir,
     cleanup: async () => {
       try {
-        await fs.rm(tmpDir, { recursive: true, force: true });
+        fs.rmSync(tmpDir, { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }
@@ -146,48 +146,48 @@ test.describe('Phase 12: Ralph Control Files', () => {
     }
   });
 
-  test('Bootstrapped workspace has PROMPT.md', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const hasPrompt = await fs.promises.access(path.join(workspace.path, 'PROMPT.md')).then(() => true).catch(() => false);
+  test('Bootstrapped workspace has PROMPT.md', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const hasPrompt = fs.existsSync(path.join(workspace.path, 'PROMPT.md'));
     expect(hasPrompt).toBe(true);
   });
 
-  test('Bootstrapped workspace has AGENT.md', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const hasAgent = await fs.promises.access(path.join(workspace.path, 'AGENT.md')).then(() => true).catch(() => false);
+  test('Bootstrapped workspace has AGENT.md', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const hasAgent = fs.existsSync(path.join(workspace.path, 'AGENT.md'));
     expect(hasAgent).toBe(true);
   });
 
-  test('Bootstrapped workspace has fix_plan.md', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const hasFixPlan = await fs.promises.access(path.join(workspace.path, 'fix_plan.md')).then(() => true).catch(() => false);
+  test('Bootstrapped workspace has fix_plan.md', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const hasFixPlan = fs.existsSync(path.join(workspace.path, 'fix_plan.md'));
     expect(hasFixPlan).toBe(true);
   });
 
-  test('Bootstrapped workspace has .ralph directory', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const hasRalphDir = await fs.promises.access(path.join(workspace.path, '.ralph')).then(() => true).catch(() => false);
+  test('Bootstrapped workspace has .ralph directory', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const hasRalphDir = fs.existsSync(path.join(workspace.path, '.ralph'));
     expect(hasRalphDir).toBe(true);
   });
 
-  test('fix_plan.md has valid task syntax', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const content = await fs.promises.readFile(path.join(workspace.path, 'fix_plan.md'), 'utf-8');
+  test('fix_plan.md has valid task syntax', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const content = fs.readFileSync(path.join(workspace.path, 'fix_plan.md'), 'utf-8');
 
     // Check for valid task syntax: - [ ] or - [x]
     const hasTaskSyntax = content.includes('- [ ]') || content.includes('- [x]');
     expect(hasTaskSyntax).toBe(true);
   });
 
-  test('PROMPT.md contains prompt text', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const content = await fs.promises.readFile(path.join(workspace.path, 'PROMPT.md'), 'utf-8');
+  test('PROMPT.md contains prompt text', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const content = fs.readFileSync(path.join(workspace.path, 'PROMPT.md'), 'utf-8');
     expect(content.length).toBeGreaterThan(0);
   });
 
-  test('AGENT.md contains agent instructions', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const content = await fs.promises.readFile(path.join(workspace.path, 'AGENT.md'), 'utf-8');
+  test('AGENT.md contains agent instructions', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const content = fs.readFileSync(path.join(workspace.path, 'AGENT.md'), 'utf-8');
     expect(content.length).toBeGreaterThan(0);
   });
 });
@@ -205,9 +205,9 @@ test.describe('Phase 12: Plan Semantics', () => {
     }
   });
 
-  test('fix_plan.md can track completed tasks', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
-    const content = await fs.promises.readFile(path.join(workspace.path, 'fix_plan.md'), 'utf-8');
+  test('fix_plan.md can track completed tasks', () => {
+    workspace = createBootstrappedRalphWorkspace();
+    const content = fs.readFileSync(path.join(workspace.path, 'fix_plan.md'), 'utf-8');
 
     // Count completed tasks
     const completedMatches = content.match(/\[x\]/g) ?? [];
@@ -217,34 +217,34 @@ test.describe('Phase 12: Plan Semantics', () => {
     expect(pendingMatches.length).toBeGreaterThanOrEqual(0);
   });
 
-  test('Plan can be updated with new tasks', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
+  test('Plan can be updated with new tasks', () => {
+    workspace = createBootstrappedRalphWorkspace();
     const planPath = path.join(workspace.path, 'fix_plan.md');
 
     // Read original
-    const original = await fs.promises.readFile(planPath, 'utf-8');
+    const original = fs.readFileSync(planPath, 'utf-8');
     expect(original).toContain('- [ ]');
 
     // Add a new task
     const updated = original + '\n- [ ] New task';
-    await fs.promises.writeFile(planPath, updated);
+    fs.writeFileSync(planPath, updated);
 
     // Verify update
-    const content = await fs.promises.readFile(planPath, 'utf-8');
+    const content = fs.readFileSync(planPath, 'utf-8');
     expect(content).toContain('New task');
   });
 
-  test('Plan can mark tasks as completed', async () => {
-    workspace = await createBootstrappedRalphWorkspace();
+  test('Plan can mark tasks as completed', () => {
+    workspace = createBootstrappedRalphWorkspace();
     const planPath = path.join(workspace.path, 'fix_plan.md');
 
     // Update a task to completed
-    let content = await fs.promises.readFile(planPath, 'utf-8');
+    let content = fs.readFileSync(planPath, 'utf-8');
     content = content.replace('- [ ] Implement', '- [x] Implement');
-    await fs.promises.writeFile(planPath, content);
+    fs.writeFileSync(planPath, content);
 
     // Verify
-    const updated = await fs.promises.readFile(planPath, 'utf-8');
+    const updated = fs.readFileSync(planPath, 'utf-8');
     expect(updated).toContain('[x]');
   });
 });
@@ -332,18 +332,16 @@ test.describe('Phase 12: Operator Controls', () => {
  * ───────────────────────────────────────────────────────────────────────────── */
 test.describe('Phase 12: UI Smoke Tests', () => {
   test('App loads without errors', async ({ page }) => {
-    await page.goto('app://localhost');
-    await expect(page.getByRole('heading', { name: 'Knuthflow' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Operator Workspace' })).toBeVisible();
   });
 
   test('Workspaces button is accessible', async ({ page }) => {
-    await page.goto('app://localhost');
     await expect(page.getByRole('button', { name: 'Workspaces' })).toBeVisible();
   });
 
   test('Ralph Console is accessible', async ({ page }) => {
-    await page.goto('app://localhost');
-    // Ralph Console should be visible in the sidebar or tab
-    await expect(page.getByText('Ralph Console').or(page.getByText('Ralph'))).toBeVisible();
+    // Click the Console button to switch to console view
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
   });
 });

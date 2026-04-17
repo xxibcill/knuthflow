@@ -338,7 +338,7 @@ test.describe('Regression: Existing Tests', () => {
   test('shows the main application shell', async ({ page }) => {
     await expect(page).toHaveTitle(/Knuthflow/i);
     await expect(page.getByTestId('app-shell')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Knuthflow' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Operator Workspace' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Workspaces' })).toBeVisible();
   });
 });
@@ -348,18 +348,11 @@ test.describe('Regression: Existing Tests', () => {
  * ───────────────────────────────────────────────────────────────────────────── */
 test.describe('Phase 15: UI Smoke Tests', () => {
   test('App loads without errors', async ({ page }) => {
-    // Navigate to the app
-    await page.goto('app://localhost');
-
     // Verify main elements are visible
-    await expect(page.getByRole('heading', { name: 'Knuthflow' })).toBeVisible();
-
-    // Check there are no console errors (this is a smoke test)
-    // Note: Full console error checking requires the packaged app
+    await expect(page.getByRole('heading', { name: 'Operator Workspace' })).toBeVisible();
   });
 
   test('Workspaces button is visible', async ({ page }) => {
-    await page.goto('app://localhost');
     await expect(page.getByRole('button', { name: 'Workspaces' })).toBeVisible();
   });
 });
