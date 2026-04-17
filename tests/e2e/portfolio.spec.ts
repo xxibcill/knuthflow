@@ -1,7 +1,10 @@
 import { expect, test } from './support/electron';
-import path from 'path';
+import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+
+// UI tests require a display server - skip in CI
+const ci = process.env.CI === 'true';
 
 /**
  * Phase 16 E2E Tests - Portfolio Dashboard
@@ -49,7 +52,8 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 /* ─────────────────────────────────────────────────────────────────────────────
  * Portfolio CRUD Tests
  * ───────────────────────────────────────────────────────────────────────────── */
-test.describe('Phase 16: Portfolio CRUD', () => {
+// Skip UI tests in CI - requires display server
+(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio CRUD', () => {
   let workspace: { path: string; cleanup: () => Promise<void> } | null = null;
 
   test.afterEach(async () => {
@@ -124,7 +128,8 @@ test.describe('Phase 16: Portfolio CRUD', () => {
 /* ─────────────────────────────────────────────────────────────────────────────
  * Portfolio-Project Association Tests
  * ───────────────────────────────────────────────────────────────────────────── */
-test.describe('Phase 16: Portfolio-Project Association', () => {
+// Skip UI tests in CI - requires display server
+(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio-Project Association', () => {
   let workspace: { path: string; cleanup: () => Promise<void> } | null = null;
 
   test.afterEach(async () => {
@@ -287,7 +292,8 @@ test.describe('Phase 16: Portfolio-Project Association', () => {
 /* ─────────────────────────────────────────────────────────────────────────────
  * Portfolio Runtime Tests
  * ───────────────────────────────────────────────────────────────────────────── */
-test.describe('Phase 16: Portfolio Runtime', () => {
+// Skip UI tests in CI - requires display server
+(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio Runtime', () => {
   test('Portfolio runtime can be registered and unregistered', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
@@ -334,7 +340,8 @@ test.describe('Phase 16: Portfolio Runtime', () => {
 /* ─────────────────────────────────────────────────────────────────────────────
  * Portfolio Dashboard UI Tests
  * ───────────────────────────────────────────────────────────────────────────── */
-test.describe('Phase 16: Portfolio Dashboard UI', () => {
+// Skip UI tests in CI - requires display server
+(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio Dashboard UI', () => {
   test('Portfolio dashboard renders without crashing', async ({ page }) => {
     // This test verifies the dashboard component can render
     // In a full E2E test with the full app, we would navigate to the portfolio view
