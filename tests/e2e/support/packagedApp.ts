@@ -16,6 +16,7 @@ function readPackageMetadata(): PackageMetadata {
 export function resolvePackagedAppPath(): string {
   const { productName, name } = readPackageMetadata();
   const appName = productName ?? name;
+  const execName = name; // executableName from package.json (lowercase)
 
   if (process.platform === 'darwin') {
     const packagedDir = path.join(projectRoot, 'out', `${appName}-darwin-arm64`);
@@ -26,7 +27,8 @@ export function resolvePackagedAppPath(): string {
   const outDir = path.join(projectRoot, 'out');
   const linuxDir = path.join(outDir, `${appName}-linux-x64`);
   if (fs.existsSync(linuxDir)) {
-    return path.join(linuxDir, appName);
+    // Use executableName (name field, lowercase) for the binary
+    return path.join(linuxDir, execName);
   }
 
   throw new Error(`Packaged app not found in ${outDir}. Run "npm run package" first.`);
