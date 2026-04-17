@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, Component, ReactNode } from 'react';
 import type { Portfolio, PortfolioProject, LoopRun, LoopState } from '../../preload';
 import type { Workspace } from '../../preload';
 
@@ -26,6 +26,68 @@ interface PortfolioWithProjects extends Portfolio {
 interface DependencyEdge {
   from: string;
   to: string;
+}
+
+interface PortfolioErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class PortfolioErrorBoundary extends Component<{ children: ReactNode; onReset: () => void }, PortfolioErrorBoundaryState> {
+  constructor(props: { children: ReactNode; onReset: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): PortfolioErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    console.error('PortfolioDashboard error:', error, errorInfo);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 mb-4">
+              <svg className="h-6 w-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-red-300">Portfolio Dashboard Error</h3>
+            <p className="text-sm text-muted mt-2">{this.state.error?.message || 'An unexpected error occurred'}</p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                this.props.onReset();
+              }}
+              className="btn btn-primary mt-4"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4">
+      <div className="h-4 bg-[var(--bg-inset)] rounded w-1/4"></div>
+      <div className="h-32 bg-[var(--bg-inset)] rounded"></div>
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-40 bg-[var(--bg-inset)] rounded"></div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function getStatusBadgeClass(status: string): string {
@@ -86,7 +148,7 @@ interface ProjectCardProps {
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
-  onUpdateDependency: () => void;
+  onUpdateDependency: (project: PortfolioProject & { workspace?: Workspace }) => void;
 }
 
 function ProjectCard({ portfolioProject, activeRuns, onPause, onResume, onStop, onUpdateDependency }: ProjectCardProps) {
@@ -159,7 +221,7 @@ function ProjectCard({ portfolioProject, activeRuns, onPause, onResume, onStop, 
       )}
 
       <button
-        onClick={onUpdateDependency}
+        onClick={() => onUpdateDependency(portfolioProject)}
         className="mt-3 text-xs text-muted hover:text-[var(--text-primary)] transition-colors"
       >
         Edit Dependencies
@@ -188,13 +250,33 @@ export function PortfolioDashboard() {
       const portfolioList = await window.knuthflow.portfolio.list();
       const portfoliosWithProjects: PortfolioWithProjects[] = [];
 
+      // Collect all project IDs first to batch workspace lookups
+      const allProjectIds: string[] = [];
+      const portfolioProjectsMap = new Map<string, typeof projects>();
+
       for (const portfolio of portfolioList) {
         const projects = await window.knuthflow.portfolio.listProjects(portfolio.id);
+        portfolioProjectsMap.set(portfolio.id, projects);
+        for (const pp of projects) {
+          allProjectIds.push(pp.projectId.replace('ralph-', ''));
+        }
+      }
+
+      // Batch load all workspaces in parallel
+      const workspaceResults = await Promise.all(
+        allProjectIds.map(id => window.knuthflow.workspace.get(id).catch(() => null))
+      );
+      const workspaceMap = new Map<string, Workspace | null>();
+      allProjectIds.forEach((id, i) => workspaceMap.set(id, workspaceResults[i]));
+
+      // Build portfolios with workspace data
+      for (const portfolio of portfolioList) {
+        const projects = portfolioProjectsMap.get(portfolio.id) || [];
         const projectsWithWorkspace: Array<PortfolioProject & { workspace?: Workspace }> = [];
 
         for (const pp of projects) {
-          const workspace = await window.knuthflow.workspace.get(pp.projectId.replace('ralph-', ''));
-          projectsWithWorkspace.push({ ...pp, workspace: workspace ?? undefined });
+          const workspaceId = pp.projectId.replace('ralph-', '');
+          projectsWithWorkspace.push({ ...pp, workspace: workspaceMap.get(workspaceId) ?? undefined });
         }
 
         portfoliosWithProjects.push({ ...portfolio, projects: projectsWithWorkspace });
@@ -206,7 +288,14 @@ export function PortfolioDashboard() {
         const updated = portfoliosWithProjects.find(p => p.id === selectedPortfolio.id);
         if (updated) {
           setSelectedPortfolio(updated);
+        } else {
+          setSelectedPortfolio(null);
         }
+      }
+      // Clear orphaned state when selected portfolio no longer exists
+      if (selectedPortfolio && !portfoliosWithProjects.find(p => p.id === selectedPortfolio.id)) {
+        setActiveRuns(new Map());
+        setQueuedRuns([]);
       }
     } catch (error) {
       console.error('Failed to load portfolios:', error);
@@ -397,6 +486,27 @@ export function PortfolioDashboard() {
     }
   }, [showNotification]);
 
+  const handleUpdateDependency = useCallback(async (portfolioProject: PortfolioProject & { workspace?: Workspace }) => {
+    if (!selectedPortfolio) return;
+    try {
+      // Show a simple prompt for dependency editing - in a real implementation
+      // this would open a more sophisticated dialog
+      const newDeps = window.prompt('Enter comma-separated project IDs this project depends on:', Object.keys(portfolioProject.dependencyGraph).join(', '));
+      if (newDeps === null) return; // User cancelled
+
+      const depsArray = newDeps.split(',').map(d => d.trim()).filter(Boolean);
+      const newGraph: Record<string, string[]> = {};
+      // For simplicity, store the project itself as depending on these deps
+      newGraph[portfolioProject.projectId] = depsArray;
+
+      await window.knuthflow.portfolio.updateProject(portfolioProject.id, { dependencyGraph: newGraph });
+      await loadPortfolios();
+      showNotification('success', 'Dependencies updated');
+    } catch (error) {
+      showNotification('error', error instanceof Error ? error.message : 'Failed to update dependencies');
+    }
+  }, [selectedPortfolio, loadPortfolios, showNotification]);
+
   // Initial load
   useEffect(() => {
     void loadPortfolios();
@@ -431,7 +541,8 @@ export function PortfolioDashboard() {
   const totalActiveRuns = Array.from(activeRuns.values()).reduce((sum, runs) => sum + runs.length, 0);
 
   return (
-    <div className="section-shell">
+    <PortfolioErrorBoundary onReset={() => void loadPortfolios()}>
+      <div className="section-shell">
       <div className="section-header">
         <div>
           <h2 className="section-title">Portfolio Dashboard</h2>
@@ -464,7 +575,9 @@ export function PortfolioDashboard() {
             <p className="metric-label">Portfolios</p>
           </div>
           <div className="list-pane !pt-0">
-            {portfolios.length === 0 ? (
+            {isLoading && portfolios.length === 0 ? (
+              <LoadingSkeleton />
+            ) : portfolios.length === 0 ? (
               <div className="empty-state surface-panel-muted">
                 <div>
                   <h3 className="text-lg font-semibold">No portfolios</h3>
@@ -627,7 +740,7 @@ export function PortfolioDashboard() {
                       onPause={() => void handlePauseAll()}
                       onResume={() => void handleResumeAll()}
                       onStop={() => void handleStopAll()}
-                      onUpdateDependency={() => console.debug('Update dependency for', pp.id)}
+                      onUpdateDependency={() => void handleUpdateDependency(pp)}
                     />
                   ))}
                 </div>
@@ -751,6 +864,7 @@ export function PortfolioDashboard() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PortfolioErrorBoundary>
   );
 }

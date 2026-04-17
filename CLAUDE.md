@@ -45,7 +45,7 @@ All IPC handlers are registered in `src/main/ipc/index.ts`. Each domain has its 
 | PtyManager | `main/ptyManager.ts` | Spawns/manages PTY sessions |
 | RalphRuntime | `main/ralphRuntime.ts` | Orchestrates autonomous Ralph loops |
 | RalphScheduler | `main/ralphScheduler.ts` | Schedules loop iterations |
-| RalphSafety | `main/ralphSafety.ts` | Safety monitoring for Ralph operations |
+| RalphSafety | `main/ralphSafety.ts` | Safety monitoring for Ralph operations (max iterations, auto-stop, resource limits) |
 | Supervisor | `main/supervisor.ts` | Detects crashes, cleans orphans |
 | Database | `main/database.ts` | SQLite via better-sqlite3 |
 
@@ -53,7 +53,7 @@ All IPC handlers are registered in `src/main/ipc/index.ts`. Each domain has its 
 
 When a workspace is bootstrapped for Ralph, these files are created:
 - `PROMPT.md` - Loop instruction prompt
-- `AGENT.md` - Agent configuration
+- `AGENT.md` - Agent configuration (build/run/test instructions)
 - `fix_plan.md` - Repair plan template
 - `specs/` - Feature specifications directory
 - `.ralph/` - Ralph project metadata directory
