@@ -13,36 +13,33 @@ function readPackageMetadata(): PackageMetadata {
   return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageMetadata;
 }
 
-function resolvePackagedOutputDir(productName: string): string {
+export function resolvePackagedAppPath(): string {
+  const { productName, name } = readPackageMetadata();
+  const appName = productName ?? name;
+
+  if (process.platform === 'darwin') {
+    const packagedDir = path.join(projectRoot, 'out', `${appName}-darwin-arm64`);
+    return path.join(packagedDir, `${appName}.app`, 'Contents', 'MacOS', appName);
+  }
+
+  // Linux: look for linux-x64 packaged app
   const outDir = path.join(projectRoot, 'out');
-  const preferredDir = path.join(outDir, `${productName}-${process.platform}-${process.arch}`);
-  if (fs.existsSync(preferredDir)) {
-    return preferredDir;
+  const linuxDir = path.join(outDir, `${appName}-linux-x64`);
+  if (fs.existsSync(linuxDir)) {
+    return path.join(linuxDir, appName);
   }
 
-  const matchingDirs = fs.readdirSync(outDir, { withFileTypes: true })
-    .filter(entry => entry.isDirectory() && entry.name.startsWith(`${productName}-${process.platform}-`))
-    .map(entry => path.join(outDir, entry.name))
-    .sort();
-
-  if (matchingDirs.length > 0) {
-    // Pick the most recently modified directory
-    return matchingDirs
-      .map(dir => ({ dir, mtime: fs.statSync(dir).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime)[0].dir;
-  }
-
-  throw new Error(`Packaged app not found in ${outDir}. Run "npm run package" before Playwright.`);
+  throw new Error(`Packaged app not found in ${outDir}. Run "npm run package" first.`);
 }
 
 export function resolvePackagedAppAsar(): string {
   const { productName, name } = readPackageMetadata();
   const appName = productName ?? name;
-  const packagedDir = resolvePackagedOutputDir(appName);
 
   if (process.platform === 'darwin') {
-    return path.join(packagedDir, `${appName}.app`, 'Contents', 'Resources', 'app.asar');
+    return path.join(projectRoot, 'out', `${appName}-darwin-arm64`, `${appName}.app`, 'Contents', 'Resources', 'app.asar');
   }
 
-  return path.join(packagedDir, 'resources', 'app.asar');
+  // Linux: use linux-x64 path
+  return path.join(projectRoot, 'out', `${appName}-linux-x64`, 'resources', 'app.asar');
 }
