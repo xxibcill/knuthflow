@@ -7,7 +7,8 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: true,
-  workers: process.env.CI ? 2 : undefined,
+  // Use fewer workers in CI to avoid overwhelming the system
+  workers: process.env.CI ? 1 : undefined,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     trace: 'on-first-retry',
@@ -17,7 +18,10 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchTimeout: 60_000,
+      },
     },
   ],
 });

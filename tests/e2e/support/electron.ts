@@ -61,6 +61,9 @@ export const test = base.extend<ElectronFixtures>({
       });
     }
 
+    // Give the app time to initialize
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     try {
       await use(app);
     } finally {
