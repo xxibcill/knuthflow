@@ -252,7 +252,7 @@ export function PortfolioDashboard() {
 
       // Collect all project IDs first to batch workspace lookups
       const allProjectIds: string[] = [];
-      const portfolioProjectsMap = new Map<string, typeof projects>();
+      const portfolioProjectsMap = new Map<string, PortfolioProject[]>();
 
       for (const portfolio of portfolioList) {
         const projects = await window.knuthflow.portfolio.listProjects(portfolio.id);

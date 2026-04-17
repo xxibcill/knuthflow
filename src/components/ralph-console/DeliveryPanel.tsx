@@ -5,6 +5,9 @@
 import React, { useState, useCallback } from 'react';
 import type {
   AppBlueprint,
+  AppBlueprintMilestone,
+} from '../../shared/preloadTypes';
+import type {
   DeliveryArtifact,
   ReleaseGate,
   HandoffBundle,
@@ -36,8 +39,8 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
 
   // Gather delivery milestones from blueprint
   const deliveryMilestones = blueprint?.milestones
-    ?.filter(m => m.title.toLowerCase().includes('delivery') || m.title.toLowerCase().includes('package'))
-    ?.sort((a, b) => a.order - b.order) ?? [];
+    ?.filter((m: AppBlueprintMilestone) => m.title.toLowerCase().includes('delivery') || m.title.toLowerCase().includes('package'))
+    ?.sort((a: AppBlueprintMilestone, b: AppBlueprintMilestone) => a.order - b.order) ?? [];
 
   // Current acceptance gate for the delivery milestone
   const deliveryGate = deliveryMilestones[0]?.acceptanceGate ?? null;
