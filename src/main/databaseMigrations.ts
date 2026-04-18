@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -73,6 +73,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 13 to 14 (add staged rollout tables for Phase 19)
   if (currentVersion < 14) {
     migrateToV14(db);
+  }
+
+  // Migrate from version 14 to 15 (add blueprints tables for Phase 20)
+  if (currentVersion < 15) {
+    migrateToV15(db);
   }
 
   // Update schema version
@@ -782,5 +787,70 @@ function migrateToV14(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_rollout_metrics_app_id ON rollout_metrics(app_id);
     CREATE INDEX IF NOT EXISTS idx_rollout_metrics_version_id ON rollout_metrics(version_id);
     CREATE INDEX IF NOT EXISTS idx_rollout_metrics_recorded_at ON rollout_metrics(recorded_at);
+  `);
+}
+
+function migrateToV15(db: Database.Database): void {
+  // Create blueprints table for storing reusable app templates (Phase 20)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blueprints (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'general',
+      is_published INTEGER NOT NULL DEFAULT 0,
+      parent_blueprint_id TEXT,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      success_rate REAL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (parent_blueprint_id) REFERENCES blueprints(id)
+    )
+  `);
+
+  // Create blueprint_versions table for versioned blueprint specs (Phase 20)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blueprint_versions (
+      id TEXT PRIMARY KEY,
+      blueprint_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      spec_content TEXT NOT NULL DEFAULT '{}',
+      starter_template TEXT,
+      acceptance_gates TEXT NOT NULL DEFAULT '[]',
+      learned_rules TEXT NOT NULL DEFAULT '[]',
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id),
+      UNIQUE (blueprint_id, version)
+    )
+  `);
+
+  // Create blueprint_usage_stats table for tracking blueprint effectiveness (Phase 20)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blueprint_usage_stats (
+      id TEXT PRIMARY KEY,
+      blueprint_id TEXT NOT NULL,
+      version_id TEXT,
+      app_id TEXT,
+      outcome TEXT NOT NULL,
+      build_time_ms INTEGER,
+      iteration_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id),
+      FOREIGN KEY (version_id) REFERENCES blueprint_versions(id),
+      FOREIGN KEY (app_id) REFERENCES apps(id)
+    )
+  `);
+
+  // Create indexes for blueprint queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_blueprints_category ON blueprints(category);
+    CREATE INDEX IF NOT EXISTS idx_blueprints_is_published ON blueprints(is_published);
+    CREATE INDEX IF NOT EXISTS idx_blueprints_parent_id ON blueprints(parent_blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_blueprints_usage_count ON blueprints(usage_count);
+    CREATE INDEX IF NOT EXISTS idx_blueprint_versions_blueprint_id ON blueprint_versions(blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_blueprint_versions_version ON blueprint_versions(version);
+    CREATE INDEX IF NOT EXISTS idx_blueprint_usage_stats_blueprint_id ON blueprint_usage_stats(blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_blueprint_usage_stats_app_id ON blueprint_usage_stats(app_id);
   `);
 }

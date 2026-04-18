@@ -625,6 +625,65 @@ const api: KnuthflowAPI = {
     revokeAccess: (id: string) =>
       ipcRenderer.invoke('beta:revoke-access', id),
   },
+  blueprint: {
+    // Blueprint CRUD
+    create: (params: { name: string; description?: string | null; category?: string; isPublished?: boolean; parentBlueprintId?: string | null }) =>
+      ipcRenderer.invoke('blueprint:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('blueprint:get', id),
+    getByName: (name: string) =>
+      ipcRenderer.invoke('blueprint:getByName', name),
+    list: (options?: { category?: string; isPublished?: boolean; limit?: number }) =>
+      ipcRenderer.invoke('blueprint:list', options),
+    listCategories: () =>
+      ipcRenderer.invoke('blueprint:listCategories'),
+    update: (id: string, updates: { name?: string; description?: string | null; category?: string; isPublished?: boolean }) =>
+      ipcRenderer.invoke('blueprint:update', id, updates),
+    delete: (id: string) =>
+      ipcRenderer.invoke('blueprint:delete', id),
+    incrementUsage: (id: string) =>
+      ipcRenderer.invoke('blueprint:incrementUsage', id),
+    getUsageStats: (blueprintId: string, limit?: number) =>
+      ipcRenderer.invoke('blueprint:getUsageStats', blueprintId, limit),
+    calculateSuccessRate: (blueprintId: string) =>
+      ipcRenderer.invoke('blueprint:calculateSuccessRate', blueprintId),
+    recordUsage: (params: { blueprintId: string; versionId?: string | null; appId?: string | null; outcome: 'success' | 'failure' | 'cancelled'; buildTimeMs?: number | null; iterationCount?: number }) =>
+      ipcRenderer.invoke('blueprint:recordUsage', params),
+
+    // Blueprint Version
+    createVersion: (params: { blueprintId: string; version: string; specContent?: Record<string, unknown>; starterTemplate?: string | null; acceptanceGates?: string[]; learnedRules?: string[] }) =>
+      ipcRenderer.invoke('blueprint:createVersion', params),
+    getVersion: (id: string) =>
+      ipcRenderer.invoke('blueprint:getVersion', id),
+    getVersionByVersion: (blueprintId: string, version: string) =>
+      ipcRenderer.invoke('blueprint:getVersionByVersion', blueprintId, version),
+    getLatestVersion: (blueprintId: string) =>
+      ipcRenderer.invoke('blueprint:getLatestVersion', blueprintId),
+    listVersions: (blueprintId: string) =>
+      ipcRenderer.invoke('blueprint:listVersions', blueprintId),
+    listAllVersions: () =>
+      ipcRenderer.invoke('blueprint:listAllVersions'),
+    updateVersion: (id: string, updates: { specContent?: Record<string, unknown>; starterTemplate?: string | null; acceptanceGates?: string[]; learnedRules?: string[] }) =>
+      ipcRenderer.invoke('blueprint:updateVersion', id, updates),
+    deleteVersion: (id: string) =>
+      ipcRenderer.invoke('blueprint:deleteVersion', id),
+    incrementVersionUsage: (id: string) =>
+      ipcRenderer.invoke('blueprint:incrementVersionUsage', id),
+
+    // Import/Export
+    validateSpec: (spec: unknown) =>
+      ipcRenderer.invoke('blueprint:validateSpec', spec),
+    import: (params: { spec: Record<string, unknown>; isPublished?: boolean; parentBlueprintId?: string | null }) =>
+      ipcRenderer.invoke('blueprint:import', params),
+    export: (blueprintId: string, versionId?: string) =>
+      ipcRenderer.invoke('blueprint:export', blueprintId, versionId),
+    importAs: (params: { spec: Record<string, unknown>; isPublished?: boolean; parentBlueprintId?: string | null }, newName: string) =>
+      ipcRenderer.invoke('blueprint:importAs', params, newName),
+    createNewVersion: (blueprintId: string, newVersion: string, specContent?: Record<string, unknown>) =>
+      ipcRenderer.invoke('blueprint:createNewVersion', blueprintId, newVersion, specContent),
+    compareVersions: (versionId1: string, versionId2: string) =>
+      ipcRenderer.invoke('blueprint:compareVersions', versionId1, versionId2),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

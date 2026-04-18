@@ -26,6 +26,7 @@ import {
   registerPortfolioHandlers,
   registerPortfolioRuntimeHandlers,
   registerMonitoringHandlers,
+  registerBlueprintHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -186,6 +187,9 @@ function registerIpcHandlers(): void {
 
   // Monitoring handlers (Phase 19)
   registerMonitoringHandlers();
+
+  // Blueprint handlers (Phase 20)
+  registerBlueprintHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

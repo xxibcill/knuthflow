@@ -22,4 +22,5 @@ export { registerMilestoneValidationHandlers } from './milestoneValidationHandle
 export { registerPortfolioHandlers } from './portfolioHandlers';
 export { registerPortfolioRuntimeHandlers } from './portfolioRuntimeHandlers';
 export { registerMonitoringHandlers } from './monitoringHandlers';
+export { registerBlueprintHandlers } from './blueprintHandlers';
 export { detectClaudeCode } from '../utils/claudeDetection';

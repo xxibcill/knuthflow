@@ -9,6 +9,7 @@ import { SplitPane } from './components/SplitPane'
 import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel'
 import { NotificationToast } from './components/NotificationToast'
 import { PortfolioDashboard } from './components/portfolio/PortfolioDashboard'
+import { BlueprintManager } from './components/blueprint'
 import type {
   ClaudeCodeStatus,
   ClaudeRunState,
@@ -20,7 +21,7 @@ import type {
 } from './preload'
 import type { AppSettings } from './shared/preloadTypes'
 
-type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console' | 'portfolio'
+type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console' | 'portfolio' | 'blueprints'
 
 interface ActiveRun {
   runId: string
@@ -71,6 +72,7 @@ const VIEW_LABELS: Record<ViewMode, string> = {
   editor: 'Editor',
   console: 'Console',
   portfolio: 'Portfolio',
+  blueprints: 'Blueprints',
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -739,6 +741,7 @@ export default function App() {
             )}
 
             {viewMode === 'portfolio' && <PortfolioDashboard />}
+            {viewMode === 'blueprints' && <BlueprintManager />}
           </div>
         </main>
 
