@@ -294,6 +294,140 @@ interface AppMetadata {
   updatedAt: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// App Version Types (Phase 19)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ReleaseChannel = 'internal' | 'beta' | 'stable';
+export type CreatedBy = 'operator' | 'auto';
+
+export interface AppVersion {
+  id: string;
+  appId: string;
+  version: string;
+  changelog: string;
+  releasedAt: number;
+  channel: ReleaseChannel;
+  createdBy: CreatedBy;
+  runId: string | null;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Monitoring Types (Phase 19)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MonitoringConfig {
+  id: string;
+  appId: string;
+  enabled: boolean;
+  checkIntervalHours: number;
+  checkBuild: boolean;
+  checkLint: boolean;
+  checkTests: boolean;
+  checkVulnerabilities: boolean;
+  autoFixTrigger: boolean;
+  alertThreshold: number;
+  lastCheckAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type HealthCheckType = 'build' | 'lint' | 'tests' | 'vulnerabilities';
+export type HealthStatus = 'healthy' | 'degraded' | 'failing';
+
+export interface MonitoringHealthRecord {
+  id: string;
+  appId: string;
+  checkType: HealthCheckType;
+  status: HealthStatus;
+  message: string | null;
+  details: string | null;
+  regressed: boolean;
+  checkedAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Maintenance Run Types (Phase 19)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type MaintenanceTriggerType = 'scheduled' | 'regression' | 'manual';
+export type MaintenanceOutcome = 'success' | 'failure' | 'cancelled';
+
+export interface MaintenanceRun {
+  id: string;
+  appId: string;
+  runId: string | null;
+  triggerType: MaintenanceTriggerType;
+  triggerReason: string;
+  regressionIds: string[];
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  iterationCount: number;
+  outcome: MaintenanceOutcome | null;
+  startedAt: number | null;
+  completedAt: number | null;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Staged Rollout Types (Phase 19)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RolloutChannel {
+  id: string;
+  appId: string;
+  channel: string;
+  isDefault: boolean;
+  validationRequired: boolean;
+  autoPromote: boolean;
+  minBetaAdopters: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type ChannelReleaseStatus = 'active' | 'promoted' | 'rolled_back' | 'archived';
+
+export interface ChannelRelease {
+  id: string;
+  appId: string;
+  versionId: string;
+  channel: string;
+  status: ChannelReleaseStatus;
+  promotedAt: number | null;
+  promotedBy: string | null;
+  rollbackFromVersionId: string | null;
+  createdAt: number;
+}
+
+export interface BetaTester {
+  id: string;
+  email: string;
+  name: string | null;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface BetaTesterAccess {
+  id: string;
+  testerId: string;
+  appId: string;
+  channel: string;
+  createdAt: number;
+}
+
+export type RolloutMetricType = 'installs' | 'crashes' | 'active_users' | 'crash_rate' | 'feedback_score';
+
+export interface RolloutMetrics {
+  id: string;
+  appId: string;
+  versionId: string;
+  channel: string;
+  metricType: RolloutMetricType;
+  metricValue: number;
+  recordedAt: number;
+}
+
 class SessionDatabase {
   private db: Database.Database;
   private dbPath: string;
@@ -2368,6 +2502,765 @@ class SessionDatabase {
       workspaceId: row.workspace_id as string | null,
       createdAt: row.created_at as number,
       updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // App Version Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createAppVersion(params: {
+    appId: string;
+    version: string;
+    changelog?: string;
+    channel?: ReleaseChannel;
+    createdBy?: CreatedBy;
+    runId?: string | null;
+  }): AppVersion {
+    const id = `version-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO app_versions (id, app_id, version, changelog, released_at, channel, created_by, run_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.appId,
+      params.version,
+      params.changelog ?? '',
+      now,
+      params.channel ?? 'internal',
+      params.createdBy ?? 'operator',
+      params.runId ?? null,
+      now
+    );
+    return {
+      id,
+      appId: params.appId,
+      version: params.version,
+      changelog: params.changelog ?? '',
+      releasedAt: now,
+      channel: params.channel ?? 'internal',
+      createdBy: params.createdBy ?? 'operator',
+      runId: params.runId ?? null,
+      createdAt: now,
+    };
+  }
+
+  getAppVersion(id: string): AppVersion | null {
+    const row = this.db.prepare('SELECT * FROM app_versions WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToAppVersion(row);
+  }
+
+  getAppVersionByAppAndVersion(appId: string, version: string): AppVersion | null {
+    const row = this.db.prepare('SELECT * FROM app_versions WHERE app_id = ? AND version = ?').get(appId, version) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToAppVersion(row);
+  }
+
+  listAppVersions(appId: string, limit = 50): AppVersion[] {
+    const rows = this.db.prepare('SELECT * FROM app_versions WHERE app_id = ? ORDER BY released_at DESC LIMIT ?').all(appId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToAppVersion(row));
+  }
+
+  listAppVersionsByChannel(appId: string, channel: ReleaseChannel): AppVersion[] {
+    const rows = this.db.prepare('SELECT * FROM app_versions WHERE app_id = ? AND channel = ? ORDER BY released_at DESC').all(appId, channel) as Record<string, unknown>[];
+    return rows.map(row => this.rowToAppVersion(row));
+  }
+
+  promoteAppVersion(id: string, newChannel: ReleaseChannel): AppVersion | null {
+    const existing = this.getAppVersion(id);
+    if (!existing) return null;
+    const now = Date.now();
+    this.db.prepare('UPDATE app_versions SET channel = ? WHERE id = ?').run(newChannel, id);
+    return { ...existing, channel: newChannel };
+  }
+
+  private rowToAppVersion(row: Record<string, unknown>): AppVersion {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      version: row.version as string,
+      changelog: (row.changelog as string) || '',
+      releasedAt: row.released_at as number,
+      channel: row.channel as ReleaseChannel,
+      createdBy: row.created_by as CreatedBy,
+      runId: row.run_id as string | null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Monitoring Config Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMonitoringConfig(appId: string): MonitoringConfig {
+    const id = `monconfig-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO monitoring_config (id, app_id, enabled, check_interval_hours, check_build, check_lint, check_tests, check_vulnerabilities, auto_fix_trigger, alert_threshold, last_check_at, created_at, updated_at)
+      VALUES (?, ?, 1, 6, 1, 1, 1, 1, 0, 1, NULL, ?, ?)
+    `).run(id, appId, now, now);
+    return {
+      id,
+      appId,
+      enabled: true,
+      checkIntervalHours: 6,
+      checkBuild: true,
+      checkLint: true,
+      checkTests: true,
+      checkVulnerabilities: true,
+      autoFixTrigger: false,
+      alertThreshold: 1,
+      lastCheckAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getMonitoringConfig(appId: string): MonitoringConfig | null {
+    const row = this.db.prepare('SELECT * FROM monitoring_config WHERE app_id = ?').get(appId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMonitoringConfig(row);
+  }
+
+  updateMonitoringConfig(appId: string, updates: Partial<{
+    enabled: boolean;
+    checkIntervalHours: number;
+    checkBuild: boolean;
+    checkLint: boolean;
+    checkTests: boolean;
+    checkVulnerabilities: boolean;
+    autoFixTrigger: boolean;
+    alertThreshold: number;
+    lastCheckAt: number | null;
+  }>): MonitoringConfig | null {
+    const existing = this.getMonitoringConfig(appId);
+    if (!existing) return null;
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.enabled !== undefined) {
+      setClauses.push('enabled = ?');
+      values.push(updates.enabled ? 1 : 0);
+    }
+    if (updates.checkIntervalHours !== undefined) {
+      setClauses.push('check_interval_hours = ?');
+      values.push(updates.checkIntervalHours);
+    }
+    if (updates.checkBuild !== undefined) {
+      setClauses.push('check_build = ?');
+      values.push(updates.checkBuild ? 1 : 0);
+    }
+    if (updates.checkLint !== undefined) {
+      setClauses.push('check_lint = ?');
+      values.push(updates.checkLint ? 1 : 0);
+    }
+    if (updates.checkTests !== undefined) {
+      setClauses.push('check_tests = ?');
+      values.push(updates.checkTests ? 1 : 0);
+    }
+    if (updates.checkVulnerabilities !== undefined) {
+      setClauses.push('check_vulnerabilities = ?');
+      values.push(updates.checkVulnerabilities ? 1 : 0);
+    }
+    if (updates.autoFixTrigger !== undefined) {
+      setClauses.push('auto_fix_trigger = ?');
+      values.push(updates.autoFixTrigger ? 1 : 0);
+    }
+    if (updates.alertThreshold !== undefined) {
+      setClauses.push('alert_threshold = ?');
+      values.push(updates.alertThreshold);
+    }
+    if (updates.lastCheckAt !== undefined) {
+      setClauses.push('last_check_at = ?');
+      values.push(updates.lastCheckAt);
+    }
+
+    values.push(appId);
+    this.db.prepare(`UPDATE monitoring_config SET ${setClauses.join(', ')} WHERE app_id = ?`).run(...values);
+    return this.getMonitoringConfig(appId);
+  }
+
+  private rowToMonitoringConfig(row: Record<string, unknown>): MonitoringConfig {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      enabled: (row.enabled as number) === 1,
+      checkIntervalHours: row.check_interval_hours as number,
+      checkBuild: (row.check_build as number) === 1,
+      checkLint: (row.check_lint as number) === 1,
+      checkTests: (row.check_tests as number) === 1,
+      checkVulnerabilities: (row.check_vulnerabilities as number) === 1,
+      autoFixTrigger: (row.auto_fix_trigger as number) === 1,
+      alertThreshold: row.alert_threshold as number,
+      lastCheckAt: row.last_check_at as number | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Monitoring Health Record Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMonitoringHealthRecord(params: {
+    appId: string;
+    checkType: HealthCheckType;
+    status: HealthStatus;
+    message?: string | null;
+    details?: string | null;
+    regressed?: boolean;
+  }): MonitoringHealthRecord {
+    const id = `health-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO monitoring_health_records (id, app_id, check_type, status, message, details, regressed, checked_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.appId,
+      params.checkType,
+      params.status,
+      params.message ?? null,
+      params.details ?? null,
+      params.regressed ? 1 : 0,
+      now
+    );
+    return {
+      id,
+      appId: params.appId,
+      checkType: params.checkType,
+      status: params.status,
+      message: params.message ?? null,
+      details: params.details ?? null,
+      regressed: params.regressed ?? false,
+      checkedAt: now,
+    };
+  }
+
+  listMonitoringHealthRecords(appId: string, limit = 100): MonitoringHealthRecord[] {
+    const rows = this.db.prepare('SELECT * FROM monitoring_health_records WHERE app_id = ? ORDER BY checked_at DESC LIMIT ?').all(appId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMonitoringHealthRecord(row));
+  }
+
+  getLatestHealthRecordByType(appId: string, checkType: HealthCheckType): MonitoringHealthRecord | null {
+    const row = this.db.prepare('SELECT * FROM monitoring_health_records WHERE app_id = ? AND check_type = ? ORDER BY checked_at DESC LIMIT 1').get(appId, checkType) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMonitoringHealthRecord(row);
+  }
+
+  listRegressedHealthRecords(appId: string): MonitoringHealthRecord[] {
+    const rows = this.db.prepare('SELECT * FROM monitoring_health_records WHERE app_id = ? AND regressed = 1 ORDER BY checked_at DESC').all(appId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMonitoringHealthRecord(row));
+  }
+
+  private rowToMonitoringHealthRecord(row: Record<string, unknown>): MonitoringHealthRecord {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      checkType: row.check_type as HealthCheckType,
+      status: row.status as HealthStatus,
+      message: row.message as string | null,
+      details: row.details as string | null,
+      regressed: (row.regressed as number) === 1,
+      checkedAt: row.checked_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Maintenance Run Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createMaintenanceRun(params: {
+    appId: string;
+    runId?: string | null;
+    triggerType: MaintenanceTriggerType;
+    triggerReason: string;
+    regressionIds?: string[];
+  }): MaintenanceRun {
+    const id = `maint-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO maintenance_run (id, app_id, run_id, trigger_type, trigger_reason, regression_ids, status, iteration_count, outcome, started_at, completed_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, NULL, ?)
+    `).run(
+      id,
+      params.appId,
+      params.runId ?? null,
+      params.triggerType,
+      params.triggerReason,
+      JSON.stringify(params.regressionIds ?? []),
+      now
+    );
+    return {
+      id,
+      appId: params.appId,
+      runId: params.runId ?? null,
+      triggerType: params.triggerType,
+      triggerReason: params.triggerReason,
+      regressionIds: params.regressionIds ?? [],
+      status: 'pending',
+      iterationCount: 0,
+      outcome: null,
+      startedAt: null,
+      completedAt: null,
+      createdAt: now,
+    };
+  }
+
+  getMaintenanceRun(id: string): MaintenanceRun | null {
+    const row = this.db.prepare('SELECT * FROM maintenance_run WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMaintenanceRun(row);
+  }
+
+  updateMaintenanceRun(id: string, updates: Partial<{
+    runId: string | null;
+    status: MaintenanceRun['status'];
+    iterationCount: number;
+    outcome: MaintenanceOutcome | null;
+    startedAt: number | null;
+    completedAt: number | null;
+  }>): MaintenanceRun | null {
+    const existing = this.getMaintenanceRun(id);
+    if (!existing) return null;
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+    }
+    if (updates.iterationCount !== undefined) {
+      setClauses.push('iteration_count = ?');
+      values.push(updates.iterationCount);
+    }
+    if (updates.outcome !== undefined) {
+      setClauses.push('outcome = ?');
+      values.push(updates.outcome);
+    }
+    if (updates.startedAt !== undefined) {
+      setClauses.push('started_at = ?');
+      values.push(updates.startedAt);
+    }
+    if (updates.completedAt !== undefined) {
+      setClauses.push('completed_at = ?');
+      values.push(updates.completedAt);
+    }
+    if (updates.runId !== undefined) {
+      setClauses.push('run_id = ?');
+      values.push(updates.runId);
+    }
+
+    if (setClauses.length === 0) return existing;
+
+    values.push(id);
+    this.db.prepare(`UPDATE maintenance_run SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    return this.getMaintenanceRun(id);
+  }
+
+  listMaintenanceRuns(appId: string, limit = 50): MaintenanceRun[] {
+    const rows = this.db.prepare('SELECT * FROM maintenance_run WHERE app_id = ? ORDER BY created_at DESC LIMIT ?').all(appId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToMaintenanceRun(row));
+  }
+
+  listActiveMaintenanceRuns(): MaintenanceRun[] {
+    const rows = this.db.prepare("SELECT * FROM maintenance_run WHERE status IN ('pending', 'running') ORDER BY created_at DESC").all() as Record<string, unknown>[];
+    return rows.map(row => this.rowToMaintenanceRun(row));
+  }
+
+  private rowToMaintenanceRun(row: Record<string, unknown>): MaintenanceRun {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      runId: row.run_id as string | null,
+      triggerType: row.trigger_type as MaintenanceTriggerType,
+      triggerReason: row.trigger_reason as string,
+      regressionIds: JSON.parse(row.regression_ids as string || '[]'),
+      status: row.status as MaintenanceRun['status'],
+      iterationCount: row.iteration_count as number,
+      outcome: row.outcome as MaintenanceOutcome | null,
+      startedAt: row.started_at as number | null,
+      completedAt: row.completed_at as number | null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Rollout Channel Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createRolloutChannel(params: {
+    appId: string;
+    channel: string;
+    isDefault?: boolean;
+    validationRequired?: boolean;
+    autoPromote?: boolean;
+    minBetaAdopters?: number;
+  }): RolloutChannel {
+    const id = `channel-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO rollout_channels (id, app_id, channel, is_default, validation_required, auto_promote, min_beta_adopters, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.appId,
+      params.channel,
+      (params.isDefault ?? false) ? 1 : 0,
+      (params.validationRequired ?? true) ? 1 : 0,
+      (params.autoPromote ?? false) ? 1 : 0,
+      params.minBetaAdopters ?? 0,
+      now,
+      now
+    );
+    return {
+      id,
+      appId: params.appId,
+      channel: params.channel,
+      isDefault: params.isDefault ?? false,
+      validationRequired: params.validationRequired ?? true,
+      autoPromote: params.autoPromote ?? false,
+      minBetaAdopters: params.minBetaAdopters ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getRolloutChannel(appId: string, channel: string): RolloutChannel | null {
+    const row = this.db.prepare('SELECT * FROM rollout_channels WHERE app_id = ? AND channel = ?').get(appId, channel) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToRolloutChannel(row);
+  }
+
+  listRolloutChannels(appId: string): RolloutChannel[] {
+    const rows = this.db.prepare('SELECT * FROM rollout_channels WHERE app_id = ? ORDER BY channel ASC').all(appId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToRolloutChannel(row));
+  }
+
+  updateRolloutChannel(id: string, updates: Partial<{
+    isDefault: boolean;
+    validationRequired: boolean;
+    autoPromote: boolean;
+    minBetaAdopters: number;
+  }>): RolloutChannel | null {
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.isDefault !== undefined) {
+      setClauses.push('is_default = ?');
+      values.push(updates.isDefault ? 1 : 0);
+    }
+    if (updates.validationRequired !== undefined) {
+      setClauses.push('validation_required = ?');
+      values.push(updates.validationRequired ? 1 : 0);
+    }
+    if (updates.autoPromote !== undefined) {
+      setClauses.push('auto_promote = ?');
+      values.push(updates.autoPromote ? 1 : 0);
+    }
+    if (updates.minBetaAdopters !== undefined) {
+      setClauses.push('min_beta_adopters = ?');
+      values.push(updates.minBetaAdopters);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE rollout_channels SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    // Fetch and return updated row
+    const row = this.db.prepare('SELECT * FROM rollout_channels WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToRolloutChannel(row);
+  }
+
+  private rowToRolloutChannel(row: Record<string, unknown>): RolloutChannel {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      channel: row.channel as string,
+      isDefault: (row.is_default as number) === 1,
+      validationRequired: (row.validation_required as number) === 1,
+      autoPromote: (row.auto_promote as number) === 1,
+      minBetaAdopters: row.min_beta_adopters as number,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Channel Release Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createChannelRelease(params: {
+    appId: string;
+    versionId: string;
+    channel: string;
+    status?: ChannelReleaseStatus;
+    promotedBy?: string | null;
+    rollbackFromVersionId?: string | null;
+  }): ChannelRelease {
+    const id = `crelease-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO channel_releases (id, app_id, version_id, channel, status, promoted_at, promoted_by, rollback_from_version_id, created_at)
+      VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+    `).run(
+      id,
+      params.appId,
+      params.versionId,
+      params.channel,
+      params.status ?? 'active',
+      params.promotedBy ?? null,
+      params.rollbackFromVersionId ?? null,
+      now
+    );
+    return {
+      id,
+      appId: params.appId,
+      versionId: params.versionId,
+      channel: params.channel,
+      status: params.status ?? 'active',
+      promotedAt: null,
+      promotedBy: params.promotedBy ?? null,
+      rollbackFromVersionId: params.rollbackFromVersionId ?? null,
+      createdAt: now,
+    };
+  }
+
+  getChannelRelease(id: string): ChannelRelease | null {
+    const row = this.db.prepare('SELECT * FROM channel_releases WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToChannelRelease(row);
+  }
+
+  getLatestChannelRelease(appId: string, channel: string): ChannelRelease | null {
+    const row = this.db.prepare('SELECT * FROM channel_releases WHERE app_id = ? AND channel = ? AND status = \'active\' ORDER BY created_at DESC LIMIT 1').get(appId, channel) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToChannelRelease(row);
+  }
+
+  promoteChannelRelease(id: string, promotedBy: string): ChannelRelease | null {
+    const now = Date.now();
+    this.db.prepare("UPDATE channel_releases SET status = 'promoted', promoted_at = ?, promoted_by = ? WHERE id = ?").run(now, promotedBy, id);
+    return this.getChannelRelease(id);
+  }
+
+  rollbackChannelRelease(id: string, rollbackVersionId: string): ChannelRelease | null {
+    const existing = this.getChannelRelease(id);
+    if (!existing) return null;
+    const now = Date.now();
+    this.db.prepare("UPDATE channel_releases SET status = 'rolled_back' WHERE id = ?").run(id);
+    return this.getChannelRelease(id);
+  }
+
+  listChannelReleases(appId: string, channel?: string): ChannelRelease[] {
+    const query = channel
+      ? 'SELECT * FROM channel_releases WHERE app_id = ? AND channel = ? ORDER BY created_at DESC'
+      : 'SELECT * FROM channel_releases WHERE app_id = ? ORDER BY created_at DESC';
+    const rows = channel
+      ? this.db.prepare(query).all(appId, channel) as Record<string, unknown>[]
+      : this.db.prepare(query).all(appId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToChannelRelease(row));
+  }
+
+  private rowToChannelRelease(row: Record<string, unknown>): ChannelRelease {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      versionId: row.version_id as string,
+      channel: row.channel as string,
+      status: row.status as ChannelReleaseStatus,
+      promotedAt: row.promoted_at as number | null,
+      promotedBy: row.promoted_by as string | null,
+      rollbackFromVersionId: row.rollback_from_version_id as string | null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Beta Tester Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createBetaTester(email: string, name?: string | null): BetaTester {
+    const id = `tester-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO beta_testers (id, email, name, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, 1, ?, ?)
+    `).run(id, email, name ?? null, now, now);
+    return {
+      id,
+      email,
+      name: name ?? null,
+      enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getBetaTester(id: string): BetaTester | null {
+    const row = this.db.prepare('SELECT * FROM beta_testers WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBetaTester(row);
+  }
+
+  getBetaTesterByEmail(email: string): BetaTester | null {
+    const row = this.db.prepare('SELECT * FROM beta_testers WHERE email = ?').get(email) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBetaTester(row);
+  }
+
+  listBetaTesters(enabledOnly = false): BetaTester[] {
+    const query = enabledOnly
+      ? 'SELECT * FROM beta_testers WHERE enabled = 1 ORDER BY email ASC'
+      : 'SELECT * FROM beta_testers ORDER BY email ASC';
+    const rows = this.db.prepare(query).all() as Record<string, unknown>[];
+    return rows.map(row => this.rowToBetaTester(row));
+  }
+
+  updateBetaTester(id: string, updates: Partial<{
+    name: string | null;
+    enabled: boolean;
+  }>): BetaTester | null {
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.name !== undefined) {
+      setClauses.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.enabled !== undefined) {
+      setClauses.push('enabled = ?');
+      values.push(updates.enabled ? 1 : 0);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE beta_testers SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    const row = this.db.prepare('SELECT * FROM beta_testers WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBetaTester(row);
+  }
+
+  private rowToBetaTester(row: Record<string, unknown>): BetaTester {
+    return {
+      id: row.id as string,
+      email: row.email as string,
+      name: row.name as string | null,
+      enabled: (row.enabled as number) === 1,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Beta Tester Access Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createBetaTesterAccess(testerId: string, appId: string, channel = 'beta'): BetaTesterAccess {
+    const id = `btaccess-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO beta_tester_access (id, tester_id, app_id, channel, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, testerId, appId, channel, now);
+    return {
+      id,
+      testerId,
+      appId,
+      channel,
+      createdAt: now,
+    };
+  }
+
+  listBetaTesterAccess(testerId: string): BetaTesterAccess[] {
+    const rows = this.db.prepare('SELECT * FROM beta_tester_access WHERE tester_id = ? ORDER BY created_at DESC').all(testerId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToBetaTesterAccess(row));
+  }
+
+  listBetaTestersForApp(appId: string): BetaTester[] {
+    const rows = this.db.prepare(`
+      SELECT bt.* FROM beta_testers bt
+      INNER JOIN beta_tester_access bta ON bt.id = bta.tester_id
+      WHERE bta.app_id = ? AND bt.enabled = 1
+      ORDER BY bt.email ASC
+    `).all(appId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToBetaTester(row));
+  }
+
+  removeBetaTesterAccess(id: string): void {
+    this.db.prepare('DELETE FROM beta_tester_access WHERE id = ?').run(id);
+  }
+
+  private rowToBetaTesterAccess(row: Record<string, unknown>): BetaTesterAccess {
+    return {
+      id: row.id as string,
+      testerId: row.tester_id as string,
+      appId: row.app_id as string,
+      channel: row.channel as string,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Rollout Metrics Operations (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  recordRolloutMetrics(params: {
+    appId: string;
+    versionId: string;
+    channel: string;
+    metricType: RolloutMetricType;
+    metricValue: number;
+  }): RolloutMetrics {
+    const id = `rmetrics-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO rollout_metrics (id, app_id, version_id, channel, metric_type, metric_value, recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, params.appId, params.versionId, params.channel, params.metricType, params.metricValue, now);
+    return {
+      id,
+      appId: params.appId,
+      versionId: params.versionId,
+      channel: params.channel,
+      metricType: params.metricType,
+      metricValue: params.metricValue,
+      recordedAt: now,
+    };
+  }
+
+  listRolloutMetrics(appId: string, versionId?: string, channel?: string): RolloutMetrics[] {
+    let query = 'SELECT * FROM rollout_metrics WHERE app_id = ?';
+    const values: unknown[] = [appId];
+
+    if (versionId) {
+      query += ' AND version_id = ?';
+      values.push(versionId);
+    }
+    if (channel) {
+      query += ' AND channel = ?';
+      values.push(channel);
+    }
+
+    query += ' ORDER BY recorded_at DESC';
+    const rows = this.db.prepare(query).all(...values) as Record<string, unknown>[];
+    return rows.map(row => this.rowToRolloutMetrics(row));
+  }
+
+  private rowToRolloutMetrics(row: Record<string, unknown>): RolloutMetrics {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      versionId: row.version_id as string,
+      channel: row.channel as string,
+      metricType: row.metric_type as RolloutMetricType,
+      metricValue: row.metric_value as number,
+      recordedAt: row.recorded_at as number,
     };
   }
 

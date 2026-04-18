@@ -25,6 +25,7 @@ import {
   registerMilestoneValidationHandlers,
   registerPortfolioHandlers,
   registerPortfolioRuntimeHandlers,
+  registerMonitoringHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -38,6 +39,8 @@ import {
   resetRalphExecution,
   resetRalphSafety,
 } from './main/index';
+import { getMonitoringService } from './main/monitoringService';
+import { getAutonomousScheduler } from './main/autonomousScheduler';
 
 // Webpack magic constants
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -180,6 +183,9 @@ function registerIpcHandlers(): void {
 
   // Portfolio runtime handlers
   registerPortfolioRuntimeHandlers();
+
+  // Monitoring handlers (Phase 19)
+  registerMonitoringHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -228,6 +234,14 @@ app.on('ready', () => {
     }
   });
 
+  // Start monitoring service (Phase 19)
+  const monitoringService = getMonitoringService();
+  monitoringService.start();
+
+  // Start autonomous scheduler (Phase 19)
+  const autonomousScheduler = getAutonomousScheduler();
+  autonomousScheduler.start();
+
   // Create the main window
   createWindow();
 });
@@ -262,6 +276,12 @@ app.on('will-quit', () => {
 
   // Cleanup PTY manager
   ptyManager.dispose();
+
+  // Stop monitoring service (Phase 19)
+  getMonitoringService().stop();
+
+  // Stop autonomous scheduler (Phase 19)
+  getAutonomousScheduler().stop();
 
   // Cleanup database
   closeDatabase();

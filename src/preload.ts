@@ -484,6 +484,147 @@ const api: KnuthflowAPI = {
     clearProjectArtifacts: (projectId: string) =>
       ipcRenderer.invoke('portfolioRuntime:clearProjectArtifacts', projectId),
   },
+  monitoring: {
+    createConfig: (appId: string) =>
+      ipcRenderer.invoke('monitoring:create-config', appId),
+    getConfig: (appId: string) =>
+      ipcRenderer.invoke('monitoring:get-config', appId),
+    updateConfig: (appId: string, updates: {
+      enabled?: boolean;
+      checkIntervalHours?: number;
+      checkBuild?: boolean;
+      checkLint?: boolean;
+      checkTests?: boolean;
+      checkVulnerabilities?: boolean;
+      autoFixTrigger?: boolean;
+      alertThreshold?: number;
+    }) =>
+      ipcRenderer.invoke('monitoring:update-config', appId, updates),
+    forceCheck: (appId: string) =>
+      ipcRenderer.invoke('monitoring:force-check', appId),
+    getHealthStatus: (appId: string) =>
+      ipcRenderer.invoke('monitoring:get-health-status', appId),
+    listHealthRecords: (appId: string, limit?: number) =>
+      ipcRenderer.invoke('monitoring:list-health-records', appId, limit),
+    getRegressedRecords: (appId: string) =>
+      ipcRenderer.invoke('monitoring:get-regressed-records', appId),
+    triggerAutoFix: (appId: string) =>
+      ipcRenderer.invoke('monitoring:trigger-auto-fix', appId),
+  },
+  maintenance: {
+    create: (params: {
+      appId: string;
+      runId?: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds?: string[];
+    }) =>
+      ipcRenderer.invoke('maintenance:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('maintenance:get', id),
+    update: (id: string, updates: {
+      status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount?: number;
+      outcome?: 'success' | 'failure' | 'cancelled' | null;
+      startedAt?: number | null;
+      completedAt?: number | null;
+    }) =>
+      ipcRenderer.invoke('maintenance:update', id, updates),
+    list: (appId: string, limit?: number) =>
+      ipcRenderer.invoke('maintenance:list', appId, limit),
+    listActive: () =>
+      ipcRenderer.invoke('maintenance:list-active'),
+  },
+  appVersion: {
+    create: (params: {
+      appId: string;
+      version: string;
+      changelog?: string;
+      channel?: 'internal' | 'beta' | 'stable';
+      createdBy?: 'operator' | 'auto';
+      runId?: string | null;
+    }) =>
+      ipcRenderer.invoke('app-version:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('app-version:get', id),
+    list: (appId: string, limit?: number) =>
+      ipcRenderer.invoke('app-version:list', appId, limit),
+    listByChannel: (appId: string, channel: 'internal' | 'beta' | 'stable') =>
+      ipcRenderer.invoke('app-version:list-by-channel', appId, channel),
+    promote: (id: string, newChannel: 'internal' | 'beta' | 'stable') =>
+      ipcRenderer.invoke('app-version:promote', id, newChannel),
+  },
+  rollout: {
+    createChannel: (params: {
+      appId: string;
+      channel: string;
+      isDefault?: boolean;
+      validationRequired?: boolean;
+      autoPromote?: boolean;
+      minBetaAdopters?: number;
+    }) =>
+      ipcRenderer.invoke('rollout:create-channel', params),
+    getChannel: (appId: string, channel: string) =>
+      ipcRenderer.invoke('rollout:get-channel', appId, channel),
+    listChannels: (appId: string) =>
+      ipcRenderer.invoke('rollout:list-channels', appId),
+    updateChannel: (id: string, updates: {
+      isDefault?: boolean;
+      validationRequired?: boolean;
+      autoPromote?: boolean;
+      minBetaAdopters?: number;
+    }) =>
+      ipcRenderer.invoke('rollout:update-channel', id, updates),
+    createRelease: (params: {
+      appId: string;
+      versionId: string;
+      channel: string;
+      status?: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedBy?: string | null;
+      rollbackFromVersionId?: string | null;
+    }) =>
+      ipcRenderer.invoke('rollout:create-release', params),
+    getRelease: (id: string) =>
+      ipcRenderer.invoke('rollout:get-release', id),
+    getLatest: (appId: string, channel: string) =>
+      ipcRenderer.invoke('rollout:get-latest', appId, channel),
+    promoteRelease: (id: string, promotedBy: string) =>
+      ipcRenderer.invoke('rollout:promote-release', id, promotedBy),
+    rollbackRelease: (id: string, rollbackVersionId: string) =>
+      ipcRenderer.invoke('rollout:rollback-release', id, rollbackVersionId),
+    listReleases: (appId: string, channel?: string) =>
+      ipcRenderer.invoke('rollout:list-releases', appId, channel),
+    recordMetrics: (params: {
+      appId: string;
+      versionId: string;
+      channel: string;
+      metricType: 'installs' | 'crashes' | 'active_users' | 'crash_rate' | 'feedback_score';
+      metricValue: number;
+    }) =>
+      ipcRenderer.invoke('rollout:record-metrics', params),
+    listMetrics: (appId: string, versionId?: string, channel?: string) =>
+      ipcRenderer.invoke('rollout:list-metrics', appId, versionId, channel),
+  },
+  beta: {
+    createTester: (email: string, name?: string | null) =>
+      ipcRenderer.invoke('beta:create-tester', email, name),
+    getTester: (id: string) =>
+      ipcRenderer.invoke('beta:get-tester', id),
+    getTesterByEmail: (email: string) =>
+      ipcRenderer.invoke('beta:get-tester-by-email', email),
+    listTesters: (enabledOnly?: boolean) =>
+      ipcRenderer.invoke('beta:list-testers', enabledOnly),
+    updateTester: (id: string, updates: { name?: string | null; enabled?: boolean }) =>
+      ipcRenderer.invoke('beta:update-tester', id, updates),
+    grantAccess: (testerId: string, appId: string, channel?: string) =>
+      ipcRenderer.invoke('beta:grant-access', testerId, appId, channel),
+    listAccess: (testerId: string) =>
+      ipcRenderer.invoke('beta:list-access', testerId),
+    listTestersForApp: (appId: string) =>
+      ipcRenderer.invoke('beta:list-testers-for-app', appId),
+    revokeAccess: (id: string) =>
+      ipcRenderer.invoke('beta:revoke-access', id),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -21,4 +21,5 @@ export { registerDeliveryHandlers } from './deliveryHandlers';
 export { registerMilestoneValidationHandlers } from './milestoneValidationHandlers';
 export { registerPortfolioHandlers } from './portfolioHandlers';
 export { registerPortfolioRuntimeHandlers } from './portfolioRuntimeHandlers';
+export { registerMonitoringHandlers } from './monitoringHandlers';
 export { detectClaudeCode } from '../utils/claudeDetection';
