@@ -626,6 +626,7 @@ ${
         version: blueprint.version,
         generatedAt: blueprint.generatedAt,
         appName: blueprint.intake.appName,
+        platformTargets: blueprint.intake.targetPlatform,
         platform: blueprint.intake.targetPlatform,
       };
       if (!atomicWrite(BLUEPRINT_METADATA_FILE, JSON.stringify(blueprintMeta, null, 2))) {

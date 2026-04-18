@@ -9,6 +9,7 @@ import type {
   RalphControlFiles,
   LoopState,
 } from './ralphTypes';
+import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
 import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
 export type { ArtifactType };
 
@@ -420,7 +421,12 @@ export interface KnuthflowAPI {
     getSystemInfo(): Promise<SystemDiagnostics>;
   };
   ralph: {
-    bootstrap(workspaceId: string, workspacePath: string, force?: boolean): Promise<BootstrapResult>;
+    bootstrap(
+      workspaceId: string,
+      workspacePath: string,
+      force?: boolean,
+      platformTargets?: PlatformTarget[],
+    ): Promise<BootstrapResult>;
     getReadinessReport(workspaceId: string, workspacePath: string): Promise<ReadinessReport>;
     validateBeforeStart(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;
     validateBeforeResume(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;

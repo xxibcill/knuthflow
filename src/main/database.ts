@@ -26,7 +26,8 @@ export {
   STALE_RUN_THRESHOLD_MS,
 } from '../shared/ralphTypes';
 
-export type { PlatformTarget } from '../shared/deliveryTypes';
+import type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
+export type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
 
 import { runMigrations, SCHEMA_VERSION } from './databaseMigrations';
 

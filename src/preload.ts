@@ -278,8 +278,8 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('diagnostics:getSystemInfo') as Promise<SystemDiagnostics>,
   },
   ralph: {
-    bootstrap: (workspaceId: string, workspacePath: string, force?: boolean) =>
-      ipcRenderer.invoke('ralph:bootstrap', workspaceId, workspacePath, force),
+    bootstrap: (workspaceId: string, workspacePath: string, force?: boolean, platformTargets?: AppIntakeDraft['targetPlatform']) =>
+      ipcRenderer.invoke('ralph:bootstrap', workspaceId, workspacePath, force, platformTargets),
     getReadinessReport: (workspaceId: string, workspacePath: string) =>
       ipcRenderer.invoke('ralph:getReadinessReport', workspaceId, workspacePath),
     validateBeforeStart: (workspaceId: string, workspacePath: string) =>

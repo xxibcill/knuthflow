@@ -8,6 +8,7 @@ import type { RalphControlFiles, SharedBootstrapResult } from '../shared/ralphTy
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RALPH_METADATA_FILE = '.ralph';
+const BLUEPRINT_METADATA_FILE = '.ralph.blueprint.json';
 
 interface RalphTemplateConfig {
   model: string;
@@ -156,7 +157,8 @@ export class RalphBootstrap {
    * can re-generate the missing files.
    */
   bootstrap(options: BootstrapOptions): BootstrapResult {
-    const { workspaceId, workspacePath, force = false, platformTargets = [] } = options;
+    const { workspaceId, workspacePath, force = false } = options;
+    const platformTargets = this.resolvePlatformTargets(workspacePath, options.platformTargets);
 
     // Validate workspace exists
     if (!fs.existsSync(workspacePath)) {
@@ -449,6 +451,49 @@ ${platformTargets.includes('macos') ? '- macOS\n' : ''}${platformTargets.include
       return error.message;
     }
     return String(error);
+  }
+
+  private resolvePlatformTargets(workspacePath: string, platformTargets?: string[]): string[] {
+    const explicitTargets = this.normalizePlatformTargets(platformTargets);
+    if (explicitTargets.length > 0) {
+      return explicitTargets;
+    }
+
+    const metadataPath = path.join(workspacePath, RALPH_METADATA_FILE);
+    if (fs.existsSync(metadataPath)) {
+      try {
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as { platformTargets?: string[] };
+        const storedTargets = this.normalizePlatformTargets(metadata.platformTargets);
+        if (storedTargets.length > 0) {
+          return storedTargets;
+        }
+      } catch {
+        // Ignore malformed metadata and continue to blueprint fallback.
+      }
+    }
+
+    const blueprintPath = path.join(workspacePath, BLUEPRINT_METADATA_FILE);
+    if (fs.existsSync(blueprintPath)) {
+      try {
+        const blueprint = JSON.parse(fs.readFileSync(blueprintPath, 'utf-8')) as {
+          platformTargets?: string[];
+          platform?: string[];
+        };
+        return this.normalizePlatformTargets(blueprint.platformTargets ?? blueprint.platform);
+      } catch {
+        // Ignore malformed blueprint metadata and fall back to no targets.
+      }
+    }
+
+    return [];
+  }
+
+  private normalizePlatformTargets(platformTargets?: string[]): string[] {
+    if (!platformTargets) {
+      return [];
+    }
+
+    return [...new Set(platformTargets.filter((target): target is string => typeof target === 'string' && target.length > 0))];
   }
 
   /**
