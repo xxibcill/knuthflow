@@ -1,5 +1,6 @@
 import { getDatabase } from './database';
 import type { HealthCheckType, HealthStatus } from './database';
+import { BrowserWindow } from 'electron';
 
 export interface HealthCheckResult {
   checkType: HealthCheckType;
@@ -36,6 +37,11 @@ export class MonitoringService {
   }
 
   private scheduleAllApps(): void {
+    // Clear existing check interval before setting a new one to prevent memory leaks
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+    }
+
     const db = getDatabase();
     const apps = db.listApps();
 
@@ -98,7 +104,7 @@ export class MonitoringService {
 
     // Run build check
     if (config.checkBuild) {
-      const result = await this.checkBuild(workspace.path);
+      const result = await this.checkBuild(workspace.path, appId);
       results.push(result);
       db.createMonitoringHealthRecord({
         appId,
@@ -112,7 +118,7 @@ export class MonitoringService {
 
     // Run lint check
     if (config.checkLint) {
-      const result = await this.checkLint(workspace.path);
+      const result = await this.checkLint(workspace.path, appId);
       results.push(result);
       db.createMonitoringHealthRecord({
         appId,
@@ -126,7 +132,7 @@ export class MonitoringService {
 
     // Run tests check
     if (config.checkTests) {
-      const result = await this.checkTests(workspace.path);
+      const result = await this.checkTests(workspace.path, appId);
       results.push(result);
       db.createMonitoringHealthRecord({
         appId,
@@ -140,7 +146,7 @@ export class MonitoringService {
 
     // Run vulnerability check
     if (config.checkVulnerabilities) {
-      const result = await this.checkVulnerabilities(workspace.path);
+      const result = await this.checkVulnerabilities(workspace.path, appId);
       results.push(result);
       db.createMonitoringHealthRecord({
         appId,
@@ -161,7 +167,7 @@ export class MonitoringService {
     return results;
   }
 
-  private async checkBuild(workspacePath: string): Promise<HealthCheckResult> {
+  private async checkBuild(workspacePath: string, appId: string): Promise<HealthCheckResult> {
     try {
       const { execSync } = await import('child_process');
       const fs = await import('fs');
@@ -178,23 +184,29 @@ export class MonitoringService {
         };
       }
 
+      // Get previous health record for regression detection
+      const previousRecord = getDatabase().getLatestHealthRecordByType(appId, 'build');
+      const wasHealthy = previousRecord?.status === 'healthy';
+
       // Run build command
       try {
         execSync('npm run build', { cwd: workspacePath, timeout: 120000, stdio: 'pipe' });
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'build',
           status: 'healthy',
           message: 'Build successful',
           details: null,
-          regressed: false,
+          regressed,
         };
       } catch (buildError) {
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'build',
           status: 'failing',
           message: 'Build failed',
           details: buildError instanceof Error ? buildError.message : String(buildError),
-          regressed: false, // Will be determined by comparing with previous
+          regressed,
         };
       }
     } catch (error) {
@@ -208,7 +220,7 @@ export class MonitoringService {
     }
   }
 
-  private async checkLint(workspacePath: string): Promise<HealthCheckResult> {
+  private async checkLint(workspacePath: string, appId: string): Promise<HealthCheckResult> {
     try {
       const { execSync } = await import('child_process');
       const fs = await import('fs');
@@ -224,22 +236,28 @@ export class MonitoringService {
         };
       }
 
+      // Get previous health record for regression detection
+      const previousRecord = getDatabase().getLatestHealthRecordByType(appId, 'lint');
+      const wasHealthy = previousRecord?.status === 'healthy';
+
       try {
         execSync('npm run lint', { cwd: workspacePath, timeout: 60000, stdio: 'pipe' });
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'lint',
           status: 'healthy',
           message: 'Lint passed',
           details: null,
-          regressed: false,
+          regressed,
         };
       } catch (lintError) {
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'lint',
           status: 'failing',
           message: 'Lint failed',
           details: lintError instanceof Error ? lintError.message : String(lintError),
-          regressed: false,
+          regressed,
         };
       }
     } catch (error) {
@@ -253,7 +271,7 @@ export class MonitoringService {
     }
   }
 
-  private async checkTests(workspacePath: string): Promise<HealthCheckResult> {
+  private async checkTests(workspacePath: string, appId: string): Promise<HealthCheckResult> {
     try {
       const { execSync } = await import('child_process');
       const fs = await import('fs');
@@ -269,22 +287,28 @@ export class MonitoringService {
         };
       }
 
+      // Get previous health record for regression detection
+      const previousRecord = getDatabase().getLatestHealthRecordByType(appId, 'tests');
+      const wasHealthy = previousRecord?.status === 'healthy';
+
       try {
         execSync('npm test', { cwd: workspacePath, timeout: 120000, stdio: 'pipe' });
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'tests',
           status: 'healthy',
           message: 'Tests passed',
           details: null,
-          regressed: false,
+          regressed,
         };
       } catch (testError) {
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'tests',
           status: 'failing',
           message: 'Tests failed',
           details: testError instanceof Error ? testError.message : String(testError),
-          regressed: false,
+          regressed,
         };
       }
     } catch (error) {
@@ -298,7 +322,7 @@ export class MonitoringService {
     }
   }
 
-  private async checkVulnerabilities(workspacePath: string): Promise<HealthCheckResult> {
+  private async checkVulnerabilities(workspacePath: string, appId: string): Promise<HealthCheckResult> {
     try {
       const { execSync } = await import('child_process');
       const fs = await import('fs');
@@ -314,6 +338,10 @@ export class MonitoringService {
         };
       }
 
+      // Get previous health record for regression detection
+      const previousRecord = getDatabase().getLatestHealthRecordByType(appId, 'vulnerabilities');
+      const wasHealthy = previousRecord?.status === 'healthy';
+
       try {
         const output = execSync('npm audit --json', { cwd: workspacePath, timeout: 60000, stdio: 'pipe' }).toString();
         const auditResult = JSON.parse(output);
@@ -323,38 +351,42 @@ export class MonitoringService {
           const total = (vulns.critical || 0) + (vulns.high || 0) + (vulns.medium || 0) + (vulns.low || 0);
 
           if (total === 0) {
+            const regressed = wasHealthy && previousRecord !== null;
             return {
               checkType: 'vulnerabilities',
               status: 'healthy',
               message: 'No vulnerabilities found',
               details: null,
-              regressed: false,
+              regressed,
             };
           }
 
+          const regressed = wasHealthy && previousRecord !== null;
           return {
             checkType: 'vulnerabilities',
             status: total >= 5 ? 'failing' : 'degraded',
             message: `${total} vulnerabilities found (${vulns.critical || 0} critical, ${vulns.high || 0} high)`,
             details: JSON.stringify(vulns),
-            regressed: false,
+            regressed,
           };
         }
 
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'vulnerabilities',
           status: 'healthy',
           message: 'Audit completed',
           details: null,
-          regressed: false,
+          regressed,
         };
       } catch (auditError) {
+        const regressed = wasHealthy && previousRecord !== null;
         return {
           checkType: 'vulnerabilities',
           status: 'failing',
           message: 'npm audit failed',
           details: auditError instanceof Error ? auditError.message : String(auditError),
-          regressed: false,
+          regressed,
         };
       }
     } catch (error) {
@@ -398,13 +430,15 @@ export class MonitoringService {
       regressionIds,
     });
 
-    // Notify about auto-fix trigger (this would be sent to renderer via IPC)
-    const { ipcMain } = await import('electron');
-    ipcMain.emit('maintenance-triggered', {
-      appId,
-      maintenanceRunId: maintenanceRun.id,
-      regressions: regressed,
-    });
+    // Notify about auto-fix trigger via IPC to renderer
+    const windows = BrowserWindow.getAllWindows();
+    for (const window of windows) {
+      window.webContents.send('maintenance-triggered', {
+        appId,
+        maintenanceRunId: maintenanceRun.id,
+        regressions: regressed,
+      });
+    }
   }
 
   async forceCheck(appId: string): Promise<HealthCheckResult[]> {

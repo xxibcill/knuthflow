@@ -689,6 +689,7 @@ function migrateToV13(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_maintenance_run_status ON maintenance_run(status);
     CREATE INDEX IF NOT EXISTS idx_maintenance_run_trigger_type ON maintenance_run(trigger_type);
     CREATE INDEX IF NOT EXISTS idx_maintenance_run_created_at ON maintenance_run(created_at);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_run_status_trigger ON maintenance_run(status, trigger_type);
   `);
 }
 

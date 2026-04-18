@@ -1,14 +1,9 @@
 import { ipcMain } from 'electron';
 import { getDatabase } from '../database';
+import { getMonitoringService } from '../monitoringService';
 import type {
-  MonitoringConfig,
-  MonitoringHealthRecord,
   MaintenanceRun,
   ReleaseChannel,
-  RolloutChannel,
-  ChannelRelease,
-  BetaTester,
-  AppVersion,
 } from '../database';
 
 export function registerMonitoringHandlers(): void {
@@ -77,13 +72,11 @@ export function registerMonitoringHandlers(): void {
   });
 
   ipcMain.handle('monitoring:force-check', async (_event, appId: string) => {
-    const { getMonitoringService } = require('../monitoringService');
     const service = getMonitoringService();
     return service.forceCheck(appId);
   });
 
   ipcMain.handle('monitoring:get-health-status', async (_event, appId: string) => {
-    const { getMonitoringService } = require('../monitoringService');
     const service = getMonitoringService();
     return service.getHealthStatus(appId);
   });
@@ -298,7 +291,6 @@ export function registerMonitoringHandlers(): void {
   // ─────────────────────────────────────────────────────────────────────────────
 
   ipcMain.handle('monitoring:trigger-auto-fix', async (_event, appId: string) => {
-    const { getMonitoringService } = require('../monitoringService');
     const service = getMonitoringService();
     const results = await service.forceCheck(appId);
     return results;

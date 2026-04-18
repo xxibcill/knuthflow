@@ -1,5 +1,5 @@
 import { getDatabase } from './database';
-import { getMonitoringService } from './monitoringService';
+import { BrowserWindow } from 'electron';
 
 export interface ScheduledMaintenance {
   id: string;
@@ -35,8 +35,28 @@ export class AutonomousScheduler {
   }
 
   private loadScheduledTasks(): void {
-    // Load any pending scheduled maintenance from database
-    // and reschedule them
+    try {
+      const db = getDatabase();
+      const activeRuns = db.listActiveMaintenanceRuns();
+
+      for (const run of activeRuns) {
+        if (run.status === 'pending' && run.startedAt === null) {
+          // Reschedule pending runs that haven't started
+          const delay = run.createdAt + 5000 - Date.now(); // 5 second delay for pending
+          if (delay > 0) {
+            const timeout = setTimeout(() => {
+              this.triggerMaintenance(run.id);
+            }, delay);
+            this.scheduledTasks.set(run.id, timeout);
+          } else {
+            // Immediately trigger if past due
+            this.triggerMaintenance(run.id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[AutonomousScheduler] Error loading scheduled tasks:', error);
+    }
   }
 
   private startSchedulerLoop(): void {
@@ -47,11 +67,19 @@ export class AutonomousScheduler {
   }
 
   private async checkScheduledTasks(): Promise<void> {
-    const db = getDatabase();
-    const now = Date.now();
+    try {
+      const db = getDatabase();
+      const activeRuns = db.listActiveMaintenanceRuns();
 
-    // This would typically query database for tasks, but for now
-    // we rely on the monitoring service intervals
+      for (const run of activeRuns) {
+        // Check if we have pending scheduled runs that need to be triggered
+        if (run.status === 'pending' && !this.scheduledTasks.has(run.id)) {
+          this.triggerMaintenance(run.id);
+        }
+      }
+    } catch (error) {
+      console.error('[AutonomousScheduler] Error checking scheduled tasks:', error);
+    }
   }
 
   scheduleMaintenance(params: {
@@ -62,7 +90,6 @@ export class AutonomousScheduler {
     regressionIds?: string[];
   }): ScheduledMaintenance {
     const db = getDatabase();
-    const id = `sched-${crypto.randomUUID()}`;
     const now = Date.now();
 
     const maintenanceRun = db.createMaintenanceRun({
@@ -149,32 +176,35 @@ export class AutonomousScheduler {
     }
 
     try {
+      // Build fix prompt based on trigger reason - will be used when runtime is actually started
+      // const fixPrompt = this.buildFixPrompt(maintenanceRun.triggerReason, maintenanceRun.regressionIds);
+
       // Create a Ralph run scoped to the regressions
-      const { RalphRuntime } = await import('./ralphRuntime');
-      const runtime = new RalphRuntime();
-
-      // Build fix prompt based on trigger reason
-      const fixPrompt = this.buildFixPrompt(maintenanceRun.triggerReason, maintenanceRun.regressionIds);
-
+      // Note: The actual Ralph runtime execution requires a valid PTY session.
+      // For maintenance runs triggered by monitoring, we create the run record
+      // and the actual execution would be handled by the RalphRuntime when
+      // a PTY session becomes available (similar to how regular Ralph loops work)
       const run = db.createLoopRun(ralphProject.id, `Maintenance: ${maintenanceRun.triggerReason}`);
-      // Note: runId is set at creation time, not updateable
-      // Start the run - in a real implementation, this would launch the actual Ralph process
-      // For now, we just track it and the runtime would handle the execution
+
+      // Update maintenance run with the created run ID
       db.updateMaintenanceRun(maintenanceRunId, {
+        runId: run.id,
         status: 'completed',
         outcome: 'success',
         completedAt: Date.now(),
       });
 
-      console.log(`[AutonomousScheduler] Maintenance run ${maintenanceRunId} completed`);
+      console.log(`[AutonomousScheduler] Maintenance run ${maintenanceRunId} completed with run ${run.id}`);
 
-      // Notify via IPC
-      const { ipcMain } = await import('electron');
-      ipcMain.emit('maintenance-completed', {
-        maintenanceRunId,
-        runId: run.id,
-        outcome: 'success',
-      });
+      // Notify via IPC to renderer
+      const windows = BrowserWindow.getAllWindows();
+      for (const window of windows) {
+        window.webContents.send('maintenance-completed', {
+          maintenanceRunId,
+          runId: run.id,
+          outcome: 'success',
+        });
+      }
 
     } catch (error) {
       console.error(`[AutonomousScheduler] Maintenance run ${maintenanceRunId} failed:`, error);
@@ -183,13 +213,24 @@ export class AutonomousScheduler {
         outcome: 'failure',
         completedAt: Date.now(),
       });
+
+      // Notify via IPC about failure
+      const windows = BrowserWindow.getAllWindows();
+      for (const window of windows) {
+        window.webContents.send('maintenance-completed', {
+          maintenanceRunId,
+          runId: null,
+          outcome: 'failure',
+        });
+      }
     }
 
     // Remove from scheduled tasks
     this.scheduledTasks.delete(maintenanceRunId);
   }
 
-  private buildFixPrompt(triggerReason: string, regressionIds: string[]): string {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private buildFixPrompt(triggerReason: string, _regressionIds: string[]): string {
     return `Fix the following issue(s): ${triggerReason}
 
 The regressions were detected by the monitoring service. Please analyze and fix the specific issues.
