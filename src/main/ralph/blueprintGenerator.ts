@@ -1,16 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import type { PlatformTarget, PlatformTargetConfig } from '../../shared/deliveryTypes';
 
-export type PlatformTarget = 'ios' | 'android' | 'pwa' | 'macos' | 'windows' | 'linux';
-
-export interface PlatformTargetConfig {
-  categories: string[];
-  targets: PlatformTarget[];
-}
+export type { PlatformTarget };
+export type { PlatformTargetConfig };
 
 export interface AppIntakeForm {
   // Product intent

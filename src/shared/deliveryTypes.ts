@@ -5,6 +5,12 @@
 export type DeliveryStatus = 'idle' | 'inspecting' | 'packaging' | 'releasing' | 'complete' | 'blocked' | 'failed';
 
 export type PlatformTarget = 'ios' | 'android' | 'pwa' | 'macos' | 'windows' | 'linux';
+export type PlatformCategory = 'mobile' | 'web' | 'desktop';
+
+export interface PlatformTargetConfig {
+  categories: PlatformCategory[];
+  targets: PlatformTarget[];
+}
 
 export interface DeliveryArtifact {
   id: string;

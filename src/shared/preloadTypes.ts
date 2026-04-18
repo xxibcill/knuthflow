@@ -12,6 +12,8 @@ import type {
 import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
 export type { ArtifactType };
 
+export type { PlatformTarget, PlatformCategory, PlatformTargetConfig } from './deliveryTypes';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Process Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,14 +102,6 @@ export interface Workspace {
   path: string;
   createdAt: number;
   lastOpenedAt: number | null;
-}
-
-export type PlatformTarget = 'ios' | 'android' | 'pwa' | 'macos' | 'windows' | 'linux';
-export type PlatformCategory = 'mobile' | 'web' | 'desktop';
-
-export interface PlatformTargetConfig {
-  categories: PlatformCategory[];
-  targets: PlatformTarget[];
 }
 
 export interface AppIntakeDraft {

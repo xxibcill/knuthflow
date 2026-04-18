@@ -26,6 +26,8 @@ export {
   STALE_RUN_THRESHOLD_MS,
 } from '../shared/ralphTypes';
 
+export type { PlatformTarget } from '../shared/deliveryTypes';
+
 import { runMigrations, SCHEMA_VERSION } from './databaseMigrations';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,9 +275,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
 // ─────────────────────────────────────────────────────────────────────────────
 // App Metadata Types (Phase 18)
 // ─────────────────────────────────────────────────────────────────────────────
-
-type PlatformTarget = 'ios' | 'android' | 'pwa' | 'macos' | 'windows' | 'linux';
-type PlatformCategory = 'mobile' | 'web' | 'desktop';
 
 interface AppMetadata {
   id: string;

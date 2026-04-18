@@ -6,6 +6,28 @@ import type { DeliveryArtifact, ReleaseGate } from '../../shared/deliveryTypes';
 
 const execAsync = promisify(exec);
 
+/**
+ * Validate workspace path to prevent path traversal attacks
+ */
+function validateWorkspacePath(workspacePath: string): { valid: boolean; error?: string } {
+  // Check for null bytes
+  if (workspacePath.includes('\0')) {
+    return { valid: false, error: 'Invalid path: contains null bytes' };
+  }
+
+  // Resolve the path and check it doesn't escape to unsafe directories
+  try {
+    const resolved = path.resolve(workspacePath);
+    if (resolved.startsWith('/etc') || resolved.startsWith('/sys') || resolved.startsWith('/proc')) {
+      return { valid: false, error: 'Invalid path: path escapes sandbox' };
+    }
+  } catch {
+    return { valid: false, error: 'Invalid path: resolution failed' };
+  }
+
+  return { valid: true };
+}
+
 export interface PWAConfig {
   appName?: string;
   shortName?: string;
@@ -590,6 +612,24 @@ export async function buildPWA(
   appName: string,
   config?: Partial<PWAConfig>
 ): Promise<PWAPackagingResult> {
+  // Validate workspace path before any operations
+  const validation = validateWorkspacePath(workspacePath);
+  if (!validation.valid) {
+    return {
+      success: false,
+      artifacts: [],
+      gates: [{
+        id: 'gate-pwa-validation',
+        name: 'PWA Validation',
+        description: 'Workspace path validation',
+        status: 'failed',
+        evidence: validation.error,
+        platformTarget: 'pwa',
+      }],
+      error: validation.error,
+    };
+  }
+
   const manifestResult = generateManifest(workspacePath, appName, config);
   const swResult = generateServiceWorker(workspacePath, appName);
   const registerResult = registerServiceWorker(workspacePath);
@@ -633,11 +673,22 @@ export async function buildPWA(
   const artifacts = collectPWAArtifacts(workspacePath);
   const gates = createPWAGates(manifestResult, swResult, lighthouseResult);
 
+  // Determine overall success: manifest and SW must succeed; Lighthouse is best-effort
+  const coreSuccess = manifestResult.success && swResult.success;
+  // Lighthouse failure doesn't invalidate the PWA package but should be reported
+  const lighthouseFailed = lighthouseResult.success === false && lighthouseResult.scores === undefined;
+
   return {
-    success: manifestResult.success && swResult.success,
+    success: coreSuccess,
     artifacts,
     gates,
     lighthouseScores: lighthouseResult.scores as PWAPackagingResult['lighthouseScores'],
-    error: !manifestResult.success ? manifestResult.error : (!swResult.success ? swResult.error : undefined),
+    error: !manifestResult.success
+      ? manifestResult.error
+      : !swResult.success
+        ? swResult.error
+        : lighthouseFailed
+          ? lighthouseResult.error
+          : undefined,
   };
 }

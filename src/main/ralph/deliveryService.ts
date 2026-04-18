@@ -362,6 +362,9 @@ async function buildPlatformHandoffs(
         });
       }
     } catch (error) {
+      // Graceful degradation: if mobile build fails completely, we create failed handoffs
+      // rather than propagating the error. This allows the overall packaging to continue
+      // and report which platforms succeeded/failed without aborting the entire process.
       console.error('Mobile build failed:', error);
       for (const platform of mobileTargets) {
         handoffs.push({
@@ -399,6 +402,9 @@ async function buildPlatformHandoffs(
         status: failedGates.length > 0 ? 'failed' : (passedGates.length === pwaResult.gates.length ? 'passed' : 'pending'),
       });
     } catch (error) {
+      // Graceful degradation: if PWA build fails completely, we create a failed handoff
+      // rather than propagating the error. Lighthouse failures are handled within buildPWA
+      // and result in a 'skipped' or 'failed' gate, not an exception here.
       console.error('PWA build failed:', error);
       handoffs.push({
         platformTarget: 'pwa',

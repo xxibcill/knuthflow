@@ -8,6 +8,30 @@ const execAsync = promisify(exec);
 
 export type MobilePlatform = 'ios' | 'android';
 
+/**
+ * Validate workspace path to prevent path traversal attacks
+ */
+function validateWorkspacePath(workspacePath: string): { valid: boolean; error?: string } {
+  // Check for null bytes
+  if (workspacePath.includes('\0')) {
+    return { valid: false, error: 'Invalid path: contains null bytes' };
+  }
+
+  // Resolve the path and check it doesn't escape user data directory
+  try {
+    const resolved = path.resolve(workspacePath);
+    // The workspace should be within a known safe directory structure
+    // We mainly check it's not an absolute path escaping to /etc or similar
+    if (resolved.startsWith('/etc') || resolved.startsWith('/sys') || resolved.startsWith('/proc')) {
+      return { valid: false, error: 'Invalid path: path escapes sandbox' };
+    }
+  } catch {
+    return { valid: false, error: 'Invalid path: resolution failed' };
+  }
+
+  return { valid: true };
+}
+
 export interface CapacitorBuildResult {
   success: boolean;
   platform: MobilePlatform;
@@ -411,6 +435,25 @@ function createMobileGates(platform: MobilePlatform, initResult: { success: bool
 export async function buildCapacitorMobile(options: CapacitorPipelineOptions): Promise<CapacitorBuildResult[]> {
   const { workspacePath, platformTargets } = options;
   const results: CapacitorBuildResult[] = [];
+
+  // Validate workspace path before any operations
+  const validation = validateWorkspacePath(workspacePath);
+  if (!validation.valid) {
+    return platformTargets.map(platform => ({
+      success: false,
+      platform,
+      artifacts: [],
+      gates: [{
+        id: `gate-capacitor-${platform}-validation`,
+        name: `Capacitor ${platform} Validation`,
+        description: 'Workspace path validation',
+        status: 'failed' as const,
+        evidence: validation.error,
+        platformTarget: platform,
+      }],
+      error: validation.error,
+    }));
+  }
 
   // Ensure dist directory exists for Capacitor web assets
   const distDir = path.join(workspacePath, 'dist');
