@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as zlib from 'zlib';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { DeliveryArtifact, ReleaseGate } from '../../shared/deliveryTypes';
@@ -69,6 +70,68 @@ const DEFAULT_PWA_CONFIG: PWAConfig = {
   display: 'standalone',
   orientation: 'portrait',
 };
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xFFFFFFFF;
+
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc & 1) === 1 ? (crc >>> 1) ^ 0xEDB88320 : crc >>> 1;
+    }
+  }
+
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function createChunk(type: string, data: Buffer): Buffer {
+  const typeBuffer = Buffer.from(type, 'ascii');
+  const lengthBuffer = Buffer.alloc(4);
+  lengthBuffer.writeUInt32BE(data.length, 0);
+
+  const crcBuffer = Buffer.alloc(4);
+  crcBuffer.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 0);
+
+  return Buffer.concat([lengthBuffer, typeBuffer, data, crcBuffer]);
+}
+
+function createSolidColorPng(size: number, rgba: [number, number, number, number]): Buffer {
+  const row = Buffer.alloc(1 + (size * 4));
+  row[0] = 0;
+
+  for (let pixel = 0; pixel < size; pixel++) {
+    const offset = 1 + (pixel * 4);
+    row[offset] = rgba[0];
+    row[offset + 1] = rgba[1];
+    row[offset + 2] = rgba[2];
+    row[offset + 3] = rgba[3];
+  }
+
+  const rawData = Buffer.alloc(row.length * size);
+  for (let y = 0; y < size; y++) {
+    row.copy(rawData, y * row.length);
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  const idat = zlib.deflateSync(rawData);
+
+  return Buffer.concat([
+    PNG_SIGNATURE,
+    createChunk('IHDR', ihdr),
+    createChunk('IDAT', idat),
+    createChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 /**
  * Generate a web app manifest for PWA
@@ -375,32 +438,17 @@ export function createPlaceholderIcons(workspacePath: string, appName: string): 
     const sizes = [192, 512, 72, 96, 128, 144, 152, 180, 384];
     const paths: string[] = [];
 
-    // Create a simple SVG-based data URL icon generator
-    // For now, we'll just create placeholder files
-    // In production, you'd want to use sharp or canvas to generate actual PNGs
-    const minimalPng = Buffer.from([
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
-      0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
-      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
-      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-      0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-      0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-      0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-      0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-      0x42, 0x60, 0x82,
-    ]);
+    const iconColor: [number, number, number, number] = [79, 70, 229, 255];
 
     for (const size of sizes) {
       const iconPath = path.join(publicDir, `icon-${size}.png`);
-      // Create a minimal PNG header (this is a 1x1 transparent PNG placeholder)
-      // Real implementation would generate actual icons
-      fs.writeFileSync(iconPath, minimalPng);
+      fs.writeFileSync(iconPath, createSolidColorPng(size, iconColor));
       paths.push(iconPath);
     }
 
     // Create maskable icon
     const maskablePath = path.join(publicDir, 'icon-maskable.png');
-    fs.writeFileSync(maskablePath, minimalPng);
+    fs.writeFileSync(maskablePath, createSolidColorPng(512, iconColor));
     paths.push(maskablePath);
 
     return { success: true, paths };
