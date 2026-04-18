@@ -5,11 +5,19 @@ import * as path from 'path';
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type PlatformTarget = 'ios' | 'android' | 'pwa' | 'macos' | 'windows' | 'linux';
+
+export interface PlatformTargetConfig {
+  categories: string[];
+  targets: PlatformTarget[];
+}
+
 export interface AppIntakeForm {
   // Product intent
   appName: string;
   appBrief: string;
-  targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
+  targetPlatform: PlatformTarget[];
+  platformConfig: PlatformTargetConfig;
   successCriteria: string[];
 
   // Technical constraints
@@ -139,18 +147,19 @@ export class BlueprintGenerator {
     });
 
     // Platform-specific spec
-    const platformSpecId = generateDeterministicId('platform-spec', intake.targetPlatform);
+    const platformSpecId = generateDeterministicId('platform-spec', JSON.stringify(intake.targetPlatform));
+    const targetLabel = intake.targetPlatform.join(', ');
     specs.push({
       id: platformSpecId,
-      title: `${intake.targetPlatform.charAt(0).toUpperCase() + intake.targetPlatform.slice(1)} Platform Implementation`,
-      description: `Target platform: ${intake.targetPlatform}`,
+      title: `Platform Implementation: ${targetLabel}`,
+      description: `Target platforms: ${targetLabel}`,
       acceptanceCriteria: this.getPlatformAcceptanceCriteria(intake),
       priority: 'high',
       relatedSpecIds: [coreSpecId],
     });
 
     // UI/UX spec if web or desktop
-    if (intake.targetPlatform === 'web' || intake.targetPlatform === 'desktop') {
+    if (intake.platformConfig?.categories?.includes('web') || intake.platformConfig?.categories?.includes('desktop')) {
       const uiSpecId = generateDeterministicId('ui-spec', intake.appName);
       specs.push({
         id: uiSpecId,
@@ -162,6 +171,40 @@ export class BlueprintGenerator {
           'Keyboard navigation support',
         ],
         priority: 'medium',
+        relatedSpecIds: [coreSpecId],
+      });
+    }
+
+    // Mobile spec if mobile targets
+    if (intake.platformConfig?.categories?.includes('mobile')) {
+      const mobileSpecId = generateDeterministicId('mobile-spec', intake.appName);
+      specs.push({
+        id: mobileSpecId,
+        title: 'Mobile Implementation',
+        description: 'Capacitor-based mobile build requirements',
+        acceptanceCriteria: [
+          'Capacitor ios/android configured',
+          'Touch interactions functional',
+          'Native platform builds succeed',
+        ],
+        priority: 'high',
+        relatedSpecIds: [coreSpecId],
+      });
+    }
+
+    // PWA spec if PWA target
+    if (intake.targetPlatform.includes('pwa')) {
+      const pwaSpecId = generateDeterministicId('pwa-spec', intake.appName);
+      specs.push({
+        id: pwaSpecId,
+        title: 'PWA Implementation',
+        description: 'Progressive Web App requirements',
+        acceptanceCriteria: [
+          'Web app manifest configured',
+          'Service worker for offline support',
+          'Installable on supported browsers',
+        ],
+        priority: 'high',
         relatedSpecIds: [coreSpecId],
       });
     }
@@ -276,26 +319,27 @@ export class BlueprintGenerator {
    */
   private getPlatformAcceptanceCriteria(intake: AppIntakeForm): string[] {
     const criteria: string[] = [];
+    const targets = intake.targetPlatform || [];
 
-    switch (intake.targetPlatform) {
-      case 'web':
-        criteria.push('Renders in target browsers');
-        if (intake.supportedBrowsers.length > 0) {
-          criteria.push(`Tested on: ${intake.supportedBrowsers.join(', ')}`);
-        }
-        break;
-      case 'desktop':
-        criteria.push('Electron app launches without errors');
-        criteria.push('Window management works correctly');
-        break;
-      case 'mobile':
-        criteria.push('Builds for iOS and/or Android');
-        criteria.push('Touch interactions functional');
-        break;
-      case 'api':
-        criteria.push('API endpoints respond correctly');
-        criteria.push('Authentication works');
-        break;
+    if (targets.includes('ios')) {
+      criteria.push('iOS build produces .ipa artifact');
+    }
+    if (targets.includes('android')) {
+      criteria.push('Android build produces .apk artifact');
+    }
+    if (targets.includes('pwa')) {
+      criteria.push('PWA installable on supported browsers');
+      criteria.push('Service worker caches app shell');
+    }
+    if (targets.includes('macos') || targets.includes('windows') || targets.includes('linux')) {
+      criteria.push('Desktop app launches without errors');
+      criteria.push('Window management works correctly');
+    }
+    if (targets.includes('pwa') || intake.platformConfig?.categories?.includes('web')) {
+      criteria.push('Renders in target browsers');
+      if (intake.supportedBrowsers.length > 0) {
+        criteria.push(`Tested on: ${intake.supportedBrowsers.join(', ')}`);
+      }
     }
 
     return criteria;
@@ -335,7 +379,7 @@ export class BlueprintGenerator {
       intake.appBrief,
       '',
       '## Target Platform',
-      `- ${intake.targetPlatform}`,
+      `- ${intake.targetPlatform.join(', ')}`,
       '',
       '## Delivery Format',
       `- ${intake.deliveryFormat}`,

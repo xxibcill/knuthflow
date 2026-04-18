@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react';
-import type { AppIntakeDraft } from '../../shared/preloadTypes';
+import type { AppIntakeDraft, PlatformTarget, PlatformCategory } from '../../shared/preloadTypes';
 
 export type AppIntakeFormData = AppIntakeDraft;
 
@@ -10,12 +10,32 @@ export interface AppIntakeFormProps {
   initialData?: Partial<AppIntakeFormData>;
 }
 
-const PLATFORM_OPTIONS = [
-  { value: 'web', label: 'Web Application' },
-  { value: 'desktop', label: 'Desktop Application' },
-  { value: 'mobile', label: 'Mobile Application' },
-  { value: 'api', label: 'API Backend' },
-] as const;
+const PLATFORM_CATEGORIES: { id: PlatformCategory; label: string; targets: { id: PlatformTarget; label: string }[] }[] = [
+  {
+    id: 'mobile',
+    label: 'Mobile',
+    targets: [
+      { id: 'ios', label: 'iOS (Capacitor)' },
+      { id: 'android', label: 'Android (Capacitor)' },
+    ],
+  },
+  {
+    id: 'web',
+    label: 'Web',
+    targets: [
+      { id: 'pwa', label: 'PWA' },
+    ],
+  },
+  {
+    id: 'desktop',
+    label: 'Desktop',
+    targets: [
+      { id: 'macos', label: 'macOS' },
+      { id: 'windows', label: 'Windows' },
+      { id: 'linux', label: 'Linux' },
+    ],
+  },
+];
 
 const DELIVERY_OPTIONS = [
   { value: 'web', label: 'Web (Hostable)' },
@@ -40,6 +60,13 @@ const BROWSER_OPTIONS = [
   'Edge 120+',
 ];
 
+function getDefaultPlatformConfig(): AppIntakeDraft['platformConfig'] {
+  return {
+    categories: ['web'],
+    targets: ['pwa'],
+  };
+}
+
 export function AppIntakeForm({
   onSubmit,
   onCancel,
@@ -48,8 +75,8 @@ export function AppIntakeForm({
 }: AppIntakeFormProps) {
   const [appName, setAppName] = useState(initialData?.appName ?? '');
   const [appBrief, setAppBrief] = useState(initialData?.appBrief ?? '');
-  const [targetPlatform, setTargetPlatform] = useState<AppIntakeFormData['targetPlatform']>(
-    initialData?.targetPlatform ?? 'web'
+  const [platformConfig, setPlatformConfig] = useState<AppIntakeDraft['platformConfig']>(
+    initialData?.platformConfig ?? getDefaultPlatformConfig()
   );
   const [successCriteria, setSuccessCriteria] = useState<string[]>(
     initialData?.successCriteria ?? []
@@ -70,6 +97,47 @@ export function AppIntakeForm({
   const [newCriterion, setNewCriterion] = useState('');
   const [newStack, setNewStack] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
+
+  const isTargetSelected = useCallback((target: PlatformTarget) => {
+    return platformConfig.targets.includes(target);
+  }, [platformConfig.targets]);
+
+  const isCategorySelected = useCallback((category: PlatformCategory) => {
+    return platformConfig.categories.includes(category);
+  }, [platformConfig.categories]);
+
+  const toggleTarget = useCallback((target: PlatformTarget) => {
+    setPlatformConfig(prev => {
+      const targets = prev.targets.includes(target)
+        ? prev.targets.filter(t => t !== target)
+        : [...prev.targets, target];
+
+      // Update categories based on selected targets
+      const categories: PlatformCategory[] = [];
+      if (targets.some(t => t === 'ios' || t === 'android')) categories.push('mobile');
+      if (targets.some(t => t === 'pwa')) categories.push('web');
+      if (targets.some(t => t === 'macos' || t === 'windows' || t === 'linux')) categories.push('desktop');
+
+      return { categories, targets };
+    });
+  }, []);
+
+  const toggleCategory = useCallback((category: PlatformCategory) => {
+    setPlatformConfig(prev => {
+      const categoryTargets = PLATFORM_CATEGORIES.find(c => c.id === category)?.targets.map(t => t.id) ?? [];
+      const isSelected = prev.categories.includes(category);
+
+      const categories = isSelected
+        ? prev.categories.filter(c => c !== category)
+        : [...prev.categories, category];
+
+      const targets = isSelected
+        ? prev.targets.filter(t => !categoryTargets.includes(t))
+        : [...prev.targets, ...categoryTargets];
+
+      return { categories, targets };
+    });
+  }, []);
 
   const handleAddCriterion = useCallback(() => {
     if (newCriterion.trim()) {
@@ -131,7 +199,8 @@ export function AppIntakeForm({
     const intake: AppIntakeFormData = {
       appName: appName.trim(),
       appBrief: appBrief.trim(),
-      targetPlatform,
+      targetPlatform: platformConfig.targets,
+      platformConfig,
       successCriteria: successCriteria.filter(c => c.trim()),
       stackPreferences,
       forbiddenPatterns,
@@ -144,7 +213,7 @@ export function AppIntakeForm({
   }, [
     appName,
     appBrief,
-    targetPlatform,
+    platformConfig,
     successCriteria,
     stackPreferences,
     forbiddenPatterns,
@@ -168,7 +237,7 @@ export function AppIntakeForm({
       <div className="section-header">
         <h2 className="section-title">Create New App</h2>
         <p className="section-lead">
-          Describe your app idea and we'll generate a complete Ralph blueprint for you.
+          Describe your app idea and we&apos;ll generate a complete Ralph blueprint for you.
         </p>
       </div>
 
@@ -189,21 +258,44 @@ export function AppIntakeForm({
           />
         </div>
 
-        {/* Target Platform */}
-        <div className="form-field">
-          <label htmlFor="targetPlatform" className="form-label">
-            Target Platform <span className="text-red-400">*</span>
+        {/* Platform Target */}
+        <div className="form-field col-span-2">
+          <label className="form-label">
+            Target Platforms <span className="text-red-400">*</span>
           </label>
-          <select
-            id="targetPlatform"
-            value={targetPlatform}
-            onChange={e => setTargetPlatform(e.target.value as AppIntakeFormData['targetPlatform'])}
-            className="input"
-          >
-            {PLATFORM_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+          <p className="form-hint mb-3">
+            Select one or more platforms to target for your app
+          </p>
+          <div className="space-y-4">
+            {PLATFORM_CATEGORIES.map(category => (
+              <div key={category.id} className="border border-border rounded-lg p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <input
+                    type="checkbox"
+                    id={`platform-${category.id}`}
+                    checked={isCategorySelected(category.id)}
+                    onChange={() => toggleCategory(category.id)}
+                    className="checkbox checkbox-primary"
+                  />
+                  <label htmlFor={`platform-${category.id}`} className="form-label mb-0 font-semibold">
+                    {category.label}
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-8">
+                  {category.targets.map(target => (
+                    <button
+                      key={target.id}
+                      type="button"
+                      onClick={() => toggleTarget(target.id)}
+                      className={`btn btn-sm ${isTargetSelected(target.id) ? 'btn-primary' : 'btn-ghost'}`}
+                    >
+                      {target.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
-          </select>
+          </div>
         </div>
 
         {/* App Brief */}
@@ -346,7 +438,7 @@ export function AppIntakeForm({
         <div className="form-field col-span-2">
           <label className="form-label">Forbidden Patterns (Optional)</label>
           <p className="form-hint mb-2">
-            Patterns or technologies to avoid (e.g., "no jQuery", "no PHP")
+            Patterns or technologies to avoid (e.g., &quot;no jQuery&quot;, &quot;no PHP&quot;)
           </p>
           <div className="flex flex-wrap gap-2">
             {forbiddenPatterns.map((pattern, index) => (

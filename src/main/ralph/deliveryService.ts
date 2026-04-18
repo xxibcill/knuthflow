@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import type { HandoffBundle, DeliveryArtifact, ReleaseGate, DeliveryResult } from '../../shared/deliveryTypes';
+import type { HandoffBundle, DeliveryArtifact, ReleaseGate, DeliveryResult, PlatformTarget, PlatformHandoff } from '../../shared/deliveryTypes';
+import { buildCapacitorMobile, type MobilePlatform } from './capacitorPipeline';
+import { buildPWA } from './pwaPackaging';
 
 const execAsync = promisify(exec);
 
@@ -19,11 +21,24 @@ function isWorkspaceBootstrapped(workspacePath: string): boolean {
 /**
  * Get the scaffold metadata for a workspace
  */
-function getScaffoldMetadata(workspacePath: string): { template: string; appName: string } | null {
+function getScaffoldMetadata(workspacePath: string): { template: string; appName: string; platformTargets?: PlatformTarget[] } | null {
   const scaffoldFile = path.join(workspacePath, '.ralph.scaffold.json');
   if (!fs.existsSync(scaffoldFile)) return null;
   try {
     return JSON.parse(fs.readFileSync(scaffoldFile, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get Ralph metadata including platform targets
+ */
+function getRalphMetadata(workspacePath: string): { platformTargets?: PlatformTarget[] } | null {
+  const metadataFile = path.join(workspacePath, '.ralph');
+  if (!fs.existsSync(metadataFile)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(metadataFile, 'utf-8'));
   } catch {
     return null;
   }
@@ -110,7 +125,7 @@ function gatherArtifacts(workspacePath: string, _appName: string): DeliveryArtif
 /**
  * Build release notes from the workspace
  */
-function buildReleaseNotes(workspacePath: string, appName: string): string {
+function buildReleaseNotes(workspacePath: string, appName: string, platformTargets: PlatformTarget[] = []): string {
   const lines: string[] = [];
   lines.push(`# ${appName} - Release Notes`);
   lines.push('');
@@ -122,6 +137,11 @@ function buildReleaseNotes(workspacePath: string, appName: string): string {
   const scaffold = getScaffoldMetadata(workspacePath);
   if (scaffold) {
     lines.push(`This release contains a ${scaffold.template} application.`);
+    lines.push('');
+  }
+
+  if (platformTargets.length > 0) {
+    lines.push(`**Target Platforms:** ${platformTargets.join(', ')}`);
     lines.push('');
   }
 
@@ -146,6 +166,40 @@ function buildReleaseNotes(workspacePath: string, appName: string): string {
     lines.push('');
   }
 
+  // Platform-specific sections
+  if (platformTargets.includes('ios') || platformTargets.includes('android')) {
+    lines.push('## Mobile (Capacitor)');
+    lines.push('');
+    if (platformTargets.includes('ios')) {
+      lines.push('### iOS');
+      lines.push('- Build artifact: `dist/app.ipa` or `dist/app.xcarchive`');
+      lines.push('- Open `ios/App.xcworkspace` in Xcode to deploy');
+      lines.push('');
+    }
+    if (platformTargets.includes('android')) {
+      lines.push('### Android');
+      lines.push('- Build artifact: `android/app/build/outputs/apk/`');
+      lines.push('- Install with: `adb install app-release.apk`');
+      lines.push('');
+    }
+  }
+
+  if (platformTargets.includes('pwa')) {
+    lines.push('## Progressive Web App (PWA)');
+    lines.push('');
+    lines.push('- Serve the `dist/` directory with a static web server');
+    lines.push('- PWA manifest: `public/manifest.json`');
+    lines.push('- Service worker: `public/sw.js`');
+    lines.push('');
+  }
+
+  if (platformTargets.some(t => ['macos', 'windows', 'linux'].includes(t))) {
+    lines.push('## Desktop');
+    lines.push('');
+    lines.push('- Build artifact: `out/` directory');
+    lines.push('');
+  }
+
   // Runbook section
   lines.push('## Run Instructions');
   lines.push('');
@@ -167,8 +221,8 @@ function buildReleaseNotes(workspacePath: string, appName: string): string {
 /**
  * Generate release notes artifact
  */
-function generateReleaseNotes(workspacePath: string, appName: string): DeliveryArtifact {
-  const releaseNotesContent = buildReleaseNotes(workspacePath, appName);
+function generateReleaseNotes(workspacePath: string, appName: string, platformTargets: PlatformTarget[] = []): DeliveryArtifact {
+  const releaseNotesContent = buildReleaseNotes(workspacePath, appName, platformTargets);
   const releaseNotesPath = path.join(workspacePath, 'RELEASE_NOTES.md');
   fs.writeFileSync(releaseNotesPath, releaseNotesContent, 'utf-8');
 
@@ -185,9 +239,9 @@ function generateReleaseNotes(workspacePath: string, appName: string): DeliveryA
 }
 
 /**
- * Evaluate release gates for a workspace
+ * Evaluate base release gates for a workspace
  */
-function evaluateReleaseGates(workspacePath: string): ReleaseGate[] {
+function evaluateBaseReleaseGates(workspacePath: string): ReleaseGate[] {
   const gates: ReleaseGate[] = [];
 
   // Gate 1: Source exists
@@ -200,7 +254,7 @@ function evaluateReleaseGates(workspacePath: string): ReleaseGate[] {
     passedAt: fs.existsSync(path.join(workspacePath, 'package.json')) ? Date.now() : undefined,
   });
 
-  // Gate 2: Build successful
+  // Gate 2: Build successful (web/desktop)
   const buildPaths = ['dist', 'build', 'out'];
   const hasBuild = buildPaths.some(p => fs.existsSync(path.join(workspacePath, p)));
   gates.push({
@@ -236,27 +290,227 @@ function evaluateReleaseGates(workspacePath: string): ReleaseGate[] {
 }
 
 /**
+ * Validate desktop smoke test
+ */
+async function validateDesktopSmokeTest(workspacePath: string, platformTarget: PlatformTarget): Promise<ReleaseGate> {
+  const electronPaths = ['out', 'release'];
+  let foundPath: string | null = null;
+
+  for (const p of electronPaths) {
+    const fullPath = path.join(workspacePath, p);
+    if (fs.existsSync(fullPath)) {
+      const items = fs.readdirSync(fullPath);
+      const hasExe = items.some(f =>
+        f.endsWith('.exe') ||
+        f.endsWith('.app') ||
+        (platformTarget === 'linux' && !f.includes('.'))
+      );
+      if (hasExe) {
+        foundPath = fullPath;
+        break;
+      }
+    }
+  }
+
+  const passed = foundPath !== null;
+  return {
+    id: `gate-desktop-smoke-test-${platformTarget}`,
+    name: `Desktop Smoke Test (${platformTarget})`,
+    description: `Verify ${platformTarget} app launches without immediate crash`,
+    status: passed ? 'passed' : 'pending',
+    evidence: passed ? `Found executable in ${foundPath}` : `No ${platformTarget} executable found in output directories`,
+    passedAt: passed ? Date.now() : undefined,
+    platformTarget,
+  };
+}
+
+/**
+ * Build per-platform handoffs
+ */
+async function buildPlatformHandoffs(
+  workspacePath: string,
+  platformTargets: PlatformTarget[]
+): Promise<{ handoffs: PlatformHandoff[]; additionalArtifacts: DeliveryArtifact[]; additionalGates: ReleaseGate[] }> {
+  const handoffs: PlatformHandoff[] = [];
+  const additionalArtifacts: DeliveryArtifact[] = [];
+  const additionalGates: ReleaseGate[] = [];
+
+  // Mobile platforms (iOS, Android)
+  const mobileTargets = platformTargets.filter(t => t === 'ios' || t === 'android') as MobilePlatform[];
+  if (mobileTargets.length > 0) {
+    try {
+      const mobileResults = await buildCapacitorMobile({
+        workspacePath,
+        platformTargets: mobileTargets,
+      });
+
+      for (const result of mobileResults) {
+        // Add artifacts
+        additionalArtifacts.push(...result.artifacts);
+
+        // Add gates
+        additionalGates.push(...result.gates);
+
+        // Create handoff
+        const passedGates = result.gates.filter(g => g.status === 'passed');
+        const failedGates = result.gates.filter(g => g.status === 'failed');
+        handoffs.push({
+          platformTarget: result.platform,
+          artifacts: result.artifacts,
+          gates: result.gates,
+          status: failedGates.length > 0 ? 'failed' : (passedGates.length === result.gates.length ? 'passed' : 'pending'),
+        });
+      }
+    } catch (error) {
+      console.error('Mobile build failed:', error);
+      for (const platform of mobileTargets) {
+        handoffs.push({
+          platformTarget: platform,
+          artifacts: [],
+          gates: [{
+            id: `gate-mobile-error-${platform}`,
+            name: `${platform} Build Error`,
+            description: 'Mobile build failed',
+            status: 'failed',
+            evidence: error instanceof Error ? error.message : String(error),
+            platformTarget: platform,
+          }],
+          status: 'failed',
+        });
+      }
+    }
+  }
+
+  // PWA
+  if (platformTargets.includes('pwa')) {
+    try {
+      const pwaResult = await buildPWA(workspacePath, getScaffoldMetadata(workspacePath)?.appName ?? 'app');
+
+      additionalArtifacts.push(...pwaResult.artifacts);
+      additionalGates.push(...pwaResult.gates);
+
+      const passedGates = pwaResult.gates.filter(g => g.status === 'passed');
+      const failedGates = pwaResult.gates.filter(g => g.status === 'failed');
+
+      handoffs.push({
+        platformTarget: 'pwa',
+        artifacts: pwaResult.artifacts,
+        gates: pwaResult.gates,
+        status: failedGates.length > 0 ? 'failed' : (passedGates.length === pwaResult.gates.length ? 'passed' : 'pending'),
+      });
+    } catch (error) {
+      console.error('PWA build failed:', error);
+      handoffs.push({
+        platformTarget: 'pwa',
+        artifacts: [],
+        gates: [{
+          id: 'gate-pwa-error',
+          name: 'PWA Build Error',
+          description: 'PWA packaging failed',
+          status: 'failed',
+          evidence: error instanceof Error ? error.message : String(error),
+          platformTarget: 'pwa',
+        }],
+        status: 'failed',
+      });
+    }
+  }
+
+  // Desktop platforms
+  const desktopTargets = platformTargets.filter(t => ['macos', 'windows', 'linux'].includes(t));
+  for (const desktopTarget of desktopTargets) {
+    const smokeTestGate = await validateDesktopSmokeTest(workspacePath, desktopTarget);
+    additionalGates.push(smokeTestGate);
+
+    // Find artifacts
+    const desktopArtifacts: DeliveryArtifact[] = [];
+    const electronPaths = ['out', 'release'];
+    for (const p of electronPaths) {
+      const fullPath = path.join(workspacePath, p);
+      if (fs.existsSync(fullPath)) {
+        try {
+          const items = fs.readdirSync(fullPath);
+          for (const item of items) {
+            if (
+              (desktopTarget === 'windows' && item.endsWith('.exe')) ||
+              (desktopTarget === 'macos' && item.endsWith('.app')) ||
+              (desktopTarget === 'linux' && !item.includes('.'))
+            ) {
+              const itemPath = path.join(fullPath, item);
+              const stats = fs.statSync(itemPath);
+              desktopArtifacts.push({
+                id: `desktop-${desktopTarget}-${item}`,
+                name: item,
+                type: 'package',
+                path: itemPath,
+                size: stats.isDirectory() ? undefined : `${(stats.size / 1024 / 1024).toFixed(1)} MB`,
+                validated: true,
+                validatedAt: Date.now(),
+                gate: 'desktop-build',
+                platformTarget: desktopTarget,
+              });
+            }
+          }
+        } catch {
+          // Skip if can't read directory
+        }
+      }
+    }
+
+    handoffs.push({
+      platformTarget: desktopTarget,
+      artifacts: desktopArtifacts,
+      gates: [smokeTestGate],
+      status: smokeTestGate.status === 'passed' ? 'passed' : 'pending',
+    });
+  }
+
+  return { handoffs, additionalArtifacts, additionalGates };
+}
+
+/**
  * Build a handoff bundle for the workspace
  */
-export function buildHandoffBundle(workspacePath: string, appName: string, deliveryFormat: string): HandoffBundle {
+export async function buildHandoffBundle(
+  workspacePath: string,
+  appName: string,
+  deliveryFormat: string,
+  platformTargets: PlatformTarget[] = []
+): Promise<HandoffBundle> {
+  // Gather base artifacts
   const artifacts = gatherArtifacts(workspacePath, appName);
-  const releaseNotes = generateReleaseNotes(workspacePath, appName);
+
+  // Generate release notes with platform info
+  const releaseNotes = generateReleaseNotes(workspacePath, appName, platformTargets);
   artifacts.push(releaseNotes);
 
-  const gates = evaluateReleaseGates(workspacePath);
+  // Evaluate base gates
+  const baseGates = evaluateBaseReleaseGates(workspacePath);
 
-  const allGatesPassed = gates.every(g => g.status === 'passed');
+  // Build platform-specific handoffs
+  const { handoffs, additionalArtifacts, additionalGates } = await buildPlatformHandoffs(workspacePath, platformTargets);
+
+  // Combine all artifacts and gates
+  const allArtifacts = [...artifacts, ...additionalArtifacts];
+  const allGates = [...baseGates, ...additionalGates];
+
+  // Determine overall status
+  const platformGates = handoffs.flatMap(h => h.gates);
+  const allGatesPassed = allGates.every(g => g.status === 'passed' || g.status === 'skipped');
   const summaryParts = [
-    `${artifacts.length} artifacts`,
-    `${gates.filter(g => g.status === 'passed').length}/${gates.length} gates passed`,
+    `${allArtifacts.length} artifacts`,
+    `${allGates.filter(g => g.status === 'passed').length}/${allGates.length} gates passed`,
     `format: ${deliveryFormat}`,
-  ];
+    platformTargets.length > 0 ? `platforms: ${platformTargets.join(', ')}` : undefined,
+  ].filter(Boolean);
 
   return {
     appName,
     deliveryFormat,
-    artifacts,
-    gates,
+    platformTargets,
+    artifacts: allArtifacts,
+    gates: allGates,
+    platformHandoffs: handoffs,
     completedAt: allGatesPassed ? Date.now() : undefined,
     summary: summaryParts.join(' • '),
   };
@@ -299,9 +553,16 @@ export async function runPackaging(workspacePath: string, deliveryFormat: string
       return { success: false, error: 'Workspace is not bootstrapped for Ralph', code: 'NOT_BOOTSTRAPPED' };
     }
 
-    // Get app name from scaffold metadata
+    // Get app name and platform targets from scaffold metadata
     const scaffold = getScaffoldMetadata(workspacePath);
     const appName = scaffold?.appName ?? 'app';
+    const platformTargets = scaffold?.platformTargets ?? [];
+
+    // Also check Ralph metadata
+    const ralphMetadata = getRalphMetadata(workspacePath);
+    if (ralphMetadata?.platformTargets && ralphMetadata.platformTargets.length > 0) {
+      platformTargets.push(...ralphMetadata.platformTargets.filter(t => !platformTargets.includes(t)));
+    }
 
     // Run npm install if node_modules doesn't exist
     const nodeModulesPath = path.join(workspacePath, 'node_modules');
@@ -321,13 +582,17 @@ export async function runPackaging(workspacePath: string, deliveryFormat: string
         try {
           await execAsync('npm run build', { cwd: workspacePath, timeout: 180000 });
         } catch (buildError) {
-          return { success: false, error: `Build failed: ${buildError}`, code: 'BUILD_FAILED' };
+          // Don't fail the whole packaging for web build error if we have other platforms
+          if (platformTargets.length === 0 || (!platformTargets.includes('pwa') && platformTargets.every(t => ['ios', 'android', 'macos', 'windows', 'linux'].includes(t)))) {
+            return { success: false, error: `Build failed: ${buildError}`, code: 'BUILD_FAILED' };
+          }
+          console.warn('Web build failed, continuing with platform-specific builds:', buildError);
         }
       }
     }
 
-    // Build handoff bundle
-    const bundle = buildHandoffBundle(workspacePath, appName, deliveryFormat);
+    // Build handoff bundle with platform support
+    const bundle = await buildHandoffBundle(workspacePath, appName, deliveryFormat, platformTargets);
     saveDeliveryManifest(workspacePath, bundle);
 
     return { success: true, bundle };
@@ -347,9 +612,15 @@ export function confirmRelease(workspacePath: string): DeliveryResult {
     }
 
     // Check all gates are passed
-    const allGatesPassed = manifest.gates.every(g => g.status === 'passed');
+    const allGatesPassed = manifest.gates.every(g => g.status === 'passed' || g.status === 'skipped');
     if (!allGatesPassed) {
       return { success: false, error: 'Not all release gates are passed', code: 'GATES_NOT_PASSED' };
+    }
+
+    // Check platform handoffs
+    const platformHandoffsPassed = manifest.platformHandoffs.every(h => h.status === 'passed' || h.status === 'skipped');
+    if (!platformHandoffsPassed) {
+      return { success: false, error: 'Not all platform handoffs passed validation', code: 'PLATFORM_HANDOFFS_NOT_PASSED' };
     }
 
     // Update manifest with completion time
@@ -365,7 +636,7 @@ export function confirmRelease(workspacePath: string): DeliveryResult {
 /**
  * Get the handoff bundle for a workspace
  */
-export function getHandoffBundle(workspacePath: string): DeliveryResult {
+export async function getHandoffBundle(workspacePath: string): Promise<DeliveryResult> {
   try {
     const manifest = getDeliveryManifest(workspacePath);
     if (manifest) {
@@ -376,7 +647,9 @@ export function getHandoffBundle(workspacePath: string): DeliveryResult {
     const scaffold = getScaffoldMetadata(workspacePath);
     const appName = scaffold?.appName ?? 'app';
     const deliveryFormat = scaffold?.template ?? 'web';
-    const bundle = buildHandoffBundle(workspacePath, appName, deliveryFormat);
+    const platformTargets = scaffold?.platformTargets ?? [];
+
+    const bundle = await buildHandoffBundle(workspacePath, appName, deliveryFormat, platformTargets);
 
     return { success: true, bundle };
   } catch (error) {

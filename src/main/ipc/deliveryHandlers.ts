@@ -15,7 +15,7 @@ export function registerDeliveryHandlers(): void {
     workspacePath: string
   ): Promise<{ success: boolean; bundle?: HandoffBundle; error?: string }> => {
     try {
-      const result = getHandoffBundle(workspacePath);
+      const result = await getHandoffBundle(workspacePath);
       return { success: result.success, bundle: result.bundle, error: result.error };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -40,7 +40,7 @@ export function registerDeliveryHandlers(): void {
     workspacePath: string
   ): Promise<{ success: boolean; bundle?: HandoffBundle; error?: string }> => {
     try {
-      const result = confirmRelease(workspacePath);
+      const result = await confirmRelease(workspacePath);
       return { success: result.success, bundle: result.bundle, error: result.error };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
