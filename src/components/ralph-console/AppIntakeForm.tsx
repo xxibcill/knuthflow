@@ -107,32 +107,32 @@ export function AppIntakeForm({
   }, [platformConfig.categories]);
 
   const toggleTarget = useCallback((target: PlatformTarget) => {
-    setPlatformConfig(prev => {
+    setPlatformConfig((prev: AppIntakeDraft['platformConfig']) => {
       const targets = prev.targets.includes(target)
-        ? prev.targets.filter(t => t !== target)
+        ? prev.targets.filter((existingTarget: PlatformTarget) => existingTarget !== target)
         : [...prev.targets, target];
 
       // Update categories based on selected targets
       const categories: PlatformCategory[] = [];
-      if (targets.some(t => t === 'ios' || t === 'android')) categories.push('mobile');
-      if (targets.some(t => t === 'pwa')) categories.push('web');
-      if (targets.some(t => t === 'macos' || t === 'windows' || t === 'linux')) categories.push('desktop');
+      if (targets.some((selectedTarget: PlatformTarget) => selectedTarget === 'ios' || selectedTarget === 'android')) categories.push('mobile');
+      if (targets.some((selectedTarget: PlatformTarget) => selectedTarget === 'pwa')) categories.push('web');
+      if (targets.some((selectedTarget: PlatformTarget) => selectedTarget === 'macos' || selectedTarget === 'windows' || selectedTarget === 'linux')) categories.push('desktop');
 
       return { categories, targets };
     });
   }, []);
 
   const toggleCategory = useCallback((category: PlatformCategory) => {
-    setPlatformConfig(prev => {
+    setPlatformConfig((prev: AppIntakeDraft['platformConfig']) => {
       const categoryTargets = PLATFORM_CATEGORIES.find(c => c.id === category)?.targets.map(t => t.id) ?? [];
       const isSelected = prev.categories.includes(category);
 
       const categories = isSelected
-        ? prev.categories.filter(c => c !== category)
+        ? prev.categories.filter((existingCategory: PlatformCategory) => existingCategory !== category)
         : [...prev.categories, category];
 
       const targets = isSelected
-        ? prev.targets.filter(t => !categoryTargets.includes(t))
+        ? prev.targets.filter((existingTarget: PlatformTarget) => !categoryTargets.includes(existingTarget))
         : [...prev.targets, ...categoryTargets];
 
       return { categories, targets };
