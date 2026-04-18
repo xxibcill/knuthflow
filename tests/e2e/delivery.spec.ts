@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import { createBootstrappedWorkspace, createMinimalWorkspace, createFullScaffoldedWorkspace, type TestWorkspace } from './support/workspaceHelper';
 
 // UI tests require a display server - skip in CI
+// Also skip on macOS when no dev server is available (Gatekeeper blocks packaged apps)
 const ci = process.env.CI === 'true';
+const isMacWithoutDevServer = process.platform === 'darwin' && !process.env.PLAYWRIGHT_DEV_SERVER_URL;
+const skipUITests = ci || isMacWithoutDevServer;
 
 /**
  * Phase 15 E2E Tests - End-to-End One-Shot Delivery Harness
@@ -338,7 +341,7 @@ test.describe('Phase 15: Delivery Manifest', () => {
  * Regression: Existing Tests Still Pass
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Regression: Existing Tests', () => {
+(skipUITests ? test.describe.skip : test.describe)('Regression: Existing Tests', () => {
   test('shows the main application shell', async ({ page }) => {
     await expect(page).toHaveTitle(/Knuthflow/i);
     await expect(page.getByTestId('app-shell')).toBeVisible();
@@ -351,7 +354,7 @@ test.describe('Phase 15: Delivery Manifest', () => {
  * Phase 15: UI Smoke Tests
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Phase 15: UI Smoke Tests', () => {
+(skipUITests ? test.describe.skip : test.describe)('Phase 15: UI Smoke Tests', () => {
   test('App loads without errors', async ({ page }) => {
     // Verify main elements are visible
     await expect(page.getByRole('heading', { name: 'Operator Workspace' })).toBeVisible();

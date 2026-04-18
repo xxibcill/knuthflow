@@ -18,8 +18,8 @@ export function registerRalphHandlers(): void {
   const ralphBootstrap = getRalphBootstrap();
   const ralphValidator = getRalphValidator();
 
-  ipcMain.handle('ralph:bootstrap', async (_event: IpcMainInvokeEvent, workspaceId: string, workspacePath: string, force?: boolean) => {
-    return ralphBootstrap.bootstrap({ workspaceId, workspacePath, force: force ?? false });
+  ipcMain.handle('ralph:bootstrap', async (_event: IpcMainInvokeEvent, workspaceId: string, workspacePath: string, force?: boolean, platformTargets?: string[]) => {
+    return ralphBootstrap.bootstrap({ workspaceId, workspacePath, force: force ?? false, platformTargets: platformTargets ?? [] });
   });
 
   ipcMain.handle('ralph:getReadinessReport', async (_event: IpcMainInvokeEvent, workspaceId: string, workspacePath: string) => {

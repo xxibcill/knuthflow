@@ -9,8 +9,11 @@ import type {
   RalphControlFiles,
   LoopState,
 } from './ralphTypes';
+import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
 import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
 export type { ArtifactType };
+
+export type { PlatformTarget, PlatformCategory, PlatformTargetConfig } from './deliveryTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Process Types
@@ -105,7 +108,8 @@ export interface Workspace {
 export interface AppIntakeDraft {
   appName: string;
   appBrief: string;
-  targetPlatform: 'web' | 'desktop' | 'mobile' | 'api';
+  targetPlatform: PlatformTarget[];
+  platformConfig: PlatformTargetConfig;
   successCriteria: string[];
   stackPreferences: string[];
   forbiddenPatterns: string[];
@@ -417,7 +421,12 @@ export interface KnuthflowAPI {
     getSystemInfo(): Promise<SystemDiagnostics>;
   };
   ralph: {
-    bootstrap(workspaceId: string, workspacePath: string, force?: boolean): Promise<BootstrapResult>;
+    bootstrap(
+      workspaceId: string,
+      workspacePath: string,
+      force?: boolean,
+      platformTargets?: PlatformTarget[],
+    ): Promise<BootstrapResult>;
     getReadinessReport(workspaceId: string, workspacePath: string): Promise<ReadinessReport>;
     validateBeforeStart(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;
     validateBeforeResume(workspaceId: string, workspacePath: string): Promise<{ valid: boolean; issues: ValidationIssue[] }>;
@@ -517,6 +526,7 @@ export interface KnuthflowAPI {
       bundle?: {
         appName: string;
         deliveryFormat: string;
+        platformTargets: string[];
         artifacts: Array<{
           id: string;
           name: string;
@@ -526,6 +536,7 @@ export interface KnuthflowAPI {
           validated: boolean;
           validatedAt?: number;
           gate?: string;
+          platformTarget?: string;
         }>;
         gates: Array<{
           id: string;
@@ -534,6 +545,31 @@ export interface KnuthflowAPI {
           status: string;
           evidence?: string;
           passedAt?: number;
+          platformTarget?: string;
+        }>;
+        platformHandoffs: Array<{
+          platformTarget: string;
+          artifacts: Array<{
+            id: string;
+            name: string;
+            type: string;
+            path: string;
+            size?: string;
+            validated: boolean;
+            validatedAt?: number;
+            gate?: string;
+            platformTarget?: string;
+          }>;
+          gates: Array<{
+            id: string;
+            name: string;
+            description: string;
+            status: string;
+            evidence?: string;
+            passedAt?: number;
+            platformTarget?: string;
+          }>;
+          status: string;
         }>;
         completedAt?: number;
         summary: string;
@@ -545,6 +581,7 @@ export interface KnuthflowAPI {
       bundle?: {
         appName: string;
         deliveryFormat: string;
+        platformTargets: string[];
         artifacts: Array<{
           id: string;
           name: string;
@@ -554,6 +591,7 @@ export interface KnuthflowAPI {
           validated: boolean;
           validatedAt?: number;
           gate?: string;
+          platformTarget?: string;
         }>;
         gates: Array<{
           id: string;
@@ -562,6 +600,31 @@ export interface KnuthflowAPI {
           status: string;
           evidence?: string;
           passedAt?: number;
+          platformTarget?: string;
+        }>;
+        platformHandoffs: Array<{
+          platformTarget: string;
+          artifacts: Array<{
+            id: string;
+            name: string;
+            type: string;
+            path: string;
+            size?: string;
+            validated: boolean;
+            validatedAt?: number;
+            gate?: string;
+            platformTarget?: string;
+          }>;
+          gates: Array<{
+            id: string;
+            name: string;
+            description: string;
+            status: string;
+            evidence?: string;
+            passedAt?: number;
+            platformTarget?: string;
+          }>;
+          status: string;
         }>;
         completedAt?: number;
         summary: string;
@@ -573,6 +636,7 @@ export interface KnuthflowAPI {
       bundle?: {
         appName: string;
         deliveryFormat: string;
+        platformTargets: string[];
         artifacts: Array<{
           id: string;
           name: string;
@@ -582,6 +646,7 @@ export interface KnuthflowAPI {
           validated: boolean;
           validatedAt?: number;
           gate?: string;
+          platformTarget?: string;
         }>;
         gates: Array<{
           id: string;
@@ -590,6 +655,31 @@ export interface KnuthflowAPI {
           status: string;
           evidence?: string;
           passedAt?: number;
+          platformTarget?: string;
+        }>;
+        platformHandoffs: Array<{
+          platformTarget: string;
+          artifacts: Array<{
+            id: string;
+            name: string;
+            type: string;
+            path: string;
+            size?: string;
+            validated: boolean;
+            validatedAt?: number;
+            gate?: string;
+            platformTarget?: string;
+          }>;
+          gates: Array<{
+            id: string;
+            name: string;
+            description: string;
+            status: string;
+            evidence?: string;
+            passedAt?: number;
+            platformTarget?: string;
+          }>;
+          status: string;
         }>;
         completedAt?: number;
         summary: string;

@@ -475,7 +475,12 @@ export function RalphConsolePanel({
       }
 
       // Bootstrap Ralph in the workspace
-      const bootstrapResult = await window.knuthflow.ralph.bootstrap(workspace.id, workspace.path, false);
+      const bootstrapResult = await window.knuthflow.ralph.bootstrap(
+        workspace.id,
+        workspace.path,
+        false,
+        generatedBlueprint.intake.targetPlatform,
+      );
       if (!bootstrapResult.success) {
         setKickoffError(bootstrapResult.error || 'Failed to bootstrap Ralph');
         return;

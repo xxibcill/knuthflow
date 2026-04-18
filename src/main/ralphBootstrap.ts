@@ -8,6 +8,7 @@ import type { RalphControlFiles, SharedBootstrapResult } from '../shared/ralphTy
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RALPH_METADATA_FILE = '.ralph';
+const BLUEPRINT_METADATA_FILE = '.ralph.blueprint.json';
 
 interface RalphTemplateConfig {
   model: string;
@@ -130,6 +131,7 @@ export interface BootstrapOptions {
   force?: boolean; // Force regeneration of existing files (with backup)
   workspaceId: string;
   workspacePath: string;
+  platformTargets?: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,6 +158,7 @@ export class RalphBootstrap {
    */
   bootstrap(options: BootstrapOptions): BootstrapResult {
     const { workspaceId, workspacePath, force = false } = options;
+    const platformTargets = this.resolvePlatformTargets(workspacePath, options.platformTargets);
 
     // Validate workspace exists
     if (!fs.existsSync(workspacePath)) {
@@ -187,7 +190,7 @@ export class RalphBootstrap {
       }
 
       // Now write control files to disk
-      const result = this.bootstrapControlFiles(workspacePath, force);
+      const result = this.bootstrapControlFiles(workspacePath, force, platformTargets);
 
       return {
         success: true,
@@ -214,7 +217,7 @@ export class RalphBootstrap {
    * Bootstrap Ralph control files without creating a project
    * Used for repair scenarios
    */
-  bootstrapControlFiles(workspacePath: string, force = false): { created: string[]; skipped: string[]; updated: string[] } {
+  bootstrapControlFiles(workspacePath: string, force = false, platformTargets: string[] = []): { created: string[]; skipped: string[]; updated: string[] } {
     const created: string[] = [];
     const skipped: string[] = [];
     const updated: string[] = [];
@@ -291,11 +294,73 @@ export class RalphBootstrap {
       created.push('specs/example.md');
     }
 
+    // Platform-specific specs
+    if (platformTargets.includes('ios') || platformTargets.includes('android')) {
+      const mobileSpecPath = path.join(specsDir, 'mobile-ux.md');
+      const mobileSpecContent = `# Mobile UX Specification
+
+## Platform Targets
+${platformTargets.includes('ios') ? '- iOS' : ''}${platformTargets.includes('android') ? '- Android' : ''}
+
+## Mobile Considerations
+- Touch-friendly interface with appropriate tap targets (min 44x44 points)
+- Safe area handling for notched devices
+- Native feel with platform-appropriate transitions
+- Offline capability consideration
+`;
+      if (fs.existsSync(mobileSpecPath)) {
+        skipped.push('specs/mobile-ux.md');
+      } else {
+        fs.writeFileSync(mobileSpecPath, mobileSpecContent, 'utf-8');
+        created.push('specs/mobile-ux.md');
+      }
+    }
+
+    if (platformTargets.includes('pwa')) {
+      const pwaSpecPath = path.join(specsDir, 'pwa-offline.md');
+      const pwaSpecContent = `# PWA Offline Specification
+
+## PWA Requirements
+- Service worker for offline operation
+- Web app manifest with proper icons
+- Cache-first strategy for app shell
+- Network-first for dynamic content
+`;
+      if (fs.existsSync(pwaSpecPath)) {
+        skipped.push('specs/pwa-offline.md');
+      } else {
+        fs.writeFileSync(pwaSpecPath, pwaSpecContent, 'utf-8');
+        created.push('specs/pwa-offline.md');
+      }
+    }
+
+    if (platformTargets.some(t => ['macos', 'windows', 'linux'].includes(t))) {
+      const desktopSpecPath = path.join(specsDir, 'desktop-ux.md');
+      const desktopSpecContent = `# Desktop UX Specification
+
+## Platform Targets
+${platformTargets.includes('macos') ? '- macOS\n' : ''}${platformTargets.includes('windows') ? '- Windows\n' : ''}${platformTargets.includes('linux') ? '- Linux\n' : ''}
+
+## Desktop Considerations
+- Window management (minimize, maximize, resize)
+- Keyboard shortcuts
+- Native menu bar or equivalent
+- Desktop notifications
+`;
+      if (fs.existsSync(desktopSpecPath)) {
+        skipped.push('specs/desktop-ux.md');
+      } else {
+        fs.writeFileSync(desktopSpecPath, desktopSpecContent, 'utf-8');
+        created.push('specs/desktop-ux.md');
+      }
+    }
+
     // Write Ralph metadata file
     const metadataPath = path.join(workspacePath, RALPH_METADATA_FILE);
     const metadata = {
       version: 1,
       bootstrappedAt: Date.now(),
+      platformTargets,
     };
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
 
@@ -386,6 +451,49 @@ export class RalphBootstrap {
       return error.message;
     }
     return String(error);
+  }
+
+  private resolvePlatformTargets(workspacePath: string, platformTargets?: string[]): string[] {
+    const explicitTargets = this.normalizePlatformTargets(platformTargets);
+    if (explicitTargets.length > 0) {
+      return explicitTargets;
+    }
+
+    const metadataPath = path.join(workspacePath, RALPH_METADATA_FILE);
+    if (fs.existsSync(metadataPath)) {
+      try {
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as { platformTargets?: string[] };
+        const storedTargets = this.normalizePlatformTargets(metadata.platformTargets);
+        if (storedTargets.length > 0) {
+          return storedTargets;
+        }
+      } catch {
+        // Ignore malformed metadata and continue to blueprint fallback.
+      }
+    }
+
+    const blueprintPath = path.join(workspacePath, BLUEPRINT_METADATA_FILE);
+    if (fs.existsSync(blueprintPath)) {
+      try {
+        const blueprint = JSON.parse(fs.readFileSync(blueprintPath, 'utf-8')) as {
+          platformTargets?: string[];
+          platform?: string[];
+        };
+        return this.normalizePlatformTargets(blueprint.platformTargets ?? blueprint.platform);
+      } catch {
+        // Ignore malformed blueprint metadata and fall back to no targets.
+      }
+    }
+
+    return [];
+  }
+
+  private normalizePlatformTargets(platformTargets?: string[]): string[] {
+    if (!platformTargets) {
+      return [];
+    }
+
+    return [...new Set(platformTargets.filter((target): target is string => typeof target === 'string' && target.length > 0))];
   }
 
   /**

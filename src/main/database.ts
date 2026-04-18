@@ -26,6 +26,9 @@ export {
   STALE_RUN_THRESHOLD_MS,
 } from '../shared/ralphTypes';
 
+import type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
+export type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
+
 import { runMigrations, SCHEMA_VERSION } from './databaseMigrations';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,6 +272,27 @@ export const DEFAULT_SETTINGS: AppSettings = {
 // ─────────────────────────────────────────────────────────────────────────────
 // SessionDatabase with Settings
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App Metadata Types (Phase 18)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AppMetadata {
+  id: string;
+  name: string;
+  brief: string;
+  platformTargets: PlatformTarget[];
+  platformCategories: PlatformCategory[];
+  deliveryFormat: string;
+  successCriteria: string[];
+  stackPreferences: string[];
+  forbiddenPatterns: string[];
+  maxBuildTime: number;
+  supportedBrowsers: string[];
+  workspaceId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
 
 class SessionDatabase {
   private db: Database.Database;
@@ -2180,6 +2204,168 @@ class SessionDatabase {
       autoInject: (row.auto_inject as number) === 1,
       active: (row.active as number) === 1,
       injectedAt: row.injected_at as number | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // App Metadata Operations (Phase 18)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createApp(params: {
+    name: string;
+    brief: string;
+    platformTargets: PlatformTarget[];
+    platformCategories: PlatformCategory[];
+    deliveryFormat: string;
+    successCriteria: string[];
+    stackPreferences: string[];
+    forbiddenPatterns: string[];
+    maxBuildTime: number;
+    supportedBrowsers: string[];
+    workspaceId?: string | null;
+  }): AppMetadata {
+    const id = `app-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO apps (id, name, brief, platform_targets, platform_categories, delivery_format, success_criteria, stack_preferences, forbidden_patterns, max_build_time, supported_browsers, workspace_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.name,
+      params.brief,
+      JSON.stringify(params.platformTargets),
+      JSON.stringify(params.platformCategories),
+      params.deliveryFormat,
+      JSON.stringify(params.successCriteria),
+      JSON.stringify(params.stackPreferences),
+      JSON.stringify(params.forbiddenPatterns),
+      params.maxBuildTime,
+      JSON.stringify(params.supportedBrowsers),
+      params.workspaceId ?? null,
+      now,
+      now
+    );
+    return {
+      id,
+      name: params.name,
+      brief: params.brief,
+      platformTargets: params.platformTargets,
+      platformCategories: params.platformCategories,
+      deliveryFormat: params.deliveryFormat,
+      successCriteria: params.successCriteria,
+      stackPreferences: params.stackPreferences,
+      forbiddenPatterns: params.forbiddenPatterns,
+      maxBuildTime: params.maxBuildTime,
+      supportedBrowsers: params.supportedBrowsers,
+      workspaceId: params.workspaceId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getApp(id: string): AppMetadata | null {
+    const row = this.db.prepare('SELECT * FROM apps WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToApp(row);
+  }
+
+  getAppByWorkspaceId(workspaceId: string): AppMetadata | null {
+    const row = this.db.prepare('SELECT * FROM apps WHERE workspace_id = ?').get(workspaceId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToApp(row);
+  }
+
+  listApps(limit = 50): AppMetadata[] {
+    const rows = this.db.prepare('SELECT * FROM apps ORDER BY created_at DESC LIMIT ?').all(limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToApp(row));
+  }
+
+  updateApp(id: string, updates: Partial<{
+    name: string;
+    brief: string;
+    platformTargets: PlatformTarget[];
+    platformCategories: PlatformCategory[];
+    deliveryFormat: string;
+    successCriteria: string[];
+    stackPreferences: string[];
+    forbiddenPatterns: string[];
+    maxBuildTime: number;
+    supportedBrowsers: string[];
+  }>): AppMetadata | null {
+    const existing = this.getApp(id);
+    if (!existing) return null;
+
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.name !== undefined) {
+      setClauses.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.brief !== undefined) {
+      setClauses.push('brief = ?');
+      values.push(updates.brief);
+    }
+    if (updates.platformTargets !== undefined) {
+      setClauses.push('platform_targets = ?');
+      values.push(JSON.stringify(updates.platformTargets));
+    }
+    if (updates.platformCategories !== undefined) {
+      setClauses.push('platform_categories = ?');
+      values.push(JSON.stringify(updates.platformCategories));
+    }
+    if (updates.deliveryFormat !== undefined) {
+      setClauses.push('delivery_format = ?');
+      values.push(updates.deliveryFormat);
+    }
+    if (updates.successCriteria !== undefined) {
+      setClauses.push('success_criteria = ?');
+      values.push(JSON.stringify(updates.successCriteria));
+    }
+    if (updates.stackPreferences !== undefined) {
+      setClauses.push('stack_preferences = ?');
+      values.push(JSON.stringify(updates.stackPreferences));
+    }
+    if (updates.forbiddenPatterns !== undefined) {
+      setClauses.push('forbidden_patterns = ?');
+      values.push(JSON.stringify(updates.forbiddenPatterns));
+    }
+    if (updates.maxBuildTime !== undefined) {
+      setClauses.push('max_build_time = ?');
+      values.push(updates.maxBuildTime);
+    }
+    if (updates.supportedBrowsers !== undefined) {
+      setClauses.push('supported_browsers = ?');
+      values.push(JSON.stringify(updates.supportedBrowsers));
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE apps SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    return this.getApp(id);
+  }
+
+  deleteApp(id: string): void {
+    this.db.prepare('DELETE FROM apps WHERE id = ?').run(id);
+  }
+
+  private rowToApp(row: Record<string, unknown>): AppMetadata {
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      brief: row.brief as string,
+      platformTargets: JSON.parse(row.platform_targets as string || '[]'),
+      platformCategories: JSON.parse(row.platform_categories as string || '[]'),
+      deliveryFormat: row.delivery_format as string,
+      successCriteria: JSON.parse(row.success_criteria as string || '[]'),
+      stackPreferences: JSON.parse(row.stack_preferences as string || '[]'),
+      forbiddenPatterns: JSON.parse(row.forbidden_patterns as string || '[]'),
+      maxBuildTime: row.max_build_time as number,
+      supportedBrowsers: JSON.parse(row.supported_browsers as string || '[]'),
+      workspaceId: row.workspace_id as string | null,
       createdAt: row.created_at as number,
       updatedAt: row.updated_at as number,
     };

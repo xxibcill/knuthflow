@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -48,6 +48,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 8 to 9 (add delivery_metrics and prompt_countermeasures tables for Phase 17)
   if (currentVersion < 9) {
     migrateToV9(db);
+  }
+
+  // Migrate from version 9 to 10 (add apps table with platform targets for Phase 18)
+  if (currentVersion < 10) {
+    migrateToV10(db);
   }
 
   // Update schema version
@@ -532,5 +537,34 @@ function migrateToV9(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_prompt_countermeasures_project_id ON prompt_countermeasures(project_id);
     CREATE INDEX IF NOT EXISTS idx_prompt_countermeasures_pattern ON prompt_countermeasures(project_id, pattern);
     CREATE INDEX IF NOT EXISTS idx_prompt_countermeasures_active ON prompt_countermeasures(active);
+  `);
+}
+
+function migrateToV10(db: Database.Database): void {
+  // Create apps table for storing app metadata with platform targets (Phase 18)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS apps (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      brief TEXT NOT NULL,
+      platform_targets TEXT NOT NULL DEFAULT '[]',
+      platform_categories TEXT NOT NULL DEFAULT '[]',
+      delivery_format TEXT NOT NULL,
+      success_criteria TEXT NOT NULL DEFAULT '[]',
+      stack_preferences TEXT NOT NULL DEFAULT '[]',
+      forbidden_patterns TEXT NOT NULL DEFAULT '[]',
+      max_build_time INTEGER NOT NULL DEFAULT 30,
+      supported_browsers TEXT NOT NULL DEFAULT '[]',
+      workspace_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+    )
+  `);
+
+  // Create indexes for app queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_apps_workspace_id ON apps(workspace_id);
+    CREATE INDEX IF NOT EXISTS idx_apps_created_at ON apps(created_at);
   `);
 }
