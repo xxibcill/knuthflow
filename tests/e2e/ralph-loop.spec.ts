@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 // UI tests require a display server - skip in CI
+// Also skip on macOS when no dev server is available (Gatekeeper blocks packaged apps)
 const ci = process.env.CI === 'true';
+const isMacWithoutDevServer = process.platform === 'darwin' && !process.env.PLAYWRIGHT_DEV_SERVER_URL;
+const skipUITests = ci || isMacWithoutDevServer;
 
 /**
  * Phase 12 E2E Tests - Ralph Loop Controller and Runtime
@@ -334,7 +337,7 @@ test.describe('Phase 12: Operator Controls', () => {
  * UI Smoke Tests
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Phase 12: UI Smoke Tests', () => {
+(skipUITests ? test.describe.skip : test.describe)('Phase 12: UI Smoke Tests', () => {
   test('App loads without errors', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Operator Workspace' })).toBeVisible();
   });

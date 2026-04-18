@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 // UI tests require a display server - skip in CI
+// Also skip on macOS when no dev server is available (Gatekeeper blocks packaged apps)
 const ci = process.env.CI === 'true';
+const isMacWithoutDevServer = process.platform === 'darwin' && !process.env.PLAYWRIGHT_DEV_SERVER_URL;
+const skipUITests = ci || isMacWithoutDevServer;
 
 /**
  * Phase 16 E2E Tests - Portfolio Dashboard
@@ -53,7 +56,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
  * Portfolio CRUD Tests
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio CRUD', () => {
+(skipUITests ? test.describe.skip : test.describe)('Phase 16: Portfolio CRUD', () => {
   let workspace: { path: string; cleanup: () => Promise<void> } | null = null;
 
   test.afterEach(async () => {
@@ -129,7 +132,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
  * Portfolio-Project Association Tests
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio-Project Association', () => {
+(skipUITests ? test.describe.skip : test.describe)('Phase 16: Portfolio-Project Association', () => {
   let workspace: { path: string; cleanup: () => Promise<void> } | null = null;
 
   test.afterEach(async () => {
@@ -293,7 +296,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
  * Portfolio Runtime Tests
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio Runtime', () => {
+(skipUITests ? test.describe.skip : test.describe)('Phase 16: Portfolio Runtime', () => {
   test('Portfolio runtime can be registered and unregistered', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
@@ -341,7 +344,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
  * Portfolio Dashboard UI Tests
  * ───────────────────────────────────────────────────────────────────────────── */
 // Skip UI tests in CI - requires display server
-(ci ? test.describe.skip : test.describe)('Phase 16: Portfolio Dashboard UI', () => {
+(skipUITests ? test.describe.skip : test.describe)('Phase 16: Portfolio Dashboard UI', () => {
   test('Portfolio dashboard renders without crashing', async ({ page }) => {
     // This test verifies the dashboard component can render
     // In a full E2E test with the full app, we would navigate to the portfolio view

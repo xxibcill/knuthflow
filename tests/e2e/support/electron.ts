@@ -15,6 +15,19 @@ type ElectronFixtures = {
 export const test = base.extend<ElectronFixtures>({
   electronApp: async ({ browserName }, use, testInfo) => {
     void browserName;
+
+    // On macOS, UI tests cannot run because Gatekeeper blocks unsigned packaged apps.
+    // Skip all UI tests on macOS unless a dev server is available.
+    if (process.platform === 'darwin' && !process.env.PLAYWRIGHT_DEV_SERVER_URL) {
+      const error = new Error(
+        `SKIP_TEST: UI tests cannot run on macOS.\n` +
+        `Packaged apps are blocked by Gatekeeper and no dev server configured.\n` +
+        `Set PLAYWRIGHT_DEV_SERVER_URL=http://localhost:9000 to run UI tests.`
+      );
+      error.name = 'SKIP_TEST';
+      throw error;
+    }
+
     const userDataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'knuthflow-playwright-'));
 
     // Check if we have a packaged app available
@@ -44,10 +57,16 @@ export const test = base.extend<ElectronFixtures>({
       // No packaged app or local dev: use electron binary with webpack dev server URL
       const devServerUrl = process.env.PLAYWRIGHT_DEV_SERVER_URL;
       if (!devServerUrl) {
-        throw new Error(
-          `No packaged app found (CI=${isCI}) and PLAYWRIGHT_DEV_SERVER_URL not set.\n` +
-          `Either run 'npm run package' first, or set PLAYWRIGHT_DEV_SERVER_URL (e.g., http://localhost:9000)`
+        // On macOS, UI tests cannot run because:
+        // 1. Packaged app is blocked by Gatekeeper (even with quarantine removed, signed check fails)
+        // 2. Dev server mode isn't configured
+        // Skip these tests - they require either CI or a configured dev server
+        const error = new Error(
+          `SKIP_TEST: UI tests cannot run on macOS without PLAYWRIGHT_DEV_SERVER_URL.\n` +
+          `Set PLAYWRIGHT_DEV_SERVER_URL=http://localhost:9000 after running 'npm run start' to enable UI tests.`
         );
+        error.name = 'SKIP_TEST';
+        throw error;
       }
       console.error(`[E2E] Launching with dev server: ${devServerUrl}`);
       app = await electron.launch({
