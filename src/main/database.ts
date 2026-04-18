@@ -2817,6 +2817,7 @@ class SessionDatabase {
   }
 
   updateMaintenanceRun(id: string, updates: Partial<{
+    runId: string | null;
     status: MaintenanceRun['status'];
     iterationCount: number;
     outcome: MaintenanceOutcome | null;
@@ -2847,6 +2848,10 @@ class SessionDatabase {
     if (updates.completedAt !== undefined) {
       setClauses.push('completed_at = ?');
       values.push(updates.completedAt);
+    }
+    if (updates.runId !== undefined) {
+      setClauses.push('run_id = ?');
+      values.push(updates.runId);
     }
 
     if (setClauses.length === 0) return existing;
