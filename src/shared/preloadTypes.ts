@@ -868,4 +868,469 @@ export interface KnuthflowAPI {
     propagateArtifact(projectId: string, artifactPath: string, artifactType: string): Promise<void>;
     clearProjectArtifacts(projectId: string): Promise<void>;
   };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Monitoring & Maintenance Types (Phase 19)
+  // ─────────────────────────────────────────────────────────────────────────────
+  monitoring: {
+    createConfig(appId: string): Promise<{
+      id: string;
+      appId: string;
+      enabled: boolean;
+      checkIntervalHours: number;
+      checkBuild: boolean;
+      checkLint: boolean;
+      checkTests: boolean;
+      checkVulnerabilities: boolean;
+      autoFixTrigger: boolean;
+      alertThreshold: number;
+      lastCheckAt: number | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    getConfig(appId: string): Promise<{
+      id: string;
+      appId: string;
+      enabled: boolean;
+      checkIntervalHours: number;
+      checkBuild: boolean;
+      checkLint: boolean;
+      checkTests: boolean;
+      checkVulnerabilities: boolean;
+      autoFixTrigger: boolean;
+      alertThreshold: number;
+      lastCheckAt: number | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    updateConfig(appId: string, updates: {
+      enabled?: boolean;
+      checkIntervalHours?: number;
+      checkBuild?: boolean;
+      checkLint?: boolean;
+      checkTests?: boolean;
+      checkVulnerabilities?: boolean;
+      autoFixTrigger?: boolean;
+      alertThreshold?: number;
+    }): Promise<{
+      id: string;
+      appId: string;
+      enabled: boolean;
+      checkIntervalHours: number;
+      checkBuild: boolean;
+      checkLint: boolean;
+      checkTests: boolean;
+      checkVulnerabilities: boolean;
+      autoFixTrigger: boolean;
+      alertThreshold: number;
+      lastCheckAt: number | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    forceCheck(appId: string): Promise<Array<{
+      checkType: 'build' | 'lint' | 'tests' | 'vulnerabilities';
+      status: 'healthy' | 'degraded' | 'failing';
+      message: string | null;
+      details: string | null;
+      regressed: boolean;
+    }>>;
+    getHealthStatus(appId: string): Promise<{
+      overall: 'healthy' | 'degraded' | 'failing';
+      checks: Record<string, 'healthy' | 'degraded' | 'failing'>;
+    }>;
+    listHealthRecords(appId: string, limit?: number): Promise<Array<{
+      id: string;
+      appId: string;
+      checkType: 'build' | 'lint' | 'tests' | 'vulnerabilities';
+      status: 'healthy' | 'degraded' | 'failing';
+      message: string | null;
+      details: string | null;
+      regressed: boolean;
+      checkedAt: number;
+    }>>;
+    getRegressedRecords(appId: string): Promise<Array<{
+      id: string;
+      appId: string;
+      checkType: 'build' | 'lint' | 'tests' | 'vulnerabilities';
+      status: 'healthy' | 'degraded' | 'failing';
+      message: string | null;
+      details: string | null;
+      regressed: boolean;
+      checkedAt: number;
+    }>>;
+    triggerAutoFix(appId: string): Promise<Array<{
+      checkType: 'build' | 'lint' | 'tests' | 'vulnerabilities';
+      status: 'healthy' | 'degraded' | 'failing';
+      message: string | null;
+      details: string | null;
+      regressed: boolean;
+    }>>;
+  };
+  maintenance: {
+    create(params: {
+      appId: string;
+      runId?: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds?: string[];
+    }): Promise<{
+      id: string;
+      appId: string;
+      runId: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds: string[];
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount: number;
+      outcome: 'success' | 'failure' | 'cancelled' | null;
+      startedAt: number | null;
+      completedAt: number | null;
+      createdAt: number;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      appId: string;
+      runId: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds: string[];
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount: number;
+      outcome: 'success' | 'failure' | 'cancelled' | null;
+      startedAt: number | null;
+      completedAt: number | null;
+      createdAt: number;
+    } | null>;
+    update(id: string, updates: {
+      status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount?: number;
+      outcome?: 'success' | 'failure' | 'cancelled' | null;
+      startedAt?: number | null;
+      completedAt?: number | null;
+    }): Promise<{
+      id: string;
+      appId: string;
+      runId: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds: string[];
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount: number;
+      outcome: 'success' | 'failure' | 'cancelled' | null;
+      startedAt: number | null;
+      completedAt: number | null;
+      createdAt: number;
+    } | null>;
+    list(appId: string, limit?: number): Promise<Array<{
+      id: string;
+      appId: string;
+      runId: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds: string[];
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount: number;
+      outcome: 'success' | 'failure' | 'cancelled' | null;
+      startedAt: number | null;
+      completedAt: number | null;
+      createdAt: number;
+    }>>;
+    listActive(): Promise<Array<{
+      id: string;
+      appId: string;
+      runId: string | null;
+      triggerType: 'scheduled' | 'regression' | 'manual';
+      triggerReason: string;
+      regressionIds: string[];
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      iterationCount: number;
+      outcome: 'success' | 'failure' | 'cancelled' | null;
+      startedAt: number | null;
+      completedAt: number | null;
+      createdAt: number;
+    }>>;
+  };
+  appVersion: {
+    create(params: {
+      appId: string;
+      version: string;
+      changelog?: string;
+      channel?: 'internal' | 'beta' | 'stable';
+      createdBy?: 'operator' | 'auto';
+      runId?: string | null;
+    }): Promise<{
+      id: string;
+      appId: string;
+      version: string;
+      changelog: string;
+      releasedAt: number;
+      channel: 'internal' | 'beta' | 'stable';
+      createdBy: 'operator' | 'auto';
+      runId: string | null;
+      createdAt: number;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      appId: string;
+      version: string;
+      changelog: string;
+      releasedAt: number;
+      channel: 'internal' | 'beta' | 'stable';
+      createdBy: 'operator' | 'auto';
+      runId: string | null;
+      createdAt: number;
+    } | null>;
+    list(appId: string, limit?: number): Promise<Array<{
+      id: string;
+      appId: string;
+      version: string;
+      changelog: string;
+      releasedAt: number;
+      channel: 'internal' | 'beta' | 'stable';
+      createdBy: 'operator' | 'auto';
+      runId: string | null;
+      createdAt: number;
+    }>>;
+    listByChannel(appId: string, channel: 'internal' | 'beta' | 'stable'): Promise<Array<{
+      id: string;
+      appId: string;
+      version: string;
+      changelog: string;
+      releasedAt: number;
+      channel: 'internal' | 'beta' | 'stable';
+      createdBy: 'operator' | 'auto';
+      runId: string | null;
+      createdAt: number;
+    }>>;
+    promote(id: string, newChannel: 'internal' | 'beta' | 'stable'): Promise<{
+      id: string;
+      appId: string;
+      version: string;
+      changelog: string;
+      releasedAt: number;
+      channel: 'internal' | 'beta' | 'stable';
+      createdBy: 'operator' | 'auto';
+      runId: string | null;
+      createdAt: number;
+    } | null>;
+  };
+  rollout: {
+    createChannel(params: {
+      appId: string;
+      channel: string;
+      isDefault?: boolean;
+      validationRequired?: boolean;
+      autoPromote?: boolean;
+      minBetaAdopters?: number;
+    }): Promise<{
+      id: string;
+      appId: string;
+      channel: string;
+      isDefault: boolean;
+      validationRequired: boolean;
+      autoPromote: boolean;
+      minBetaAdopters: number;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+    getChannel(appId: string, channel: string): Promise<{
+      id: string;
+      appId: string;
+      channel: string;
+      isDefault: boolean;
+      validationRequired: boolean;
+      autoPromote: boolean;
+      minBetaAdopters: number;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    listChannels(appId: string): Promise<Array<{
+      id: string;
+      appId: string;
+      channel: string;
+      isDefault: boolean;
+      validationRequired: boolean;
+      autoPromote: boolean;
+      minBetaAdopters: number;
+      createdAt: number;
+      updatedAt: number;
+    }>>;
+    updateChannel(id: string, updates: {
+      isDefault?: boolean;
+      validationRequired?: boolean;
+      autoPromote?: boolean;
+      minBetaAdopters?: number;
+    }): Promise<{
+      id: string;
+      appId: string;
+      channel: string;
+      isDefault: boolean;
+      validationRequired: boolean;
+      autoPromote: boolean;
+      minBetaAdopters: number;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    createRelease(params: {
+      appId: string;
+      versionId: string;
+      channel: string;
+      status?: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedBy?: string | null;
+      rollbackFromVersionId?: string | null;
+    }): Promise<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      status: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedAt: number | null;
+      promotedBy: string | null;
+      rollbackFromVersionId: string | null;
+      createdAt: number;
+    }>;
+    getRelease(id: string): Promise<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      status: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedAt: number | null;
+      promotedBy: string | null;
+      rollbackFromVersionId: string | null;
+      createdAt: number;
+    } | null>;
+    getLatest(appId: string, channel: string): Promise<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      status: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedAt: number | null;
+      promotedBy: string | null;
+      rollbackFromVersionId: string | null;
+      createdAt: number;
+    } | null>;
+    promoteRelease(id: string, promotedBy: string): Promise<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      status: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedAt: number | null;
+      promotedBy: string | null;
+      rollbackFromVersionId: string | null;
+      createdAt: number;
+    } | null>;
+    rollbackRelease(id: string, rollbackVersionId: string): Promise<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      status: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedAt: number | null;
+      promotedBy: string | null;
+      rollbackFromVersionId: string | null;
+      createdAt: number;
+    } | null>;
+    listReleases(appId: string, channel?: string): Promise<Array<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      status: 'active' | 'promoted' | 'rolled_back' | 'archived';
+      promotedAt: number | null;
+      promotedBy: string | null;
+      rollbackFromVersionId: string | null;
+      createdAt: number;
+    }>>;
+    recordMetrics(params: {
+      appId: string;
+      versionId: string;
+      channel: string;
+      metricType: 'installs' | 'crashes' | 'active_users' | 'crash_rate' | 'feedback_score';
+      metricValue: number;
+    }): Promise<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      metricType: 'installs' | 'crashes' | 'active_users' | 'crash_rate' | 'feedback_score';
+      metricValue: number;
+      recordedAt: number;
+    }>;
+    listMetrics(appId: string, versionId?: string, channel?: string): Promise<Array<{
+      id: string;
+      appId: string;
+      versionId: string;
+      channel: string;
+      metricType: 'installs' | 'crashes' | 'active_users' | 'crash_rate' | 'feedback_score';
+      metricValue: number;
+      recordedAt: number;
+    }>>;
+  };
+  beta: {
+    createTester(email: string, name?: string | null): Promise<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+    getTester(id: string): Promise<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    getTesterByEmail(email: string): Promise<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    listTesters(enabledOnly?: boolean): Promise<Array<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      createdAt: number;
+      updatedAt: number;
+    }>>;
+    updateTester(id: string, updates: { name?: string | null; enabled?: boolean }): Promise<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    grantAccess(testerId: string, appId: string, channel?: string): Promise<{
+      id: string;
+      testerId: string;
+      appId: string;
+      channel: string;
+      createdAt: number;
+    }>;
+    listAccess(testerId: string): Promise<Array<{
+      id: string;
+      testerId: string;
+      appId: string;
+      channel: string;
+      createdAt: number;
+    }>>;
+    listTestersForApp(appId: string): Promise<Array<{
+      id: string;
+      email: string;
+      name: string | null;
+      enabled: boolean;
+      createdAt: number;
+      updatedAt: number;
+    }>>;
+    revokeAccess(id: string): Promise<{ success: boolean }>;
+  };
 }

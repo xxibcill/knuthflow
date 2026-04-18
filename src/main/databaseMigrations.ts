@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 14;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -53,6 +53,26 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 9 to 10 (add apps table with platform targets for Phase 18)
   if (currentVersion < 10) {
     migrateToV10(db);
+  }
+
+  // Migrate from version 10 to 11 (add app_versions table for Phase 19)
+  if (currentVersion < 11) {
+    migrateToV11(db);
+  }
+
+  // Migrate from version 11 to 12 (add monitoring config and health records for Phase 19)
+  if (currentVersion < 12) {
+    migrateToV12(db);
+  }
+
+  // Migrate from version 12 to 13 (add maintenance_run table for Phase 19)
+  if (currentVersion < 13) {
+    migrateToV13(db);
+  }
+
+  // Migrate from version 13 to 14 (add staged rollout tables for Phase 19)
+  if (currentVersion < 14) {
+    migrateToV14(db);
   }
 
   // Update schema version
@@ -566,5 +586,200 @@ function migrateToV10(db: Database.Database): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_apps_workspace_id ON apps(workspace_id);
     CREATE INDEX IF NOT EXISTS idx_apps_created_at ON apps(created_at);
+  `);
+}
+
+function migrateToV11(db: Database.Database): void {
+  // Create app_versions table for tracking delivered app versions (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_versions (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      changelog TEXT NOT NULL DEFAULT '',
+      released_at INTEGER NOT NULL,
+      channel TEXT NOT NULL DEFAULT 'internal',
+      created_by TEXT NOT NULL DEFAULT 'operator',
+      run_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create indexes for version queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_app_versions_app_id ON app_versions(app_id);
+    CREATE INDEX IF NOT EXISTS idx_app_versions_channel ON app_versions(channel);
+    CREATE INDEX IF NOT EXISTS idx_app_versions_released_at ON app_versions(released_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_app_versions_app_version ON app_versions(app_id, version);
+  `);
+}
+
+function migrateToV12(db: Database.Database): void {
+  // Create monitoring_config table for per-app monitoring settings (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS monitoring_config (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      check_interval_hours INTEGER NOT NULL DEFAULT 6,
+      check_build INTEGER NOT NULL DEFAULT 1,
+      check_lint INTEGER NOT NULL DEFAULT 1,
+      check_tests INTEGER NOT NULL DEFAULT 1,
+      check_vulnerabilities INTEGER NOT NULL DEFAULT 1,
+      auto_fix_trigger INTEGER NOT NULL DEFAULT 0,
+      alert_threshold INTEGER NOT NULL DEFAULT 1,
+      last_check_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id)
+    )
+  `);
+
+  // Create monitoring_health_records table for tracking health status (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS monitoring_health_records (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      check_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      message TEXT,
+      details TEXT,
+      regressed INTEGER NOT NULL DEFAULT 0,
+      checked_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id)
+    )
+  `);
+
+  // Create indexes for monitoring queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_monitoring_config_app_id ON monitoring_config(app_id);
+    CREATE INDEX IF NOT EXISTS idx_monitoring_config_enabled ON monitoring_config(enabled);
+    CREATE INDEX IF NOT EXISTS idx_monitoring_health_app_id ON monitoring_health_records(app_id);
+    CREATE INDEX IF NOT EXISTS idx_monitoring_health_checked_at ON monitoring_health_records(checked_at);
+    CREATE INDEX IF NOT EXISTS idx_monitoring_health_regressed ON monitoring_health_records(regressed);
+  `);
+}
+
+function migrateToV13(db: Database.Database): void {
+  // Create maintenance_run table for tracking auto-triggered maintenance runs (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS maintenance_run (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      run_id TEXT,
+      trigger_type TEXT NOT NULL,
+      trigger_reason TEXT NOT NULL,
+      regression_ids TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'pending',
+      iteration_count INTEGER NOT NULL DEFAULT 0,
+      outcome TEXT,
+      started_at INTEGER,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create indexes for maintenance run queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_maintenance_run_app_id ON maintenance_run(app_id);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_run_status ON maintenance_run(status);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_run_trigger_type ON maintenance_run(trigger_type);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_run_created_at ON maintenance_run(created_at);
+  `);
+}
+
+function migrateToV14(db: Database.Database): void {
+  // Create rollout_channels table for staged rollout (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rollout_channels (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      validation_required INTEGER NOT NULL DEFAULT 1,
+      auto_promote INTEGER NOT NULL DEFAULT 0,
+      min_beta_adopters INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id),
+      UNIQUE (app_id, channel)
+    )
+  `);
+
+  // Create channel_releases table for tracking channel assignments (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS channel_releases (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      version_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      promoted_at INTEGER,
+      promoted_by TEXT,
+      rollback_from_version_id TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id),
+      FOREIGN KEY (version_id) REFERENCES app_versions(id),
+      FOREIGN KEY (rollback_from_version_id) REFERENCES app_versions(id)
+    )
+  `);
+
+  // Create beta_testers table for beta tester program (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS beta_testers (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create beta_tester_access table for linking testers to apps/channels (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS beta_tester_access (
+      id TEXT PRIMARY KEY,
+      tester_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      channel TEXT NOT NULL DEFAULT 'beta',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (tester_id) REFERENCES beta_testers(id),
+      FOREIGN KEY (app_id) REFERENCES apps(id),
+      UNIQUE (tester_id, app_id)
+    )
+  `);
+
+  // Create rollout_metrics table for tracking rollout metrics (Phase 19)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rollout_metrics (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      version_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      metric_type TEXT NOT NULL,
+      metric_value REAL NOT NULL,
+      recorded_at INTEGER NOT NULL,
+      FOREIGN KEY (app_id) REFERENCES apps(id),
+      FOREIGN KEY (version_id) REFERENCES app_versions(id)
+    )
+  `);
+
+  // Create indexes for rollout queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_rollout_channels_app_id ON rollout_channels(app_id);
+    CREATE INDEX IF NOT EXISTS idx_channel_releases_app_id ON channel_releases(app_id);
+    CREATE INDEX IF NOT EXISTS idx_channel_releases_version_id ON channel_releases(version_id);
+    CREATE INDEX IF NOT EXISTS idx_channel_releases_channel ON channel_releases(channel);
+    CREATE INDEX IF NOT EXISTS idx_beta_testers_email ON beta_testers(email);
+    CREATE INDEX IF NOT EXISTS idx_beta_tester_access_tester_id ON beta_tester_access(tester_id);
+    CREATE INDEX IF NOT EXISTS idx_beta_tester_access_app_id ON beta_tester_access(app_id);
+    CREATE INDEX IF NOT EXISTS idx_rollout_metrics_app_id ON rollout_metrics(app_id);
+    CREATE INDEX IF NOT EXISTS idx_rollout_metrics_version_id ON rollout_metrics(version_id);
+    CREATE INDEX IF NOT EXISTS idx_rollout_metrics_recorded_at ON rollout_metrics(recorded_at);
   `);
 }
