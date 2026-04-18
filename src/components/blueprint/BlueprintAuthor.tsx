@@ -1,48 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-
-export interface Blueprint {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string;
-  isPublished: boolean;
-  parentBlueprintId: string | null;
-  usageCount: number;
-  successRate: number | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface BlueprintSpec {
-  version: string;
-  name: string;
-  description: string;
-  category: string;
-  starterTemplate: {
-    files: Record<string, string>;
-    packageJson?: Record<string, unknown>;
-    tsConfig?: Record<string, unknown>;
-  };
-  specFileTemplates: Array<{
-    id: string;
-    title: string;
-    description: string;
-    content: string;
-  }>;
-  taskPatternDefaults: Array<{
-    id: string;
-    title: string;
-    pattern: string;
-    fixPlanTemplate: string;
-  }>;
-  acceptanceGateTemplates: Array<{
-    id: string;
-    name: string;
-    description: string;
-    gate: string;
-  }>;
-  learnedRules: string[];
-}
+import type { Blueprint, BlueprintSpec } from '../../shared/blueprintTypes';
 
 interface BlueprintAuthorProps {
   blueprint?: Blueprint;
@@ -117,7 +74,7 @@ export function BlueprintAuthor({
         }
       }
     }
-  }, [blueprint]);
+  }, [blueprint?.id]);
 
   useEffect(() => {
     loadExistingBlueprint();

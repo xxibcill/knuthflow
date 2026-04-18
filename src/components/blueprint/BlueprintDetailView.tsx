@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Blueprint, BlueprintVersion, BlueprintUsageStats, BlueprintWithVersion } from './BlueprintBrowser';
+import type { Blueprint, BlueprintVersion, BlueprintUsageStats, BlueprintWithVersion } from '../../shared/blueprintTypes';
 
 interface BlueprintDetailViewProps {
   blueprint: BlueprintWithVersion;
@@ -43,7 +43,7 @@ export function BlueprintDetailView({
     loadVersions();
   }, [loadVersions]);
 
-  const selectedVersion = versions.find(v => v.id === selectedVersionId) || versions[0];
+  const selectedVersion = versions.find(v => v.id === selectedVersionId) ?? versions[0] ?? null;
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('en-US', {

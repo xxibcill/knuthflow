@@ -1,3 +1,4 @@
+import { ipcMain } from 'electron';
 import { getDatabase } from '../database';
 import type { BlueprintSpec, BlueprintVersion } from '../database';
 
@@ -43,9 +44,6 @@ export interface ImportBlueprintParams {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function registerBlueprintHandlers(): void {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { ipcMain } = require('electron');
-
   // Create blueprint
   ipcMain.handle('blueprint:create', async (_event: Electron.IpcMainEvent, params: CreateBlueprintParams) => {
     const db = getDatabase();

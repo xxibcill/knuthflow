@@ -1,44 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-
-export interface Blueprint {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string;
-  isPublished: boolean;
-  parentBlueprintId: string | null;
-  usageCount: number;
-  successRate: number | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface BlueprintVersion {
-  id: string;
-  blueprintId: string;
-  version: string;
-  specContent: Record<string, unknown>;
-  starterTemplate: string | null;
-  acceptanceGates: string[];
-  learnedRules: string[];
-  usageCount: number;
-  createdAt: number;
-}
-
-export interface BlueprintWithVersion extends Blueprint {
-  latestVersion?: BlueprintVersion;
-}
-
-export interface BlueprintUsageStats {
-  id: string;
-  blueprintId: string;
-  versionId: string | null;
-  appId: string | null;
-  outcome: 'success' | 'failure' | 'cancelled';
-  buildTimeMs: number | null;
-  iterationCount: number;
-  createdAt: number;
-}
+import type { Blueprint, BlueprintVersion, BlueprintWithVersion, BlueprintUsageStats } from '../../shared/blueprintTypes';
 
 interface BlueprintBrowserProps {
   onSelect: (blueprint: BlueprintWithVersion) => void;
@@ -83,11 +44,17 @@ export function BlueprintBrowser({
       const blueprintsWithVersions: BlueprintWithVersion[] = [];
 
       for (const bp of listResult) {
-        const latestVersion = await window.knuthflow.blueprint.getLatestVersion(bp.id);
-        blueprintsWithVersions.push({
-          ...bp,
-          latestVersion: latestVersion || undefined,
-        });
+        try {
+          const latestVersion = await window.knuthflow.blueprint.getLatestVersion(bp.id);
+          blueprintsWithVersions.push({
+            ...bp,
+            latestVersion: latestVersion || undefined,
+          });
+        } catch (err) {
+          console.error(`Failed to load version for blueprint ${bp.id}:`, err);
+          // Push blueprint without version rather than skipping
+          blueprintsWithVersions.push({ ...bp, latestVersion: undefined });
+        }
       }
 
       setBlueprints(blueprintsWithVersions);
