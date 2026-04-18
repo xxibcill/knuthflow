@@ -34,4 +34,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: npm run package
+      - run: ls -la out/ 2>/dev/null || echo "out/ directory not found"
+      - run: find out/ -maxdepth 2 -type d 2>/dev/null || echo "No directories in out/"
       - run: npm run test:e2e:ci

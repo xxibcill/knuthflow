@@ -236,6 +236,28 @@ export interface UpdateInfo {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Portfolio Types (Phase 16)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PortfolioProject {
+  id: string;
+  portfolioId: string;
+  projectId: string;
+  priority: number;
+  status: 'active' | 'paused' | 'completed' | 'archived';
+  dependencyGraph: Record<string, string[]>;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Settings Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -284,6 +306,7 @@ export type {
   ReadinessReport,
   BootstrapResult,
   RalphControlFiles,
+  LoopState,
 } from './ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -686,5 +709,73 @@ export interface KnuthflowAPI {
       };
       error?: string;
     }>;
+  };
+  portfolio: {
+    create(name: string, description?: string): Promise<Portfolio>;
+    get(id: string): Promise<Portfolio | null>;
+    list(): Promise<Portfolio[]>;
+    update(id: string, updates: { name?: string; description?: string }): Promise<Portfolio | null>;
+    delete(id: string): Promise<void>;
+    addProject(portfolioId: string, projectId: string, priority?: number): Promise<PortfolioProject>;
+    getProject(id: string): Promise<PortfolioProject | null>;
+    listProjects(portfolioId: string): Promise<PortfolioProject[]>;
+    updateProject(id: string, updates: {
+      priority?: number;
+      status?: PortfolioProject['status'];
+      dependencyGraph?: Record<string, string[]>;
+    }): Promise<PortfolioProject | null>;
+    removeProject(id: string): Promise<void>;
+    getProjectByProjectId(portfolioId: string, projectId: string): Promise<PortfolioProject | null>;
+    listPortfoliosByProject(projectId: string): Promise<Portfolio[]>;
+  };
+  portfolioRuntime: {
+    start(portfolioId: string, projectId: string, name: string, sessionId: string, ptySessionId: string): Promise<{
+      started: boolean;
+      queued: boolean;
+      run?: LoopRun;
+      queuedRun?: {
+        id: string;
+        portfolioId: string;
+        projectId: string;
+        runName: string;
+        sessionId: string;
+        ptySessionId: string;
+        priority: number;
+        queuedAt: number;
+      };
+    }>;
+    getQueuedRuns(portfolioId: string): Promise<Array<{
+      id: string;
+      portfolioId: string;
+      projectId: string;
+      runName: string;
+      sessionId: string;
+      ptySessionId: string;
+      priority: number;
+      queuedAt: number;
+    }>>;
+    getQueueLength(portfolioId: string): Promise<number>;
+    cancelQueuedRun(queuedRunId: string): Promise<boolean>;
+    getActiveRunCount(portfolioId: string): Promise<number>;
+    getPortfolioActiveRuns(portfolioId: string): Promise<Array<{ run: LoopRun; state: LoopState; projectId: string }>>;
+    updatePriority(portfolioProjectId: string, newPriority: number): Promise<void>;
+    setMaxConcurrentRuns(max: number): Promise<void>;
+    getMaxConcurrentRuns(): Promise<number>;
+    pauseAll(portfolioId: string): Promise<void>;
+    resumeAll(portfolioId: string): Promise<void>;
+    stopAll(portfolioId: string, reason?: 'user_stopped' | 'error' | 'completed'): Promise<void>;
+    register(portfolioId: string): Promise<void>;
+    unregister(portfolioId: string): Promise<void>;
+    addProject(portfolioId: string, projectId: string): Promise<void>;
+    removeProject(portfolioId: string, projectId: string): Promise<void>;
+    // Dependency Resolution (P16-T4)
+    getDependencyGraph(portfolioId: string): Promise<Record<string, string[]>>;
+    detectCycles(portfolioId: string): Promise<Array<{ path: string[]; message: string }>>;
+    getBuildOrder(portfolioId: string): Promise<{ order: string[]; hasCycles: boolean; cycles: Array<{ path: string[]; message: string }> }>;
+    checkProjectCanStart(projectId: string, portfolioId: string): Promise<{ canStart: boolean; blockingDependencies: string[] }>;
+    parseAndStoreDependencies(portfolioProjectId: string, fixPlanContent: string): Promise<{ success: boolean; dependencies: string[]; error?: string }>;
+    getAvailableArtifacts(projectId: string, portfolioId: string): Promise<Array<{ projectId: string; artifactPath: string; artifactType: string; createdAt: number }>>;
+    propagateArtifact(projectId: string, artifactPath: string, artifactType: string): Promise<void>;
+    clearProjectArtifacts(projectId: string): Promise<void>;
   };
 }

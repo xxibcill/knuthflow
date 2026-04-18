@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 8;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -33,6 +33,16 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 5 to 6 (add milestone state and task graph for Phase 14)
   if (currentVersion < 6) {
     migrateToV6(db);
+  }
+
+  // Migrate from version 6 to 7 (add portfolio tables for Phase 16)
+  if (currentVersion < 7) {
+    migrateToV7(db);
+  }
+
+  // Migrate from version 7 to 8 (add artifact references table for Phase 16)
+  if (currentVersion < 8) {
+    migrateToV8(db);
   }
 
   // Update schema version
@@ -394,5 +404,62 @@ function migrateToV6(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_milestone_feedback_project_id ON milestone_feedback(project_id);
     CREATE INDEX IF NOT EXISTS idx_milestone_feedback_run_id ON milestone_feedback(run_id);
     CREATE INDEX IF NOT EXISTS idx_milestone_feedback_milestone_id ON milestone_feedback(milestone_id);
+  `);
+}
+
+function migrateToV7(db: Database.Database): void {
+  // Create portfolios table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS portfolios (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create portfolio_projects table (links Ralph projects to portfolios)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS portfolio_projects (
+      id TEXT PRIMARY KEY,
+      portfolio_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      dependency_graph TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (portfolio_id) REFERENCES portfolios(id),
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      UNIQUE (portfolio_id, project_id)
+    )
+  `);
+
+  // Create indexes for portfolio queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_portfolios_created_at ON portfolios(created_at);
+    CREATE INDEX IF NOT EXISTS idx_portfolio_projects_portfolio_id ON portfolio_projects(portfolio_id);
+    CREATE INDEX IF NOT EXISTS idx_portfolio_projects_project_id ON portfolio_projects(project_id);
+    CREATE INDEX IF NOT EXISTS idx_portfolio_projects_priority ON portfolio_projects(priority);
+    CREATE INDEX IF NOT EXISTS idx_portfolio_projects_status ON portfolio_projects(status);
+  `);
+}
+
+function migrateToV8(db: Database.Database): void {
+  // Create portfolio_artifact_references table for cross-app artifact propagation
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS portfolio_artifact_references (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      artifact_path TEXT NOT NULL,
+      artifact_type TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create indexes for artifact reference queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_artifact_references_project_id ON portfolio_artifact_references(project_id);
+    CREATE INDEX IF NOT EXISTS idx_artifact_references_created_at ON portfolio_artifact_references(created_at);
   `);
 }

@@ -158,6 +158,21 @@ export class MilestoneValidation {
         };
     }
 
+    const validatedAt = Date.now();
+
+    // Store validation result in milestone state for later retrieval by completeMilestone
+    this.db.updateMilestoneState(milestone.id, {
+      validationResult: {
+        passed: result.passed,
+        output: result.output,
+        exitCode: result.exitCode,
+        durationMs: result.durationMs ?? 0,
+        errors: result.errors,
+        warnings: result.warnings,
+        validatedAt,
+      },
+    });
+
     return {
       milestoneId,
       type: gateType,
@@ -167,7 +182,7 @@ export class MilestoneValidation {
       durationMs: result.durationMs ?? 0,
       errors: result.errors,
       warnings: result.warnings,
-      validatedAt: Date.now(),
+      validatedAt,
     };
   }
 
@@ -316,22 +331,53 @@ export class MilestoneValidation {
 
   /**
    * Complete a milestone after successful validation
+   * If validationResult is not provided, fetches from stored milestone state
    */
   completeMilestone(
     projectId: string,
     runId: string,
     milestoneId: string,
-    validationResult: ValidationResult
+    validationResult?: ValidationResult
   ): MilestoneState | null {
     const milestoneController = getMilestoneController();
 
+    // If no validationResult provided, fetch from stored milestone state
+    let result = validationResult;
+    if (!result) {
+      const milestone = this.db.getMilestoneStateByMilestoneId(projectId, runId, milestoneId);
+      if (milestone?.validationResult) {
+        result = {
+          passed: milestone.validationResult.passed,
+          gate: { type: 'manual' as const, description: '' },
+          output: milestone.validationResult.output,
+          exitCode: milestone.validationResult.exitCode,
+          durationMs: milestone.validationResult.durationMs,
+          errors: milestone.validationResult.errors,
+          warnings: milestone.validationResult.warnings,
+        };
+      }
+    }
+
+    // If still no result, use a failed default
+    if (!result) {
+      result = {
+        passed: false,
+        gate: { type: 'manual' as const, description: 'No validation result available' },
+        output: 'No validation result stored',
+        exitCode: null,
+        durationMs: 0,
+        errors: [{ code: 'NO_RESULT', message: 'No validation result available' }],
+        warnings: [],
+      };
+    }
+
     return milestoneController.completeMilestone(projectId, runId, milestoneId, {
-      passed: validationResult.passed,
-      output: validationResult.output,
-      exitCode: validationResult.exitCode,
-      durationMs: validationResult.durationMs ?? 0,
-      errors: validationResult.errors,
-      warnings: validationResult.warnings,
+      passed: result.passed,
+      output: result.output,
+      exitCode: result.exitCode,
+      durationMs: result.durationMs ?? 0,
+      errors: result.errors,
+      warnings: result.warnings,
       validatedAt: Date.now(),
     });
   }

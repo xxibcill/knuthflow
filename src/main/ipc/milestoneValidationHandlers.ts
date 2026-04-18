@@ -69,11 +69,13 @@ export function registerMilestoneValidationHandlers(): void {
     timeoutMs?: number
   ) => {
     try {
-      const result = await validation.runMilestoneValidation(
-        { projectId, runId, milestoneId },
+      const evidence = await validation.runMilestoneValidation(
+        projectId,
+        runId,
+        milestoneId,
         { workspacePath, timeoutMs }
       );
-      return { success: true, result };
+      return { success: true, result: evidence };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
