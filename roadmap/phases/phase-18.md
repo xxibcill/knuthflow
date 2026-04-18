@@ -36,3 +36,10 @@ Phase 15 produces a desktop package as its primary output. Modern apps ship acro
 - [Observable outcome 2] Capacitor builds produce valid ios/android build artifacts
 - [Observable outcome 3] PWA packaging produces installable web app with offline support
 - [Observable outcome 4] Delivery bundle contains per-platform artifacts with validation status
+
+## Deferred from Phase 17
+
+| Issue | Description | Severity |
+| --- | --- | --- |
+| P17-I1 | `recordValidationOutcome()` is defined in `ralphRuntime.ts` but never called during iteration execution — validation metrics always show 0/0 | Should Fix |
+| P17-I2 | `readExistingCountermeasures()` in `promptInjectionManager.ts` reads countermeasures from PROMPT.md but the evaluation logic never consults existing countermeasures when creating new DB records | Nice to Have |

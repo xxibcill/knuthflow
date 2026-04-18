@@ -38,6 +38,8 @@ export interface InjectionResult {
 
 /**
  * Read existing countermeasures from PROMPT.md
+ * Only parses lines with `//` comment prefix (JS/TS style comments).
+ * Does not recognize `#` (shell/Python style) or other comment formats.
  */
 export function readExistingCountermeasures(promptMdPath: string): string[] {
   if (!fs.existsSync(promptMdPath)) {
@@ -264,8 +266,8 @@ export function evaluateAndUpdateCountermeasures(
   const pending: string[] = [];
   const active: PromptCountermeasure[] = [];
 
-  // Get existing countermeasures from database
-  const existingCountermeasures = db.listPromptCountermeasures(config.projectId, false);
+  // Get existing countermeasures from database (limit to 200 most recent)
+  const existingCountermeasures = db.listPromptCountermeasures(config.projectId, false, 200);
   const existingByPattern = new Map(existingCountermeasures.map(cm => [cm.pattern, cm]));
 
   // Fetch learning data once to avoid repeated DB queries in loop (Issue #4)
@@ -298,8 +300,8 @@ export function evaluateAndUpdateCountermeasures(
       pending.push(pattern.description);
     }
 
-    // Reload from DB to get updated state
-    const updated = db.getPromptCountermeasure(config.projectId, pattern.description);
+    // Reload from DB to get updated state (use id for efficient lookup)
+    const updated = db.getPromptCountermeasureById(cm.id);
     if (updated && updated.active) {
       active.push(updated);
     }
@@ -314,8 +316,8 @@ export function evaluateAndUpdateCountermeasures(
       const result = updateCountermeasureAfterEvaluation(cm, false, config.autoInject ?? true, learning);
       if (result.action === 'remove') {
         removed.push(cm.pattern);
-        // Reload to get updated state
-        const updated = db.getPromptCountermeasure(config.projectId, cm.pattern);
+        // Reload to get updated state (use id for efficient lookup)
+        const updated = db.getPromptCountermeasureById(cm.id);
         if (updated && !updated.active) {
           // Already removed
         }

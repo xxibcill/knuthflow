@@ -1909,6 +1909,48 @@ class SessionDatabase {
     };
   }
 
+  /**
+   * Create delivery metrics and generate lessons learned in a single transaction.
+   * This ensures atomicity - either both succeed or neither is committed.
+   */
+  recordDeliveryAndLessons(params: {
+    runId: string;
+    projectId: string;
+    buildTimeMs: number | null;
+    iterationCount: number;
+    validationPassRate: number | null;
+    operatorInterventionCount: number;
+    outcome: DeliveryOutcome;
+    lessonSummary: string;
+    lessonPattern: string | null;
+    lessonCountermeasure: string | null;
+  }): { metrics: DeliveryMetrics; lesson: LessonsLearned } {
+    const transaction = this.db.transaction(() => {
+      const metrics = this.createDeliveryMetrics({
+        runId: params.runId,
+        projectId: params.projectId,
+        buildTimeMs: params.buildTimeMs,
+        iterationCount: params.iterationCount,
+        validationPassRate: params.validationPassRate,
+        operatorInterventionCount: params.operatorInterventionCount,
+        outcome: params.outcome,
+      });
+
+      const lesson = this.createLessonsLearned({
+        projectId: params.projectId,
+        runId: params.runId,
+        summary: params.lessonSummary,
+        pattern: params.lessonPattern,
+        countermeasure: params.lessonCountermeasure,
+        outcome: params.outcome,
+      });
+
+      return { metrics, lesson };
+    });
+
+    return transaction();
+  }
+
   getDeliveryMetrics(runId: string): DeliveryMetrics | null {
     const row = this.db.prepare('SELECT * FROM delivery_metrics WHERE run_id = ?').get(runId) as Record<string, unknown> | undefined;
     if (!row) return null;
@@ -2069,11 +2111,14 @@ class SessionDatabase {
     return this.rowToPromptCountermeasure(row);
   }
 
-  listPromptCountermeasures(projectId: string, activeOnly = false): PromptCountermeasure[] {
+  listPromptCountermeasures(projectId: string, activeOnly = false, limit = 0): PromptCountermeasure[] {
     const query = activeOnly
       ? 'SELECT * FROM prompt_countermeasures WHERE project_id = ? AND active = 1 ORDER BY created_at DESC'
       : 'SELECT * FROM prompt_countermeasures WHERE project_id = ? ORDER BY created_at DESC';
-    const rows = this.db.prepare(query).all(projectId) as Record<string, unknown>[];
+    const finalQuery = limit > 0 ? `${query} LIMIT ${limit}` : query;
+    const rows = limit > 0
+      ? this.db.prepare(finalQuery).all(projectId, limit) as Record<string, unknown>[]
+      : this.db.prepare(query).all(projectId) as Record<string, unknown>[];
     return rows.map(row => this.rowToPromptCountermeasure(row));
   }
 

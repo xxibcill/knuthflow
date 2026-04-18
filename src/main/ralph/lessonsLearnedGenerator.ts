@@ -1,6 +1,9 @@
 import { getDatabase, DeliveryOutcome, LessonsLearned } from '../database';
 import { getLoopLearning } from './ralphLoopLearner';
 
+// Re-export getLoopLearning for use by ralphRuntime
+export { getLoopLearning };
+
 /**
  * Generate lessons learned from a completed run.
  * Called at run completion to create a persistent lesson.
@@ -42,9 +45,11 @@ export function generateLessonsFromRun(
   lessons.push(mainLesson);
 
   // If there were significant patterns, create individual lessons for each
+  // successCount >= 1 means at least one successful avoidance was recorded for this pattern.
+  // On failure, surface any pattern that had documented countermeasures, even if only seen once.
   if (learning.length > 0 && outcome !== 'success') {
-    // Create individual lessons for patterns that appeared frequently
-    const significantPatterns = learning.filter(l => l.successCount >= 3);
+    // Create individual lessons for patterns that appeared during this project
+    const significantPatterns = learning.filter(l => l.successCount >= 1);
     for (const pattern of significantPatterns.slice(0, 5)) {
       const patternLesson = db.createLessonsLearned({
         projectId,
@@ -64,7 +69,7 @@ export function generateLessonsFromRun(
 /**
  * Generate a lesson summary for successful runs
  */
-function generateSuccessLesson(
+export function generateSuccessLesson(
   learning: ReturnType<typeof getLoopLearning>,
   metrics: { iterationCount?: number; validationPassRate?: number | null } | null
 ): string {
@@ -93,7 +98,7 @@ function generateSuccessLesson(
 /**
  * Generate a lesson summary for failed runs
  */
-function generateFailureLesson(
+export function generateFailureLesson(
   learning: ReturnType<typeof getLoopLearning>,
   metrics: { iterationCount?: number; validationPassRate?: number | null } | null
 ): string {
@@ -127,7 +132,7 @@ function generateFailureLesson(
 /**
  * Generate a lesson summary for cancelled runs
  */
-function generateCancellationLesson(
+export function generateCancellationLesson(
   learning: ReturnType<typeof getLoopLearning>,
   metrics: { iterationCount?: number } | null
 ): string {

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { getDatabase, LoopRun, DeliveryOutcome } from './database';
+import { getDatabase, LoopRun, LoopLearning, DeliveryOutcome } from './database';
 import {
   LoopState,
   StopReason,
@@ -8,7 +8,7 @@ import {
   RalphRuntimeConfig,
   DEFAULT_RALPH_RUNTIME_CONFIG,
 } from '../shared/ralphTypes';
-import { generateLessonsFromRun } from './ralph/lessonsLearnedGenerator';
+import { generateSuccessLesson, generateFailureLesson, generateCancellationLesson, getLoopLearning } from './ralph/lessonsLearnedGenerator';
 import { performStartupRecovery, validateRuntimeState, type RecoveryReport } from './ralph/ralphRecovery';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -493,23 +493,50 @@ export class RalphRuntime extends EventEmitter {
 
     this.db.endLoopRun(runId, status, null, null, error);
 
-    // Create delivery metrics record (Phase 17)
-    this.db.createDeliveryMetrics({
-      runId,
-      projectId: activeRun.run.projectId,
-      buildTimeMs,
-      iterationCount: activeRun.run.iterationCount,
-      validationPassRate,
-      operatorInterventionCount: activeRun.operatorInterventionCount,
-      outcome,
-    });
+    // Generate lesson summary before the transaction
+    const learning = getLoopLearning(activeRun.run.projectId);
+    const lessonSummary = outcome === 'success'
+      ? generateSuccessLesson(learning, { iterationCount: activeRun.run.iterationCount, validationPassRate })
+      : outcome === 'failure'
+        ? generateFailureLesson(learning, { iterationCount: activeRun.run.iterationCount, validationPassRate })
+        : generateCancellationLesson(learning, { iterationCount: activeRun.run.iterationCount });
+    const topPattern = learning.length > 0 ? learning[0] : null;
 
-    // Generate lessons learned (Phase 17)
+    // Record delivery metrics and primary lesson atomically (Phase 17)
     try {
-      generateLessonsFromRun(activeRun.run.projectId, runId, outcome);
+      this.db.recordDeliveryAndLessons({
+        runId,
+        projectId: activeRun.run.projectId,
+        buildTimeMs,
+        iterationCount: activeRun.run.iterationCount,
+        validationPassRate,
+        operatorInterventionCount: activeRun.operatorInterventionCount,
+        outcome,
+        lessonSummary,
+        lessonPattern: topPattern?.pattern ?? null,
+        lessonCountermeasure: topPattern?.countermeasure ?? null,
+      });
+
+      // Generate additional pattern-specific lessons (outside transaction - non-critical)
+      if (learning.length > 0 && outcome !== 'success') {
+        for (const pattern of learning.filter((l: LoopLearning) => l.successCount >= 1).slice(0, 5)) {
+          try {
+            this.db.createLessonsLearned({
+              projectId: activeRun.run.projectId,
+              runId,
+              summary: `Pattern detected: "${pattern.pattern}" - ${pattern.countermeasure}`,
+              pattern: pattern.pattern,
+              countermeasure: pattern.countermeasure,
+              outcome,
+            });
+          } catch {
+            // Non-critical - skip individual pattern lesson if it fails
+          }
+        }
+      }
     } catch (err) {
-      console.error('[RalphRuntime] Failed to generate lessons learned:', err);
-      this.emit('lessonGenerationFailed', { runId, projectId: activeRun.run.projectId, error: String(err) });
+      console.error('[RalphRuntime] Failed to record delivery metrics:', err);
+      this.emit('deliveryMetricsFailed', { runId, projectId: activeRun.run.projectId, error: String(err) });
     }
 
     this.emit('stateChanged', activeRun.state);
