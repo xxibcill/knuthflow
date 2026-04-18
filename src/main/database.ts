@@ -428,6 +428,81 @@ export interface RolloutMetrics {
   recordedAt: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Blueprint Types (Phase 20)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Blueprint {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  isPublished: boolean;
+  parentBlueprintId: string | null;
+  usageCount: number;
+  successRate: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface BlueprintVersion {
+  id: string;
+  blueprintId: string;
+  version: string;
+  specContent: Record<string, unknown>;
+  starterTemplate: string | null;
+  acceptanceGates: string[];
+  learnedRules: string[];
+  usageCount: number;
+  createdAt: number;
+}
+
+export interface BlueprintUsageStats {
+  id: string;
+  blueprintId: string;
+  versionId: string | null;
+  appId: string | null;
+  outcome: 'success' | 'failure' | 'cancelled';
+  buildTimeMs: number | null;
+  iterationCount: number;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BlueprintSpec Document Format (Phase 20)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BlueprintSpec {
+  version: string;
+  name: string;
+  description: string;
+  category: string;
+  starterTemplate: {
+    files: Record<string, string>;
+    packageJson?: Record<string, unknown>;
+    tsConfig?: Record<string, unknown>;
+  };
+  specFileTemplates: Array<{
+    id: string;
+    title: string;
+    description: string;
+    content: string;
+  }>;
+  taskPatternDefaults: Array<{
+    id: string;
+    title: string;
+    pattern: string;
+    fixPlanTemplate: string;
+  }>;
+  acceptanceGateTemplates: Array<{
+    id: string;
+    name: string;
+    description: string;
+    gate: string;
+  }>;
+  learnedRules: string[];
+}
+
 class SessionDatabase {
   private db: Database.Database;
   private dbPath: string;
@@ -3261,6 +3336,342 @@ class SessionDatabase {
       metricType: row.metric_type as RolloutMetricType,
       metricValue: row.metric_value as number,
       recordedAt: row.recorded_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Blueprint Operations (Phase 20)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createBlueprint(params: {
+    id: string;
+    name: string;
+    description?: string | null;
+    category?: string;
+    isPublished?: boolean;
+    parentBlueprintId?: string | null;
+  }): Blueprint {
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO blueprints (id, name, description, category, is_published, parent_blueprint_id, usage_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+    `).run(
+      params.id,
+      params.name,
+      params.description ?? null,
+      params.category ?? 'general',
+      params.isPublished ? 1 : 0,
+      params.parentBlueprintId ?? null,
+      now,
+      now
+    );
+    return {
+      id: params.id,
+      name: params.name,
+      description: params.description ?? null,
+      category: params.category ?? 'general',
+      isPublished: params.isPublished ?? false,
+      parentBlueprintId: params.parentBlueprintId ?? null,
+      usageCount: 0,
+      successRate: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getBlueprint(id: string): Blueprint | null {
+    const row = this.db.prepare('SELECT * FROM blueprints WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBlueprint(row);
+  }
+
+  getBlueprintByName(name: string): Blueprint | null {
+    const row = this.db.prepare('SELECT * FROM blueprints WHERE name = ?').get(name) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBlueprint(row);
+  }
+
+  listBlueprints(options?: {
+    category?: string;
+    isPublished?: boolean;
+    limit?: number;
+  }): Blueprint[] {
+    let query = 'SELECT * FROM blueprints WHERE 1=1';
+    const values: unknown[] = [];
+
+    if (options?.category) {
+      query += ' AND category = ?';
+      values.push(options.category);
+    }
+    if (options?.isPublished !== undefined) {
+      query += ' AND is_published = ?';
+      values.push(options.isPublished ? 1 : 0);
+    }
+
+    query += ' ORDER BY usage_count DESC, created_at DESC';
+
+    if (options?.limit) {
+      query += ' LIMIT ?';
+      values.push(options.limit);
+    }
+
+    const rows = this.db.prepare(query).all(...values) as Record<string, unknown>[];
+    return rows.map(row => this.rowToBlueprint(row));
+  }
+
+  listBlueprintCategories(): string[] {
+    const rows = this.db.prepare('SELECT DISTINCT category FROM blueprints ORDER BY category').all() as { category: string }[];
+    return rows.map(row => row.category);
+  }
+
+  updateBlueprint(id: string, updates: Partial<{
+    name: string;
+    description: string | null;
+    category: string;
+    isPublished: boolean;
+  }>): Blueprint | null {
+    const existing = this.getBlueprint(id);
+    if (!existing) return null;
+
+    const updated: Blueprint = {
+      ...existing,
+      name: updates.name ?? existing.name,
+      description: updates.description !== undefined ? updates.description : existing.description,
+      category: updates.category ?? existing.category,
+      isPublished: updates.isPublished ?? existing.isPublished,
+      updatedAt: Date.now(),
+    };
+
+    this.db.prepare(`
+      UPDATE blueprints SET name = ?, description = ?, category = ?, is_published = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.name, updated.description, updated.category, updated.isPublished ? 1 : 0, updated.updatedAt, id);
+
+    return updated;
+  }
+
+  deleteBlueprint(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM blueprints WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  incrementBlueprintUsageCount(id: string): void {
+    this.db.prepare('UPDATE blueprints SET usage_count = usage_count + 1 WHERE id = ?').run(id);
+  }
+
+  updateBlueprintSuccessRate(id: string, successRate: number): void {
+    this.db.prepare('UPDATE blueprints SET success_rate = ? WHERE id = ?').run(successRate, id);
+  }
+
+  private rowToBlueprint(row: Record<string, unknown>): Blueprint {
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      description: row.description as string | null,
+      category: row.category as string,
+      isPublished: (row.is_published as number) === 1,
+      parentBlueprintId: row.parent_blueprint_id as string | null,
+      usageCount: row.usage_count as number,
+      successRate: row.success_rate as number | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Blueprint Version Operations (Phase 20)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createBlueprintVersion(params: {
+    id: string;
+    blueprintId: string;
+    version: string;
+    specContent?: Record<string, unknown>;
+    starterTemplate?: string | null;
+    acceptanceGates?: string[];
+    learnedRules?: string[];
+  }): BlueprintVersion {
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO blueprint_versions (id, blueprint_id, version, spec_content, starter_template, acceptance_gates, learned_rules, usage_count, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+    `).run(
+      params.id,
+      params.blueprintId,
+      params.version,
+      JSON.stringify(params.specContent ?? {}),
+      params.starterTemplate ?? null,
+      JSON.stringify(params.acceptanceGates ?? []),
+      JSON.stringify(params.learnedRules ?? []),
+      now
+    );
+    return {
+      id: params.id,
+      blueprintId: params.blueprintId,
+      version: params.version,
+      specContent: params.specContent ?? {},
+      starterTemplate: params.starterTemplate ?? null,
+      acceptanceGates: params.acceptanceGates ?? [],
+      learnedRules: params.learnedRules ?? [],
+      usageCount: 0,
+      createdAt: now,
+    };
+  }
+
+  getBlueprintVersion(id: string): BlueprintVersion | null {
+    const row = this.db.prepare('SELECT * FROM blueprint_versions WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBlueprintVersion(row);
+  }
+
+  getBlueprintVersionByVersion(blueprintId: string, version: string): BlueprintVersion | null {
+    const row = this.db.prepare('SELECT * FROM blueprint_versions WHERE blueprint_id = ? AND version = ?').get(blueprintId, version) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBlueprintVersion(row);
+  }
+
+  getLatestBlueprintVersion(blueprintId: string): BlueprintVersion | null {
+    const row = this.db.prepare('SELECT * FROM blueprint_versions WHERE blueprint_id = ? ORDER BY created_at DESC LIMIT 1').get(blueprintId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBlueprintVersion(row);
+  }
+
+  listBlueprintVersions(blueprintId: string): BlueprintVersion[] {
+    const rows = this.db.prepare('SELECT * FROM blueprint_versions WHERE blueprint_id = ? ORDER BY created_at DESC').all(blueprintId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToBlueprintVersion(row));
+  }
+
+  listAllBlueprintVersionsWithBlueprints(): Array<BlueprintVersion & { blueprintName: string; blueprintCategory: string }> {
+    const rows = this.db.prepare(`
+      SELECT bv.*, b.name as blueprint_name, b.category as blueprint_category
+      FROM blueprint_versions bv
+      JOIN blueprints b ON bv.blueprint_id = b.id
+      ORDER BY bv.created_at DESC
+    `).all() as Record<string, unknown>[];
+    return rows.map(row => ({
+      ...this.rowToBlueprintVersion(row),
+      blueprintName: row.blueprint_name as string,
+      blueprintCategory: row.blueprint_category as string,
+    }));
+  }
+
+  updateBlueprintVersion(id: string, updates: Partial<{
+    specContent: Record<string, unknown>;
+    starterTemplate: string | null;
+    acceptanceGates: string[];
+    learnedRules: string[];
+  }>): BlueprintVersion | null {
+    const existing = this.getBlueprintVersion(id);
+    if (!existing) return null;
+
+    this.db.prepare(`
+      UPDATE blueprint_versions SET spec_content = ?, starter_template = ?, acceptance_gates = ?, learned_rules = ?
+      WHERE id = ?
+    `).run(
+      JSON.stringify(updates.specContent ?? existing.specContent),
+      updates.starterTemplate !== undefined ? updates.starterTemplate : existing.starterTemplate,
+      JSON.stringify(updates.acceptanceGates ?? existing.acceptanceGates),
+      JSON.stringify(updates.learnedRules ?? existing.learnedRules),
+      id
+    );
+
+    return this.getBlueprintVersion(id);
+  }
+
+  deleteBlueprintVersion(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM blueprint_versions WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  incrementBlueprintVersionUsageCount(id: string): void {
+    this.db.prepare('UPDATE blueprint_versions SET usage_count = usage_count + 1 WHERE id = ?').run(id);
+  }
+
+  private rowToBlueprintVersion(row: Record<string, unknown>): BlueprintVersion {
+    return {
+      id: row.id as string,
+      blueprintId: row.blueprint_id as string,
+      version: row.version as string,
+      specContent: JSON.parse(row.spec_content as string || '{}'),
+      starterTemplate: row.starter_template as string | null,
+      acceptanceGates: JSON.parse(row.acceptance_gates as string || '[]'),
+      learnedRules: JSON.parse(row.learned_rules as string || '[]'),
+      usageCount: row.usage_count as number,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Blueprint Usage Stats Operations (Phase 20)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  recordBlueprintUsage(params: {
+    blueprintId: string;
+    versionId?: string | null;
+    appId?: string | null;
+    outcome: 'success' | 'failure' | 'cancelled';
+    buildTimeMs?: number | null;
+    iterationCount?: number;
+  }): BlueprintUsageStats {
+    const id = `bpusage-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO blueprint_usage_stats (id, blueprint_id, version_id, app_id, outcome, build_time_ms, iteration_count, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.blueprintId,
+      params.versionId ?? null,
+      params.appId ?? null,
+      params.outcome,
+      params.buildTimeMs ?? null,
+      params.iterationCount ?? 0,
+      now
+    );
+    return {
+      id,
+      blueprintId: params.blueprintId,
+      versionId: params.versionId ?? null,
+      appId: params.appId ?? null,
+      outcome: params.outcome,
+      buildTimeMs: params.buildTimeMs ?? null,
+      iterationCount: params.iterationCount ?? 0,
+      createdAt: now,
+    };
+  }
+
+  getBlueprintUsageStats(blueprintId: string, limit?: number): BlueprintUsageStats[] {
+    let query = 'SELECT * FROM blueprint_usage_stats WHERE blueprint_id = ? ORDER BY created_at DESC';
+    if (limit) {
+      query += ' LIMIT ?';
+    }
+    const rows = this.db.prepare(query).all(limit ? [blueprintId, limit] : [blueprintId]) as Record<string, unknown>[];
+    return rows.map(row => this.rowToBlueprintUsageStats(row));
+  }
+
+  calculateBlueprintSuccessRate(blueprintId: string): number | null {
+    const row = this.db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END) as successful
+      FROM blueprint_usage_stats
+      WHERE blueprint_id = ?
+    `).get(blueprintId) as { total: number; successful: number } | undefined;
+
+    if (!row || row.total === 0) return null;
+    return row.successful / row.total;
+  }
+
+  private rowToBlueprintUsageStats(row: Record<string, unknown>): BlueprintUsageStats {
+    return {
+      id: row.id as string,
+      blueprintId: row.blueprint_id as string,
+      versionId: row.version_id as string | null,
+      appId: row.app_id as string | null,
+      outcome: row.outcome as 'success' | 'failure' | 'cancelled',
+      buildTimeMs: row.build_time_ms as number | null,
+      iterationCount: row.iteration_count as number,
+      createdAt: row.created_at as number,
     };
   }
 

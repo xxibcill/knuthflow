@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react';
 import type { AppIntakeDraft, PlatformTarget, PlatformCategory } from '../../shared/preloadTypes';
+import { BlueprintBrowser, type BlueprintWithVersion } from '../blueprint';
 
 export type AppIntakeFormData = AppIntakeDraft;
 
@@ -8,7 +9,11 @@ export interface AppIntakeFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
   initialData?: Partial<AppIntakeFormData>;
+  onSelectBlueprint?: (blueprint: BlueprintWithVersion) => void;
+  selectedBlueprint?: BlueprintWithVersion | null;
 }
+
+type IntakePath = 'choose' | 'blueprint' | 'freeform';
 
 const PLATFORM_CATEGORIES: { id: PlatformCategory; label: string; targets: { id: PlatformTarget; label: string }[] }[] = [
   {
@@ -72,7 +77,10 @@ export function AppIntakeForm({
   onCancel,
   isSubmitting,
   initialData,
+  onSelectBlueprint,
+  selectedBlueprint,
 }: AppIntakeFormProps) {
+  const [intakePath, setIntakePath] = useState<IntakePath>('choose');
   const [appName, setAppName] = useState(initialData?.appName ?? '');
   const [appBrief, setAppBrief] = useState(initialData?.appBrief ?? '');
   const [platformConfig, setPlatformConfig] = useState<AppIntakeDraft['platformConfig']>(
@@ -234,12 +242,84 @@ export function AppIntakeForm({
 
   return (
     <form onSubmit={handleSubmit} className="app-intake-form">
-      <div className="section-header">
-        <h2 className="section-title">Create New App</h2>
-        <p className="section-lead">
-          Describe your app idea and we&apos;ll generate a complete Ralph blueprint for you.
-        </p>
-      </div>
+      {intakePath === 'choose' && (
+        <div className="intake-path-chooser">
+          <div className="section-header">
+            <h2 className="section-title">Create New App</h2>
+            <p className="section-lead">
+              Choose how you want to start your app.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            <div
+              className="path-card"
+              onClick={() => setIntakePath('blueprint')}
+            >
+              <div className="path-card-icon">📋</div>
+              <h3 className="path-card-title">Start from Blueprint</h3>
+              <p className="path-card-description">
+                Use a reusable template with pre-configured specs, task patterns, and acceptance gates.
+              </p>
+              <span className="path-card-badge">Recommended</span>
+            </div>
+
+            <div
+              className="path-card"
+              onClick={() => setIntakePath('freeform')}
+            >
+              <div className="path-card-icon">✍️</div>
+              <h3 className="path-card-title">Describe Your App</h3>
+              <p className="path-card-description">
+                Start from scratch and describe your app idea in your own words.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {intakePath === 'blueprint' && !selectedBlueprint && (
+        <div className="blueprint-selection">
+          <div className="section-header">
+            <h2 className="section-title">Select a Blueprint</h2>
+            <p className="section-lead">
+              Choose a blueprint template to base your app on.
+            </p>
+          </div>
+          <BlueprintBrowser
+            onSelect={(bp) => {
+              onSelectBlueprint?.(bp);
+              setIntakePath('freeform');
+            }}
+            onCreateNew={() => setIntakePath('freeform')}
+            onImport={() => setIntakePath('freeform')}
+          />
+          <div className="form-actions mt-4">
+            <button
+              type="button"
+              onClick={() => setIntakePath('choose')}
+              className="btn btn-ghost"
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      )}
+
+      {intakePath === 'freeform' && (
+        <>
+          {selectedBlueprint && (
+            <div className="selected-blueprint-banner">
+              <span className="badge badge-info">Using Blueprint: {selectedBlueprint.name}</span>
+              <button
+                type="button"
+                onClick={() => setIntakePath('blueprint')}
+                className="btn btn-ghost btn-sm"
+              >
+                Change
+              </button>
+            </div>
+          )}
 
       <div className="form-grid">
         {/* App Name */}
@@ -501,6 +581,14 @@ export function AppIntakeForm({
       <div className="form-actions">
         <button
           type="button"
+          onClick={() => setIntakePath('choose')}
+          className="btn btn-ghost"
+          disabled={isSubmitting}
+        >
+          Back
+        </button>
+        <button
+          type="button"
           onClick={onCancel}
           className="btn btn-ghost"
           disabled={isSubmitting}
@@ -515,6 +603,8 @@ export function AppIntakeForm({
           {isSubmitting ? 'Generating...' : 'Generate Blueprint'}
         </button>
       </div>
+        </>
+      )}
     </form>
   );
 }

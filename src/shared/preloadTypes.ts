@@ -1333,4 +1333,273 @@ export interface KnuthflowAPI {
     }>>;
     revokeAccess(id: string): Promise<{ success: boolean }>;
   };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Blueprint Types (Phase 20)
+  // ─────────────────────────────────────────────────────────────────────────────
+  blueprint: {
+    create(params: { name: string; description?: string | null; category?: string; isPublished?: boolean; parentBlueprintId?: string | null }): Promise<{
+      id: string;
+      name: string;
+      description: string | null;
+      category: string;
+      isPublished: boolean;
+      parentBlueprintId: string | null;
+      usageCount: number;
+      successRate: number | null;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      name: string;
+      description: string | null;
+      category: string;
+      isPublished: boolean;
+      parentBlueprintId: string | null;
+      usageCount: number;
+      successRate: number | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    getByName(name: string): Promise<{
+      id: string;
+      name: string;
+      description: string | null;
+      category: string;
+      isPublished: boolean;
+      parentBlueprintId: string | null;
+      usageCount: number;
+      successRate: number | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    list(options?: { category?: string; isPublished?: boolean; limit?: number }): Promise<Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      category: string;
+      isPublished: boolean;
+      parentBlueprintId: string | null;
+      usageCount: number;
+      successRate: number | null;
+      createdAt: number;
+      updatedAt: number;
+    }>>;
+    listCategories(): Promise<string[]>;
+    update(id: string, updates: { name?: string; description?: string | null; category?: string; isPublished?: boolean }): Promise<{
+      id: string;
+      name: string;
+      description: string | null;
+      category: string;
+      isPublished: boolean;
+      parentBlueprintId: string | null;
+      usageCount: number;
+      successRate: number | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    delete(id: string): Promise<boolean>;
+    incrementUsage(id: string): Promise<{ success: boolean }>;
+    getUsageStats(blueprintId: string, limit?: number): Promise<Array<{
+      id: string;
+      blueprintId: string;
+      versionId: string | null;
+      appId: string | null;
+      outcome: 'success' | 'failure' | 'cancelled';
+      buildTimeMs: number | null;
+      iterationCount: number;
+      createdAt: number;
+    }>>;
+    calculateSuccessRate(blueprintId: string): Promise<number | null>;
+    recordUsage(params: { blueprintId: string; versionId?: string | null; appId?: string | null; outcome: 'success' | 'failure' | 'cancelled'; buildTimeMs?: number | null; iterationCount?: number }): Promise<{
+      id: string;
+      blueprintId: string;
+      versionId: string | null;
+      appId: string | null;
+      outcome: 'success' | 'failure' | 'cancelled';
+      buildTimeMs: number | null;
+      iterationCount: number;
+      createdAt: number;
+    }>;
+    createVersion(params: { blueprintId: string; version: string; specContent?: Record<string, unknown>; starterTemplate?: string | null; acceptanceGates?: string[]; learnedRules?: string[] }): Promise<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    }>;
+    getVersion(id: string): Promise<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    } | null>;
+    getVersionByVersion(blueprintId: string, version: string): Promise<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    } | null>;
+    getLatestVersion(blueprintId: string): Promise<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    } | null>;
+    listVersions(blueprintId: string): Promise<Array<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    }>>;
+    listAllVersions(): Promise<Array<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    } & { blueprintName: string; blueprintCategory: string }>>;
+    updateVersion(id: string, updates: { specContent?: Record<string, unknown>; starterTemplate?: string | null; acceptanceGates?: string[]; learnedRules?: string[] }): Promise<{
+      id: string;
+      blueprintId: string;
+      version: string;
+      specContent: Record<string, unknown>;
+      starterTemplate: string | null;
+      acceptanceGates: string[];
+      learnedRules: string[];
+      usageCount: number;
+      createdAt: number;
+    } | null>;
+    deleteVersion(id: string): Promise<boolean>;
+    incrementVersionUsage(id: string): Promise<{ success: boolean }>;
+    validateSpec(spec: unknown): Promise<{ valid: boolean; errors: string[] }>;
+    import(params: { spec: Record<string, unknown>; isPublished?: boolean; parentBlueprintId?: string | null }): Promise<{
+      success: boolean;
+      blueprint?: {
+        id: string;
+        name: string;
+        description: string | null;
+        category: string;
+        isPublished: boolean;
+        parentBlueprintId: string | null;
+        usageCount: number;
+        successRate: number | null;
+        createdAt: number;
+        updatedAt: number;
+      };
+      version?: {
+        id: string;
+        blueprintId: string;
+        version: string;
+        specContent: Record<string, unknown>;
+        starterTemplate: string | null;
+        acceptanceGates: string[];
+        learnedRules: string[];
+        usageCount: number;
+        createdAt: number;
+      };
+      error?: string;
+      existingBlueprintId?: string;
+    }>;
+    export(blueprintId: string, versionId?: string): Promise<{
+      success: boolean;
+      spec?: {
+        version: string;
+        name: string;
+        description: string;
+        category: string;
+        starterTemplate: { files: Record<string, string>; packageJson?: Record<string, unknown>; tsConfig?: Record<string, unknown> };
+        specFileTemplates: Array<{ id: string; title: string; description: string; content: string }>;
+        taskPatternDefaults: Array<{ id: string; title: string; pattern: string; fixPlanTemplate: string }>;
+        acceptanceGateTemplates: Array<{ id: string; name: string; description: string; gate: string }>;
+        learnedRules: string[];
+      };
+      error?: string;
+    }>;
+    importAs(params: { spec: Record<string, unknown>; isPublished?: boolean; parentBlueprintId?: string | null }, newName: string): Promise<{
+      success: boolean;
+      blueprint?: {
+        id: string;
+        name: string;
+        description: string | null;
+        category: string;
+        isPublished: boolean;
+        parentBlueprintId: string | null;
+        usageCount: number;
+        successRate: number | null;
+        createdAt: number;
+        updatedAt: number;
+      };
+      version?: {
+        id: string;
+        blueprintId: string;
+        version: string;
+        specContent: Record<string, unknown>;
+        starterTemplate: string | null;
+        acceptanceGates: string[];
+        learnedRules: string[];
+        usageCount: number;
+        createdAt: number;
+      };
+    }>;
+    createNewVersion(blueprintId: string, newVersion: string, specContent?: Record<string, unknown>): Promise<{
+      success: boolean;
+      version?: {
+        id: string;
+        blueprintId: string;
+        version: string;
+        specContent: Record<string, unknown>;
+        starterTemplate: string | null;
+        acceptanceGates: string[];
+        learnedRules: string[];
+        usageCount: number;
+        createdAt: number;
+      };
+      error?: string;
+    }>;
+    compareVersions(versionId1: string, versionId2: string): Promise<{
+      success: boolean;
+      comparison?: {
+        version1: string;
+        version2: string;
+        differences: {
+          specContent: boolean;
+          starterTemplate: boolean;
+          acceptanceGates: boolean;
+          learnedRules: boolean;
+        };
+        version1Spec: Record<string, unknown>;
+        version2Spec: Record<string, unknown>;
+      };
+      error?: string;
+    }>;
+  };
 }
