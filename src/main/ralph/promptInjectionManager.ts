@@ -205,7 +205,8 @@ export function getOrCreateCountermeasure(
 export function updateCountermeasureAfterEvaluation(
   countermeasure: PromptCountermeasure,
   patternSeen: boolean,
-  autoInject: boolean
+  autoInject: boolean,
+  learning?: ReturnType<typeof getLoopLearning>
 ): { action: 'inject' | 'remove' | 'pending' | 'none'; needsApproval: boolean } {
   const db = getDatabase();
 
@@ -217,8 +218,9 @@ export function updateCountermeasureAfterEvaluation(
 
     // Check if we should inject
     if (!countermeasure.active && countermeasure.autoInject) {
-      const learning = getLoopLearning(countermeasure.projectId);
-      const pattern = learning.find(l => l.pattern === countermeasure.pattern);
+      // Use provided learning data to avoid repeated DB queries in loops
+      const learningData = learning ?? getLoopLearning(countermeasure.projectId);
+      const pattern = learningData.find(l => l.pattern === countermeasure.pattern);
 
       if (pattern && pattern.successCount >= countermeasure.threshold) {
         if (autoInject) {
@@ -266,6 +268,9 @@ export function evaluateAndUpdateCountermeasures(
   const existingCountermeasures = db.listPromptCountermeasures(config.projectId, false);
   const existingByPattern = new Map(existingCountermeasures.map(cm => [cm.pattern, cm]));
 
+  // Fetch learning data once to avoid repeated DB queries in loop (Issue #4)
+  const learning = getLoopLearning(config.projectId);
+
   // Evaluate each detected pattern
   for (const pattern of patterns) {
     const countermeasureText = `Avoid ${pattern.type}: ${pattern.description}`;
@@ -284,8 +289,8 @@ export function evaluateAndUpdateCountermeasures(
       });
     }
 
-    // Update based on pattern occurrence
-    const result = updateCountermeasureAfterEvaluation(cm, true, config.autoInject ?? true);
+    // Update based on pattern occurrence (pass learning to avoid repeated DB queries)
+    const result = updateCountermeasureAfterEvaluation(cm, true, config.autoInject ?? true, learning);
 
     if (result.action === 'inject') {
       injected.push(pattern.description);
@@ -306,7 +311,7 @@ export function evaluateAndUpdateCountermeasures(
 
     const patternStillPresent = patterns.some(p => p.description === cm.pattern);
     if (!patternStillPresent) {
-      const result = updateCountermeasureAfterEvaluation(cm, false, config.autoInject ?? true);
+      const result = updateCountermeasureAfterEvaluation(cm, false, config.autoInject ?? true, learning);
       if (result.action === 'remove') {
         removed.push(cm.pattern);
         // Reload to get updated state

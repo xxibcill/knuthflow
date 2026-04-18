@@ -2041,7 +2041,7 @@ class SessionDatabase {
       params.countermeasure,
       params.threshold ?? 3,
       params.removalThreshold ?? 5,
-      params.autoInject ?? true ? 1 : 0,
+      (params.autoInject ?? true) ? 1 : 0,
       now,
       now
     );

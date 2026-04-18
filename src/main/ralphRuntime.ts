@@ -509,6 +509,7 @@ export class RalphRuntime extends EventEmitter {
       generateLessonsFromRun(activeRun.run.projectId, runId, outcome);
     } catch (err) {
       console.error('[RalphRuntime] Failed to generate lessons learned:', err);
+      this.emit('lessonGenerationFailed', { runId, projectId: activeRun.run.projectId, error: String(err) });
     }
 
     this.emit('stateChanged', activeRun.state);
