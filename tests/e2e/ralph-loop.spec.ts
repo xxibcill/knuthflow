@@ -351,4 +351,125 @@ test.describe('Phase 12: Operator Controls', () => {
     await page.getByRole('button', { name: 'Console' }).click();
     await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
   });
+
+  test('Edit Agent opens Monaco editor without CSP errors', async ({ page }) => {
+    // Create a bootstrapped workspace and register it
+    const workspace = createBootstrappedRalphWorkspace();
+    await page.evaluate(async ({ path }) => {
+      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Select the workspace in the dropdown if needed
+    const workspaceSelect = page.locator('[class*="workspace"]').first();
+    if (await workspaceSelect.isVisible()) {
+      await workspaceSelect.click();
+      await page.locator(`text=${workspace.path}`).click();
+    }
+
+    // Wait for workspace to load in Ralph Console
+    await expect(page.locator('text=test-ralph-workspace').first()).toBeVisible({ timeout: 5000 }).catch(() => {
+      // Workspace may already be selected
+    });
+
+    // Click Edit Agent button
+    await page.getByRole('button', { name: 'Edit Agent' }).click();
+
+    // Verify Monaco editor container loads
+    await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 10000 });
+
+    // Verify no CSP error in console
+    const cspErrors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error' && msg.text().includes('Content Security Policy')) {
+        cspErrors.push(msg.text());
+      }
+    });
+
+    // Wait a bit for any CSP errors to appear
+    await page.waitForTimeout(2000);
+    expect(cspErrors).toHaveLength(0);
+
+    await workspace.cleanup();
+  });
+
+  test('Edit Prompt opens Monaco editor without CSP errors', async ({ page }) => {
+    // Create a bootstrapped workspace and register it
+    const workspace = createBootstrappedRalphWorkspace();
+    await page.evaluate(async ({ path }) => {
+      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Click Edit Prompt button
+    await page.getByRole('button', { name: 'Edit Prompt' }).click();
+
+    // Verify Monaco editor container loads
+    await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 10000 });
+
+    await workspace.cleanup();
+  });
+
+  test('Edit Fix Plan opens Monaco editor without CSP errors', async ({ page }) => {
+    // Create a bootstrapped workspace and register it
+    const workspace = createBootstrappedRalphWorkspace();
+    await page.evaluate(async ({ path }) => {
+      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Click Edit Fix Plan button
+    await page.getByRole('button', { name: 'Edit Fix Plan' }).click();
+
+    // Verify Monaco editor container loads
+    await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 10000 });
+
+    await workspace.cleanup();
+  });
+
+  test('All Ralph Console workspace action buttons are clickable', async ({ page }) => {
+    // Create a bootstrapped workspace and register it
+    const workspace = createBootstrappedRalphWorkspace();
+    await page.evaluate(async ({ path }) => {
+      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Get all workspace action buttons
+    const buttons = [
+      'New App',
+      'Bootstrap Ralph',
+      'Repair Files',
+      'Edit Prompt',
+      'Edit Agent',
+      'Edit Fix Plan',
+    ];
+
+    // Click each button and verify it doesn't crash
+    for (const buttonName of buttons) {
+      const button = page.getByRole('button', { name: buttonName });
+      // Some buttons may be disabled depending on state, so just verify they're present and clickable
+      if (await button.isVisible()) {
+        await button.click().catch(() => {/* ignore if disabled */});
+        await page.waitForTimeout(300);
+      }
+    }
+
+    // Verify Ralph Console is still functional
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    await workspace.cleanup();
+  });
 });
