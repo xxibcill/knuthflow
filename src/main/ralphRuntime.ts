@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { getDatabase, LoopRun } from './database';
+import { getDatabase, LoopRun, DeliveryOutcome } from './database';
 import {
   LoopState,
   StopReason,
@@ -8,6 +8,7 @@ import {
   RalphRuntimeConfig,
   DEFAULT_RALPH_RUNTIME_CONFIG,
 } from '../shared/ralphTypes';
+import { generateLessonsFromRun } from './ralph/lessonsLearnedGenerator';
 import { performStartupRecovery, validateRuntimeState, type RecoveryReport } from './ralph/ralphRecovery';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,6 +42,9 @@ export class RalphRuntime extends EventEmitter {
     currentContext: LoopIterationContext | null;
     safetyStop: SafetyStop | null;
     iterationStartTime: number | null;
+    operatorInterventionCount: number;
+    validationPassCount: number;
+    validationFailCount: number;
   }> = new Map();
 
   // Reverse index: runId -> projectId for fast lookups
@@ -89,6 +93,9 @@ export class RalphRuntime extends EventEmitter {
         currentContext: null,
         safetyStop: null,
         iterationStartTime: null,
+        operatorInterventionCount: 0,
+        validationPassCount: 0,
+        validationFailCount: 0,
       });
 
       // Update reverse index
@@ -268,6 +275,32 @@ export class RalphRuntime extends EventEmitter {
     this.emit('iterationStarted', context);
   }
 
+  /**
+   * Record an operator intervention for metrics (Phase 17)
+   */
+  recordOperatorIntervention(runId: string): void {
+    const activeRun = this.activeRuns.get(runId);
+    if (!activeRun) {
+      throw new Error(`No active run found: ${runId}`);
+    }
+    activeRun.operatorInterventionCount++;
+  }
+
+  /**
+   * Record a validation outcome for metrics (Phase 17)
+   */
+  recordValidationOutcome(runId: string, passed: boolean): void {
+    const activeRun = this.activeRuns.get(runId);
+    if (!activeRun) {
+      throw new Error(`No active run found: ${runId}`);
+    }
+    if (passed) {
+      activeRun.validationPassCount++;
+    } else {
+      activeRun.validationFailCount++;
+    }
+  }
+
   private transitionState(runId: string, newState: LoopState): void {
     const activeRun = this.activeRuns.get(runId);
     if (!activeRun) {
@@ -440,11 +473,43 @@ export class RalphRuntime extends EventEmitter {
       throw new Error(`No active run found: ${runId}`);
     }
 
-    activeRun.run = { ...activeRun.run, status, endTime: Date.now(), error };
+    const endTime = Date.now();
+    const buildTimeMs = activeRun.run.startTime ? endTime - activeRun.run.startTime : null;
+
+    // Calculate validation pass rate
+    const totalValidations = activeRun.validationPassCount + activeRun.validationFailCount;
+    const validationPassRate = totalValidations > 0
+      ? activeRun.validationPassCount / totalValidations
+      : null;
+
+    // Map status to outcome
+    const outcome: DeliveryOutcome = status === 'completed' ? 'success'
+      : status === 'failed' ? 'failure'
+      : 'cancelled';
+
+    activeRun.run = { ...activeRun.run, status, endTime, error };
     activeRun.safetyStop = safetyStop;
     activeRun.state = status;
 
     this.db.endLoopRun(runId, status, null, null, error);
+
+    // Create delivery metrics record (Phase 17)
+    this.db.createDeliveryMetrics({
+      runId,
+      projectId: activeRun.run.projectId,
+      buildTimeMs,
+      iterationCount: activeRun.run.iterationCount,
+      validationPassRate,
+      operatorInterventionCount: activeRun.operatorInterventionCount,
+      outcome,
+    });
+
+    // Generate lessons learned (Phase 17)
+    try {
+      generateLessonsFromRun(activeRun.run.projectId, runId, outcome);
+    } catch (err) {
+      console.error('[RalphRuntime] Failed to generate lessons learned:', err);
+    }
 
     this.emit('stateChanged', activeRun.state);
     this.emit('stopped', safetyStop);

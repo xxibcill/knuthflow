@@ -8,7 +8,7 @@ export type { SessionState, SESSION_EXPIRATION_MS } from './ralph/ralphSessionSt
 import { SESSION_EXPIRATION_MS } from './ralph/ralphSessionState';
 import type { SessionState } from './ralph/ralphSessionState';
 
-import { buildLoopPrompt } from './ralph/ralphPromptBuilder';
+import { buildLoopPrompt, type LearningInjections } from './ralph/ralphPromptBuilder';
 import { detectClaudeCode } from './ralph/claudeDetection';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -224,12 +224,16 @@ export class RalphExecutionAdapter extends EventEmitter {
   /**
    * Build the Ralph loop prompt with pinned context
    */
-  buildLoopPrompt(context: LoopIterationContext, controlFiles: {
-    promptMd: string;
-    agentMd: string;
-    fixPlanMd: string;
-  }): string {
-    return buildLoopPrompt(context, controlFiles);
+  buildLoopPrompt(
+    context: LoopIterationContext,
+    controlFiles: {
+      promptMd: string;
+      agentMd: string;
+      fixPlanMd: string;
+    },
+    learningInjections?: LearningInjections
+  ): string {
+    return buildLoopPrompt(context, controlFiles, learningInjections);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

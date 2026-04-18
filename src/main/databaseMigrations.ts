@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -43,6 +43,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 7 to 8 (add artifact references table for Phase 16)
   if (currentVersion < 8) {
     migrateToV8(db);
+  }
+
+  // Migrate from version 8 to 9 (add delivery_metrics and prompt_countermeasures tables for Phase 17)
+  if (currentVersion < 9) {
+    migrateToV9(db);
   }
 
   // Update schema version
@@ -461,5 +466,71 @@ function migrateToV8(db: Database.Database): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_artifact_references_project_id ON portfolio_artifact_references(project_id);
     CREATE INDEX IF NOT EXISTS idx_artifact_references_created_at ON portfolio_artifact_references(created_at);
+  `);
+}
+
+function migrateToV9(db: Database.Database): void {
+  // Create delivery_metrics table for tracking run outcomes (Phase 17)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS delivery_metrics (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      build_time_ms INTEGER,
+      iteration_count INTEGER NOT NULL DEFAULT 0,
+      validation_pass_rate REAL,
+      operator_intervention_count INTEGER NOT NULL DEFAULT 0,
+      outcome TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id),
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create lessons_learned table for surfacing operator-visible knowledge (Phase 17)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lessons_learned (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      pattern TEXT,
+      countermeasure TEXT,
+      outcome TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (run_id) REFERENCES loop_runs(id)
+    )
+  `);
+
+  // Create prompt_countermeasures table for tracking PROMPT.md modifications (Phase 17)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_countermeasures (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      countermeasure TEXT NOT NULL,
+      threshold INTEGER NOT NULL DEFAULT 3,
+      removal_threshold INTEGER NOT NULL DEFAULT 5,
+      consecutive_successes INTEGER NOT NULL DEFAULT 0,
+      auto_inject INTEGER NOT NULL DEFAULT 1,
+      active INTEGER NOT NULL DEFAULT 1,
+      injected_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create indexes for new tables
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_delivery_metrics_run_id ON delivery_metrics(run_id);
+    CREATE INDEX IF NOT EXISTS idx_delivery_metrics_project_id ON delivery_metrics(project_id);
+    CREATE INDEX IF NOT EXISTS idx_delivery_metrics_created_at ON delivery_metrics(created_at);
+    CREATE INDEX IF NOT EXISTS idx_lessons_learned_project_id ON lessons_learned(project_id);
+    CREATE INDEX IF NOT EXISTS idx_lessons_learned_run_id ON lessons_learned(run_id);
+    CREATE INDEX IF NOT EXISTS idx_prompt_countermeasures_project_id ON prompt_countermeasures(project_id);
+    CREATE INDEX IF NOT EXISTS idx_prompt_countermeasures_pattern ON prompt_countermeasures(project_id, pattern);
+    CREATE INDEX IF NOT EXISTS idx_prompt_countermeasures_active ON prompt_countermeasures(active);
   `);
 }

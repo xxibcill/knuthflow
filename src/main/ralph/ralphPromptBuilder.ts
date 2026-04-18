@@ -1,4 +1,12 @@
 import type { LoopIterationContext, ScheduledItem } from '../../shared/ralphTypes';
+import type { LoopLearning } from '../database';
+
+export interface LearningInjections {
+  /** Learned countermeasures from past runs, sorted by priority (most important first) */
+  countermeasures: LoopLearning[];
+  /** Version counter for tracking prompt modifications */
+  version?: number;
+}
 
 /**
  * Build the Ralph loop prompt with pinned context
@@ -9,7 +17,8 @@ export function buildLoopPrompt(
     promptMd: string;
     agentMd: string;
     fixPlanMd: string;
-  }
+  },
+  learningInjections?: LearningInjections
 ): string {
   const parts: string[] = [];
 
@@ -17,6 +26,18 @@ export function buildLoopPrompt(
   parts.push('=== RALPH LOOP CONTEXT ===');
   parts.push(`Iteration: ${context.iteration}`);
   parts.push(`Started: ${new Date(context.startedAt).toISOString()}`);
+
+  // Inject learned countermeasures at the top (Phase 17 - Learning Pipeline)
+  if (learningInjections && learningInjections.countermeasures.length > 0) {
+    parts.push('');
+    parts.push('=== LEARNED COUNTERMEASURES ===');
+    parts.push('// ⚠️ Auto-generated from previous runs. Update PROMPT.md to modify.');
+    for (const learning of learningInjections.countermeasures) {
+      const priority = learning.successCount >= 5 ? '[HIGH]' : learning.successCount >= 3 ? '[MED]' : '[LOW]';
+      parts.push(`${priority} When you see "${learning.pattern}": ${learning.countermeasure}`);
+    }
+    parts.push('');
+  }
 
   // Selected item
   if (context.selectedItem) {
@@ -59,7 +80,29 @@ export function buildLoopPrompt(
   parts.push('4. Report progress and any blockers');
   parts.push('5. Exit cleanly when done');
 
+  // Apply learned countermeasures as final warnings (highest priority first)
+  if (learningInjections && learningInjections.countermeasures.length > 0) {
+    parts.push('');
+    parts.push('=== AVOID THESE PATTERNS ===');
+    // Only show top 5 most important countermeasures to avoid overwhelming
+    const topCountermeasures = learningInjections.countermeasures.slice(0, 5);
+    for (const learning of topCountermeasures) {
+      parts.push(`- ${learning.countermeasure}`);
+    }
+  }
+
   return parts.join('\n');
+}
+
+/**
+ * Build priority-sorted countermeasures from learning records (Phase 17)
+ * Most repeated mistakes get most prominent placement.
+ */
+export function buildPriorityCountermeasures(learning: LoopLearning[], maxItems = 10): LoopLearning[] {
+  // Sort by successCount (proxy for how often this pattern was seen)
+  // Higher count = more important = appears first
+  const sorted = [...learning].sort((a, b) => b.successCount - a.successCount);
+  return sorted.slice(0, maxItems);
 }
 
 /**

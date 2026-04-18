@@ -120,6 +120,58 @@ export interface PortfolioProject {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Delivery Metrics Types (Phase 17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DeliveryOutcome = 'success' | 'failure' | 'cancelled';
+
+export interface DeliveryMetrics {
+  id: string;
+  runId: string;
+  projectId: string;
+  buildTimeMs: number | null;
+  iterationCount: number;
+  validationPassRate: number | null;
+  operatorInterventionCount: number;
+  outcome: DeliveryOutcome;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lessons Learned Types (Phase 17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LessonsLearned {
+  id: string;
+  projectId: string;
+  runId: string;
+  summary: string;
+  pattern: string | null;
+  countermeasure: string | null;
+  outcome: DeliveryOutcome;
+  createdAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prompt Countermeasure Types (Phase 17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PromptCountermeasure {
+  id: string;
+  projectId: string;
+  pattern: string;
+  countermeasure: string;
+  threshold: number;
+  removalThreshold: number;
+  consecutiveSuccesses: number;
+  autoInject: boolean;
+  active: boolean;
+  injectedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Ralph Artifact & Learning Types (Phase 09)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1813,6 +1865,279 @@ class SessionDatabase {
 
   deleteArtifactReferencesByProject(projectId: string): void {
     this.db.prepare('DELETE FROM portfolio_artifact_references WHERE project_id = ?').run(projectId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Delivery Metrics Operations (Phase 17)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createDeliveryMetrics(params: {
+    runId: string;
+    projectId: string;
+    buildTimeMs: number | null;
+    iterationCount: number;
+    validationPassRate: number | null;
+    operatorInterventionCount: number;
+    outcome: DeliveryOutcome;
+  }): DeliveryMetrics {
+    const id = `dm-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO delivery_metrics (id, run_id, project_id, build_time_ms, iteration_count, validation_pass_rate, operator_intervention_count, outcome, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.runId,
+      params.projectId,
+      params.buildTimeMs,
+      params.iterationCount,
+      params.validationPassRate,
+      params.operatorInterventionCount,
+      params.outcome,
+      now
+    );
+    return {
+      id,
+      runId: params.runId,
+      projectId: params.projectId,
+      buildTimeMs: params.buildTimeMs,
+      iterationCount: params.iterationCount,
+      validationPassRate: params.validationPassRate,
+      operatorInterventionCount: params.operatorInterventionCount,
+      outcome: params.outcome,
+      createdAt: now,
+    };
+  }
+
+  getDeliveryMetrics(runId: string): DeliveryMetrics | null {
+    const row = this.db.prepare('SELECT * FROM delivery_metrics WHERE run_id = ?').get(runId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToDeliveryMetrics(row);
+  }
+
+  listDeliveryMetrics(projectId: string, limit = 50): DeliveryMetrics[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM delivery_metrics WHERE project_id = ? ORDER BY created_at DESC LIMIT ?
+    `).all(projectId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToDeliveryMetrics(row));
+  }
+
+  getLatestDeliveryMetrics(projectId: string): DeliveryMetrics | null {
+    const row = this.db.prepare(`
+      SELECT * FROM delivery_metrics WHERE project_id = ? ORDER BY created_at DESC LIMIT 1
+    `).get(projectId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToDeliveryMetrics(row);
+  }
+
+  private rowToDeliveryMetrics(row: Record<string, unknown>): DeliveryMetrics {
+    return {
+      id: row.id as string,
+      runId: row.run_id as string,
+      projectId: row.project_id as string,
+      buildTimeMs: row.build_time_ms as number | null,
+      iterationCount: row.iteration_count as number,
+      validationPassRate: row.validation_pass_rate as number | null,
+      operatorInterventionCount: row.operator_intervention_count as number,
+      outcome: row.outcome as DeliveryOutcome,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Lessons Learned Operations (Phase 17)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createLessonsLearned(params: {
+    projectId: string;
+    runId: string;
+    summary: string;
+    pattern: string | null;
+    countermeasure: string | null;
+    outcome: DeliveryOutcome;
+  }): LessonsLearned {
+    const id = `lesson-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO lessons_learned (id, project_id, run_id, summary, pattern, countermeasure, outcome, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.runId,
+      params.summary,
+      params.pattern,
+      params.countermeasure,
+      params.outcome,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      runId: params.runId,
+      summary: params.summary,
+      pattern: params.pattern,
+      countermeasure: params.countermeasure,
+      outcome: params.outcome,
+      createdAt: now,
+    };
+  }
+
+  listLessonsLearned(projectId: string, limit = 50): LessonsLearned[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM lessons_learned WHERE project_id = ? ORDER BY created_at DESC LIMIT ?
+    `).all(projectId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLessonsLearned(row));
+  }
+
+  listGlobalLessonsLearned(limit = 100): LessonsLearned[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM lessons_learned ORDER BY created_at DESC LIMIT ?
+    `).all(limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLessonsLearned(row));
+  }
+
+  getLessonsLearnedByRun(runId: string): LessonsLearned[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM lessons_learned WHERE run_id = ? ORDER BY created_at DESC
+    `).all(runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToLessonsLearned(row));
+  }
+
+  private rowToLessonsLearned(row: Record<string, unknown>): LessonsLearned {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string,
+      summary: row.summary as string,
+      pattern: row.pattern as string | null,
+      countermeasure: row.countermeasure as string | null,
+      outcome: row.outcome as DeliveryOutcome,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Prompt Countermeasure Operations (Phase 17)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createPromptCountermeasure(params: {
+    projectId: string;
+    pattern: string;
+    countermeasure: string;
+    threshold?: number;
+    removalThreshold?: number;
+    autoInject?: boolean;
+  }): PromptCountermeasure {
+    const id = `countermeasure-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO prompt_countermeasures (id, project_id, pattern, countermeasure, threshold, removal_threshold, consecutive_successes, auto_inject, active, injected_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0, NULL, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.pattern,
+      params.countermeasure,
+      params.threshold ?? 3,
+      params.removalThreshold ?? 5,
+      params.autoInject ?? true ? 1 : 0,
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      pattern: params.pattern,
+      countermeasure: params.countermeasure,
+      threshold: params.threshold ?? 3,
+      removalThreshold: params.removalThreshold ?? 5,
+      consecutiveSuccesses: 0,
+      autoInject: params.autoInject ?? true,
+      active: false,
+      injectedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getPromptCountermeasure(projectId: string, pattern: string): PromptCountermeasure | null {
+    const row = this.db.prepare(`
+      SELECT * FROM prompt_countermeasures WHERE project_id = ? AND pattern = ?
+    `).get(projectId, pattern) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPromptCountermeasure(row);
+  }
+
+  listPromptCountermeasures(projectId: string, activeOnly = false): PromptCountermeasure[] {
+    const query = activeOnly
+      ? 'SELECT * FROM prompt_countermeasures WHERE project_id = ? AND active = 1 ORDER BY created_at DESC'
+      : 'SELECT * FROM prompt_countermeasures WHERE project_id = ? ORDER BY created_at DESC';
+    const rows = this.db.prepare(query).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPromptCountermeasure(row));
+  }
+
+  listActivePromptCountermeasures(projectId: string): PromptCountermeasure[] {
+    return this.listPromptCountermeasures(projectId, true);
+  }
+
+  updatePromptCountermeasure(id: string, updates: Partial<{
+    consecutiveSuccesses: number;
+    active: boolean;
+    autoInject: boolean;
+    injectedAt: number | null;
+  }>): PromptCountermeasure | null {
+    const existing = this.getPromptCountermeasureById(id);
+    if (!existing) return null;
+
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.consecutiveSuccesses !== undefined) {
+      setClauses.push('consecutive_successes = ?');
+      values.push(updates.consecutiveSuccesses);
+    }
+    if (updates.active !== undefined) {
+      setClauses.push('active = ?');
+      values.push(updates.active ? 1 : 0);
+    }
+    if (updates.autoInject !== undefined) {
+      setClauses.push('auto_inject = ?');
+      values.push(updates.autoInject ? 1 : 0);
+    }
+    if (updates.injectedAt !== undefined) {
+      setClauses.push('injected_at = ?');
+      values.push(updates.injectedAt);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE prompt_countermeasures SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    return this.getPromptCountermeasureById(id);
+  }
+
+  getPromptCountermeasureById(id: string): PromptCountermeasure | null {
+    const row = this.db.prepare('SELECT * FROM prompt_countermeasures WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPromptCountermeasure(row);
+  }
+
+  private rowToPromptCountermeasure(row: Record<string, unknown>): PromptCountermeasure {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      pattern: row.pattern as string,
+      countermeasure: row.countermeasure as string,
+      threshold: row.threshold as number,
+      removalThreshold: row.removal_threshold as number,
+      consecutiveSuccesses: row.consecutive_successes as number,
+      autoInject: (row.auto_inject as number) === 1,
+      active: (row.active as number) === 1,
+      injectedAt: row.injected_at as number | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
   }
 
   close(): void {
