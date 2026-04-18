@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { getDatabase } from '../database';
 import type { BlueprintSpec, BlueprintVersion } from '../database';
 
@@ -45,7 +45,7 @@ export interface ImportBlueprintParams {
 
 export function registerBlueprintHandlers(): void {
   // Create blueprint
-  ipcMain.handle('blueprint:create', async (_event: Electron.IpcMainEvent, params: CreateBlueprintParams) => {
+  ipcMain.handle('blueprint:create', async (_event: IpcMainInvokeEvent, params: CreateBlueprintParams) => {
     const db = getDatabase();
     const id = `bp-${crypto.randomUUID()}`;
     const blueprint = db.createBlueprint({ id, ...params });
@@ -53,19 +53,19 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Get blueprint by ID
-  ipcMain.handle('blueprint:get', async (_event: Electron.IpcMainEvent, id: string) => {
+  ipcMain.handle('blueprint:get', async (_event: IpcMainInvokeEvent, id: string) => {
     const db = getDatabase();
     return db.getBlueprint(id);
   });
 
   // Get blueprint by name
-  ipcMain.handle('blueprint:getByName', async (_event: Electron.IpcMainEvent, name: string) => {
+  ipcMain.handle('blueprint:getByName', async (_event: IpcMainInvokeEvent, name: string) => {
     const db = getDatabase();
     return db.getBlueprintByName(name);
   });
 
   // List blueprints
-  ipcMain.handle('blueprint:list', async (_event: Electron.IpcMainEvent, options?: {
+  ipcMain.handle('blueprint:list', async (_event: IpcMainInvokeEvent, options?: {
     category?: string;
     isPublished?: boolean;
     limit?: number;
@@ -81,38 +81,38 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Update blueprint
-  ipcMain.handle('blueprint:update', async (_event: Electron.IpcMainEvent, id: string, updates: UpdateBlueprintParams) => {
+  ipcMain.handle('blueprint:update', async (_event: IpcMainInvokeEvent, id: string, updates: UpdateBlueprintParams) => {
     const db = getDatabase();
     return db.updateBlueprint(id, updates);
   });
 
   // Delete blueprint
-  ipcMain.handle('blueprint:delete', async (_event: Electron.IpcMainEvent, id: string) => {
+  ipcMain.handle('blueprint:delete', async (_event: IpcMainInvokeEvent, id: string) => {
     const db = getDatabase();
     return db.deleteBlueprint(id);
   });
 
   // Increment usage count
-  ipcMain.handle('blueprint:incrementUsage', async (_event: Electron.IpcMainEvent, id: string) => {
+  ipcMain.handle('blueprint:incrementUsage', async (_event: IpcMainInvokeEvent, id: string) => {
     const db = getDatabase();
     db.incrementBlueprintUsageCount(id);
     return { success: true };
   });
 
   // Get usage stats
-  ipcMain.handle('blueprint:getUsageStats', async (_event: Electron.IpcMainEvent, blueprintId: string, limit?: number) => {
+  ipcMain.handle('blueprint:getUsageStats', async (_event: IpcMainInvokeEvent, blueprintId: string, limit?: number) => {
     const db = getDatabase();
     return db.getBlueprintUsageStats(blueprintId, limit);
   });
 
   // Calculate success rate
-  ipcMain.handle('blueprint:calculateSuccessRate', async (_event: Electron.IpcMainEvent, blueprintId: string) => {
+  ipcMain.handle('blueprint:calculateSuccessRate', async (_event: IpcMainInvokeEvent, blueprintId: string) => {
     const db = getDatabase();
     return db.calculateBlueprintSuccessRate(blueprintId);
   });
 
   // Record usage
-  ipcMain.handle('blueprint:recordUsage', async (_event: Electron.IpcMainEvent, params: {
+  ipcMain.handle('blueprint:recordUsage', async (_event: IpcMainInvokeEvent, params: {
     blueprintId: string;
     versionId?: string | null;
     appId?: string | null;
@@ -129,7 +129,7 @@ export function registerBlueprintHandlers(): void {
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Create blueprint version
-  ipcMain.handle('blueprint:createVersion', async (_event: Electron.IpcMainEvent, params: CreateBlueprintVersionParams) => {
+  ipcMain.handle('blueprint:createVersion', async (_event: IpcMainInvokeEvent, params: CreateBlueprintVersionParams) => {
     const db = getDatabase();
     const id = `bpv-${crypto.randomUUID()}`;
     const version = db.createBlueprintVersion({ id, ...params });
@@ -137,25 +137,25 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Get blueprint version by ID
-  ipcMain.handle('blueprint:getVersion', async (_event: Electron.IpcMainEvent, id: string) => {
+  ipcMain.handle('blueprint:getVersion', async (_event: IpcMainInvokeEvent, id: string) => {
     const db = getDatabase();
     return db.getBlueprintVersion(id);
   });
 
   // Get blueprint version by version string
-  ipcMain.handle('blueprint:getVersionByVersion', async (_event: Electron.IpcMainEvent, blueprintId: string, version: string) => {
+  ipcMain.handle('blueprint:getVersionByVersion', async (_event: IpcMainInvokeEvent, blueprintId: string, version: string) => {
     const db = getDatabase();
     return db.getBlueprintVersionByVersion(blueprintId, version);
   });
 
   // Get latest version of a blueprint
-  ipcMain.handle('blueprint:getLatestVersion', async (_event: Electron.IpcMainEvent, blueprintId: string) => {
+  ipcMain.handle('blueprint:getLatestVersion', async (_event: IpcMainInvokeEvent, blueprintId: string) => {
     const db = getDatabase();
     return db.getLatestBlueprintVersion(blueprintId);
   });
 
   // List all versions of a blueprint
-  ipcMain.handle('blueprint:listVersions', async (_event: Electron.IpcMainEvent, blueprintId: string) => {
+  ipcMain.handle('blueprint:listVersions', async (_event: IpcMainInvokeEvent, blueprintId: string) => {
     const db = getDatabase();
     return db.listBlueprintVersions(blueprintId);
   });
@@ -167,19 +167,19 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Update blueprint version
-  ipcMain.handle('blueprint:updateVersion', async (_event: Electron.IpcMainEvent, id: string, updates: UpdateBlueprintVersionParams) => {
+  ipcMain.handle('blueprint:updateVersion', async (_event: IpcMainInvokeEvent, id: string, updates: UpdateBlueprintVersionParams) => {
     const db = getDatabase();
     return db.updateBlueprintVersion(id, updates);
   });
 
   // Delete blueprint version
-  ipcMain.handle('blueprint:deleteVersion', async (_event: Electron.IpcMainEvent, id: string) => {
+  ipcMain.handle('blueprint:deleteVersion', async (_event: IpcMainInvokeEvent, id: string) => {
     const db = getDatabase();
     return db.deleteBlueprintVersion(id);
   });
 
   // Increment version usage count
-  ipcMain.handle('blueprint:incrementVersionUsage', async (_event: Electron.IpcMainEvent, id: string) => {
+  ipcMain.handle('blueprint:incrementVersionUsage', async (_event: IpcMainInvokeEvent, id: string) => {
     const db = getDatabase();
     db.incrementBlueprintVersionUsageCount(id);
     return { success: true };
@@ -190,7 +190,7 @@ export function registerBlueprintHandlers(): void {
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Validate BlueprintSpec format
-  ipcMain.handle('blueprint:validateSpec', async (_event: Electron.IpcMainEvent, spec: unknown) => {
+  ipcMain.handle('blueprint:validateSpec', async (_event: IpcMainInvokeEvent, spec: unknown) => {
     const errors: string[] = [];
 
     if (!spec || typeof spec !== 'object') {
@@ -222,7 +222,7 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Import blueprint from spec
-  ipcMain.handle('blueprint:import', async (_event: Electron.IpcMainEvent, params: ImportBlueprintParams) => {
+  ipcMain.handle('blueprint:import', async (_event: IpcMainInvokeEvent, params: ImportBlueprintParams) => {
     const db = getDatabase();
     const { spec, isPublished = false, parentBlueprintId = null } = params;
 
@@ -270,7 +270,7 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Export blueprint to spec
-  ipcMain.handle('blueprint:export', async (_event: Electron.IpcMainEvent, blueprintId: string, versionId?: string) => {
+  ipcMain.handle('blueprint:export', async (_event: IpcMainInvokeEvent, blueprintId: string, versionId?: string) => {
     const db = getDatabase();
     const blueprint = db.getBlueprint(blueprintId);
     if (!blueprint) {
@@ -304,7 +304,7 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Import blueprint with conflict resolution (rename)
-  ipcMain.handle('blueprint:importAs', async (_event: Electron.IpcMainEvent, params: ImportBlueprintParams, newName: string) => {
+  ipcMain.handle('blueprint:importAs', async (_event: IpcMainInvokeEvent, params: ImportBlueprintParams, newName: string) => {
     const db = getDatabase();
     const { spec, isPublished = false, parentBlueprintId = null } = params;
 
@@ -342,7 +342,7 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Create new version for existing blueprint
-  ipcMain.handle('blueprint:createNewVersion', async (_event: Electron.IpcMainEvent, blueprintId: string, newVersion: string, specContent?: Record<string, unknown>) => {
+  ipcMain.handle('blueprint:createNewVersion', async (_event: IpcMainInvokeEvent, blueprintId: string, newVersion: string, specContent?: Record<string, unknown>) => {
     const db = getDatabase();
     const blueprint = db.getBlueprint(blueprintId);
     if (!blueprint) {
@@ -372,7 +372,7 @@ export function registerBlueprintHandlers(): void {
   });
 
   // Compare two versions
-  ipcMain.handle('blueprint:compareVersions', async (_event: Electron.IpcMainEvent, versionId1: string, versionId2: string) => {
+  ipcMain.handle('blueprint:compareVersions', async (_event: IpcMainInvokeEvent, versionId1: string, versionId2: string) => {
     const db = getDatabase();
     const v1 = db.getBlueprintVersion(versionId1);
     const v2 = db.getBlueprintVersion(versionId2);

@@ -3,7 +3,7 @@ import { BlueprintBrowser } from './BlueprintBrowser';
 import { BlueprintAuthor } from './BlueprintAuthor';
 import { BlueprintImportExport } from './BlueprintImportExport';
 import { BlueprintDetailView } from './BlueprintDetailView';
-import type { BlueprintWithVersion } from './BlueprintBrowser';
+import type { BlueprintWithVersion } from '../../shared/blueprintTypes';
 
 type BlueprintViewState = 'browser' | 'author' | 'detail' | 'import';
 
