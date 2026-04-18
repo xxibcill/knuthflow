@@ -49,8 +49,14 @@ export interface CapacitorPipelineOptions {
  * Check if Capacitor is initialized for a platform
  */
 function isCapacitorInitialized(workspacePath: string, platform: MobilePlatform): boolean {
-  const capacitorDir = path.join(workspacePath, `cap/${platform}`);
-  return fs.existsSync(capacitorDir);
+  const platformDir = path.join(workspacePath, platform);
+  const configPaths = [
+    path.join(workspacePath, 'capacitor.config.ts'),
+    path.join(workspacePath, 'capacitor.config.js'),
+    path.join(workspacePath, 'capacitor.config.json'),
+  ];
+
+  return fs.existsSync(platformDir) && configPaths.some(configPath => fs.existsSync(configPath));
 }
 
 /**
@@ -208,8 +214,30 @@ async function buildIOS(workspacePath: string): Promise<{ success: boolean; outp
     // Export to IPA
     const archivePath = path.join(workspacePath, 'dist', 'app.xcarchive');
     const ipaPath = path.join(workspacePath, 'dist', 'app.ipa');
+    const exportOptionsPath = path.join(workspacePath, 'dist', 'ExportOptions.plist');
+    const exportOptions = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>destination</key>
+  <string>export</string>
+  <key>method</key>
+  <string>development</string>
+  <key>signingStyle</key>
+  <string>automatic</string>
+  <key>stripSwiftSymbols</key>
+  <true/>
+  <key>compileBitcode</key>
+  <false/>
+</dict>
+</plist>
+`;
+    fs.writeFileSync(exportOptionsPath, exportOptions, 'utf-8');
 
-    await execAsync(`xcodebuild -exportArchive -archivePath "${archivePath}" -exportPath "${path.join(workspacePath, 'dist')}" -exportOptionsPlist '{"method":"enterprise","signingIdentity":"","signingCertificate":""}' CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, { cwd: workspacePath, timeout: 120000 });
+    await execAsync(
+      `xcodebuild -exportArchive -archivePath "${archivePath}" -exportPath "${path.join(workspacePath, 'dist')}" -exportOptionsPlist "${exportOptionsPath}"`,
+      { cwd: workspacePath, timeout: 120000 },
+    );
 
     return {
       success: true,
