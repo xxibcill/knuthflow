@@ -38,7 +38,7 @@ export function RalphOperatorControls({
       <div className="section-header">
         <div>
           <h2 className="section-title">Operator Controls</h2>
-          <p className="section-lead">Pause, resume, or stop the selected run. Replan and validation are not wired in this build yet.</p>
+          <p className="section-lead">Pause, resume, stop, replan, or validate the selected run.</p>
         </div>
         <div className="toolbar-inline">
           <span className="badge badge-neutral">Phase {currentPhase}</span>
@@ -77,18 +77,16 @@ export function RalphOperatorControls({
 
               <button
                 onClick={() => onAction('replan')}
-                disabled
                 className={ACTION_COPY.replan.className}
-                title="Not yet implemented"
+                title="Regenerate the plan based on current state"
               >
                 {ACTION_COPY.replan.label}
               </button>
 
               <button
                 onClick={() => onAction('validate')}
-                disabled
                 className={ACTION_COPY.validate.className}
-                title="Not yet implemented"
+                title="Run validation on current state"
               >
                 {ACTION_COPY.validate.label}
               </button>

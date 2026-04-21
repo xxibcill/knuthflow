@@ -10,8 +10,10 @@ import type {
   LoopState,
 } from './ralphTypes';
 import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
+import type { Blueprint, BlueprintVersion } from './blueprintTypes';
 import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
 export type { ArtifactType };
+export type { Blueprint, BlueprintVersion } from './blueprintTypes';
 
 export type { PlatformTarget, PlatformCategory, PlatformTargetConfig } from './deliveryTypes';
 
@@ -464,8 +466,21 @@ export interface KnuthflowAPI {
     pauseRun(runId: string): Promise<void>;
     resumeRun(runId: string): Promise<void>;
     stopRun(runId: string): Promise<void>;
-    replanRun(runId: string): Promise<void>;
-    validateRun(runId: string): Promise<void>;
+    replanRun(runId: string): Promise<{
+      success: boolean;
+      message?: string;
+      completedTasks?: number;
+      pendingTasks?: number;
+      error?: string;
+    }>;
+    validateRun(runId: string): Promise<{
+      success: boolean;
+      passed: boolean;
+      build?: { passed: boolean; output: string; errors: Array<{ code: string; message: string }> };
+      test?: { passed: boolean; output: string; errors: Array<{ code: string; message: string }> };
+      lint?: { passed: boolean; output: string; errors: Array<{ code: string; message: string }> };
+      error?: string;
+    }>;
   };
   appintake: {
     generateBlueprint(intake: AppIntakeDraft): Promise<{
@@ -1599,6 +1614,28 @@ export interface KnuthflowAPI {
         version1Spec: Record<string, unknown>;
         version2Spec: Record<string, unknown>;
       };
+      error?: string;
+    }>;
+    getInheritanceChain(blueprintId: string): Promise<{
+      success: boolean;
+      chain: Array<{ id: string; name: string; version: string }>;
+      error?: string;
+    }>;
+    extend(
+      parentBlueprintId: string,
+      name: string,
+      description: string | null,
+      overrides: {
+        specContent?: Record<string, unknown>;
+        starterTemplate?: string | null;
+        acceptanceGates?: string[];
+        learnedRules?: string[];
+      }
+    ): Promise<{
+      success: boolean;
+      blueprint?: Blueprint;
+      version?: BlueprintVersion;
+      parentBlueprintId?: string;
       error?: string;
     }>;
   };

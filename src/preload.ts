@@ -683,6 +683,20 @@ const api: KnuthflowAPI = {
       ipcRenderer.invoke('blueprint:createNewVersion', blueprintId, newVersion, specContent),
     compareVersions: (versionId1: string, versionId2: string) =>
       ipcRenderer.invoke('blueprint:compareVersions', versionId1, versionId2),
+    getInheritanceChain: (blueprintId: string) =>
+      ipcRenderer.invoke('blueprint:getInheritanceChain', blueprintId),
+    extend: (
+      parentBlueprintId: string,
+      name: string,
+      description: string | null,
+      overrides: {
+        specContent?: Record<string, unknown>;
+        starterTemplate?: string | null;
+        acceptanceGates?: string[];
+        learnedRules?: string[];
+      }
+    ) =>
+      ipcRenderer.invoke('blueprint:extend', parentBlueprintId, name, description, overrides),
   },
 };
 

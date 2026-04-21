@@ -74,7 +74,7 @@ All notable changes to Knuthflow are documented here.
 - Dry-run harness and loop test matrix for core Ralph state transitions
 - Operator documentation and release checklist for autonomous mode
 
-#### Phase 12: Refactor Main Process Entry
+#### Phase 12: Ralph Flow Upgrade
 - `src/index.ts` refactored from 1325 lines to ~237 lines (~82% reduction)
 - IPC handlers split into 17 logical modules in `src/main/ipc/`:
   - `processHandlers.ts` — process:spawn, process:send, process:kill, process:list
@@ -94,7 +94,75 @@ All notable changes to Knuthflow are documented here.
   - `ralphRuntimeHandlers.ts` — ralphRuntime:*
   - `ralphSchedulerHandlers.ts` — ralphScheduler:*
   - `ralphSafetyHandlers.ts` — ralphSafety:*
+- Ralph execution adapter with PTY session management, prompt building, and iteration execution
+- Loop state machine with pause, resume, stop, and state transitions
+- Plan parser with task status update functions (markTaskCompleted, markTaskPending)
+- Replan handler that preserves completed tasks and regenerates fix_plan.md
+- Validate handler that runs build, test, and lint validation
 - TypeScript compilation and lint checks pass
+
+#### Phase 13: Goal To App Bootstrap
+- App intake form with three-path workflow (choose, blueprint, freeform)
+- Blueprint generation from intake form with deterministic versioning
+- Workspace scaffolding with four templates (web/React+Vite, electron, api/Express, mobile/React Native+Expo)
+- Kickoff review surface showing specs, milestones, scaffold choices, and acceptance gates
+- Explicit approval step before autonomous build execution begins
+
+#### Phase 14: Long-Horizon App Builder
+- Milestone controller managing app-level milestones, task dependencies, and cross-iteration progress
+- Context compression with bounded prompts, milestone snapshots, and resumable compressed state
+- Task graph initialization from parsed fix_plan.md with dependency tracking
+- Preview, build, test, lint, and milestone validation via IPC handlers
+- Feedback decision system (accept, rework, rollback, replan) for validation results
+- Milestone management methods in RalphRuntime (initializeMilestones, getMilestones, getActiveMilestone, completeMilestone)
+
+#### Phase 15: Desktop One-Shot Delivery
+- Delivery review panel with inspect, run packaging, and confirm release workflows
+- Delivery service with handoff bundle generation and artifact collection
+- Release gates with base gates (source exists, build output, SPEC.md, fix_plan.md)
+- Blueprint acceptance gate evaluation (parses acceptance gate strings and runs validation commands)
+- Platform-specific handoffs for iOS/Android (Capacitor), PWA (Lighthouse), desktop smoke tests
+- E2E test coverage for delivery workflow (skipped on macOS CI due to Gatekeeper)
+
+#### Phase 16: Multi-App Portfolio Orchestrator
+- Portfolio database schema with Portfolio, PortfolioProject, and artifact reference tables
+- Ralph runtime extension supporting concurrent runs with priority-based queuing
+- Portfolio dashboard UI with project management, active runs display, and dependency graph
+- Cross-app dependency resolution with topological sort and cycle detection
+- Max concurrent runs control with queue management
+
+#### Phase 17: Delivery Intelligence and Loop Learning
+- MistakeTracker pattern detection with countermeasure generation
+- Prompt injection manager with auto-inject and auto-remove thresholds
+- Delivery metrics collection (build time, iteration count, validation pass rate, operator interventions)
+- Lessons learned generator with success/failure/cancellation summaries
+- Database tables: delivery_metrics, prompt_countermeasures, lessons_learned
+
+#### Phase 18: Cross-Platform Packaging Engine
+- Platform target specification in app intake (mobile, web, desktop)
+- Capacitor mobile build pipeline (ios/android) with xcodebuild and gradle
+- PWA packaging with manifest.json, service worker, and offline caching strategies
+- Platform-specific validation gates: capacitor-init, capacitor-sync, capacitor-build, pwa-lighthouse
+- Platform-target-specific spec overrides (specs/mobile-ux.md, specs/pwa-offline.md, specs/desktop-ux.md)
+
+#### Phase 19: Autonomous Post-Delivery Iteration
+- Post-delivery monitoring service with health checks (build, lint, tests, vulnerabilities)
+- Autonomous scheduler triggering maintenance runs on regression detection
+- Version management with app_versions table and channel assignments (internal/beta/stable)
+- Staged rollout support with beta testers and promotion workflows
+- Maintenance run table and IPC handlers for lifecycle management
+- Maintenance panel UI for viewing and managing maintenance runs
+
+#### Phase 20: Skill Library and Blueprint System
+- Blueprint database schema with Blueprint, BlueprintVersion, and BlueprintUsageStats tables
+- Blueprint browser, author, and detail view UI components
+- BlueprintSpec document format with starter templates, spec file templates, task patterns, and acceptance gates
+- Blueprint intake integration in app intake form
+- Blueprint import/export via GitHub Gist and local .tar.gz files
+- Blueprint inheritance with parent_blueprint_id, version tracking, and override mechanism
+- Blueprint extension handler (blueprint:extend) for creating child blueprints with overrides
+- Blueprint inheritance chain tracking (blueprint:getInheritanceChain)
+- Blueprint version comparison (blueprint:compareVersions)
 
 ### Fixed
 - IPC handler code review issues
@@ -103,3 +171,9 @@ All notable changes to Knuthflow are documented here.
 - Memory leaks and path handling bugs
 - Codebase search and context gathering job implementation
 - Workspace selector path handling and secure storage command execution
+- Blueprint type imports and IPC event type
+- Phase 19 monitoring issues (updateMaintenanceRun missing runId field)
+- Phase 18 review issues (type consolidation, path validation, error handling)
+- Phase 17 bugs (atomic delivery+lessons, id-based lookups, pattern threshold, autoInject precedence)
+- CSP blocking Monaco editor CDN
+- E2E test runner issues (Linux executable name, CI packaging, UI test skipping on macOS)

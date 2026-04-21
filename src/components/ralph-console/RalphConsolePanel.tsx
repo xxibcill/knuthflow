@@ -639,6 +639,23 @@ export function RalphConsolePanel({
         case 'resume':
           await window.knuthflow.ralph.resumeRun(selectedRun.runId);
           break;
+        case 'replan':
+          setPendingConfirmation({
+            action: 'replan',
+            title: 'Replan this run?',
+            message: 'This will regenerate the plan based on current state. The current iteration will be discarded.',
+            confirmLabel: 'Replan',
+            cancelLabel: 'Cancel',
+            isDangerous: true,
+          });
+          return;
+        case 'validate':
+          await window.knuthflow.ralph.validateRun(selectedRun.runId);
+          setWorkspaceNotice({
+            tone: 'info',
+            message: 'Validation complete. Check the validation panel for results.',
+          });
+          break;
         default:
           return;
       }
@@ -672,6 +689,12 @@ export function RalphConsolePanel({
         if (selectedRun.sessionId) {
           await window.knuthflow.session.updateEnd(selectedRun.sessionId, 'completed', null, null);
         }
+      } else if (pendingConfirmation.action === 'replan') {
+        await window.knuthflow.ralph.replanRun(selectedRun.runId);
+        setWorkspaceNotice({
+          tone: 'info',
+          message: 'Plan regenerated. The run will continue with the new plan.',
+        });
       }
 
       setPendingConfirmation(null);

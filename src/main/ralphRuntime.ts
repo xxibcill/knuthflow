@@ -10,6 +10,7 @@ import {
 } from '../shared/ralphTypes';
 import { generateSuccessLesson, generateFailureLesson, generateCancellationLesson, getLoopLearning } from './ralph/lessonsLearnedGenerator';
 import { performStartupRecovery, validateRuntimeState, type RecoveryReport } from './ralph/ralphRecovery';
+import { MilestoneController } from './ralph/milestoneController';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ralph Runtime Events
@@ -589,6 +590,67 @@ export class RalphRuntime extends EventEmitter {
    */
   validateAndCleanup(projectId: string): { consistent: boolean; issues: string[] } {
     return validateRuntimeState(projectId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Milestone Management (Phase 14)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Initialize milestones for a run from blueprint milestones
+   */
+  initializeMilestones(
+    projectId: string,
+    runId: string,
+    milestones: Array<{
+      id: string;
+      title: string;
+      description: string;
+      tasks: string[];
+      acceptanceGate: string;
+      order: number;
+    }>
+  ): void {
+    const milestoneController = new MilestoneController();
+    milestoneController.initializeFromBlueprint(projectId, runId, milestones);
+  }
+
+  /**
+   * Get milestone state for a run
+   */
+  getMilestones(projectId: string, runId: string) {
+    const milestoneController = new MilestoneController();
+    return milestoneController.getMilestones(projectId, runId);
+  }
+
+  /**
+   * Get the active milestone for a run
+   */
+  getActiveMilestone(projectId: string, runId: string) {
+    const milestoneController = new MilestoneController();
+    return milestoneController.getActiveMilestone(projectId, runId);
+  }
+
+  /**
+   * Complete the current milestone with validation result
+   */
+  completeMilestone(
+    projectId: string,
+    runId: string,
+    milestoneId: string,
+    validationResult: {
+      passed: boolean;
+      output: string;
+      exitCode: number | null;
+      durationMs: number;
+      errors: Array<{ code: string; message: string }>;
+      warnings: Array<{ code: string; message: string }>;
+      validatedAt: number;
+    }
+  ): boolean {
+    const milestoneController = new MilestoneController();
+    const result = milestoneController.completeMilestone(projectId, runId, milestoneId, validationResult);
+    return result !== null;
   }
 }
 

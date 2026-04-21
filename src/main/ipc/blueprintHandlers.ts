@@ -397,4 +397,78 @@ export function registerBlueprintHandlers(): void {
       },
     };
   });
+
+  // Get inheritance chain for a blueprint
+  ipcMain.handle('blueprint:getInheritanceChain', async (_event: IpcMainInvokeEvent, blueprintId: string) => {
+    const db = getDatabase();
+    const chain: Array<{ id: string; name: string; version: string }> = [];
+    let currentId: string | null = blueprintId;
+
+    while (currentId) {
+      const blueprint = db.getBlueprint(currentId);
+      if (!blueprint) break;
+
+      const latestVersion = db.getLatestBlueprintVersion(currentId);
+      chain.unshift({
+        id: blueprint.id,
+        name: blueprint.name,
+        version: latestVersion?.version || 'unknown',
+      });
+
+      currentId = blueprint.parentBlueprintId;
+    }
+
+    return { success: true, chain };
+  });
+
+  // Extend blueprint with overrides
+  ipcMain.handle('blueprint:extend', async (
+    _event: IpcMainInvokeEvent,
+    parentBlueprintId: string,
+    name: string,
+    description: string | null,
+    overrides: {
+      specContent?: Record<string, unknown>;
+      starterTemplate?: string | null;
+      acceptanceGates?: string[];
+      learnedRules?: string[];
+    }
+  ) => {
+    const db = getDatabase();
+    const parent = db.getBlueprint(parentBlueprintId);
+    if (!parent) {
+      return { success: false, error: 'Parent blueprint not found' };
+    }
+
+    // Get parent latest version for inheriting non-overridden values
+    const parentVersion = db.getLatestBlueprintVersion(parentBlueprintId);
+    if (!parentVersion) {
+      return { success: false, error: 'Parent blueprint has no versions' };
+    }
+
+    // Create new blueprint with parent reference
+    const blueprintId = `bp-${crypto.randomUUID()}`;
+    const blueprint = db.createBlueprint({
+      id: blueprintId,
+      name,
+      description: description || parent.description,
+      category: parent.category,
+      isPublished: false,
+      parentBlueprintId,
+    });
+
+    // Create initial version with inherited values and overrides
+    const versionId = `bpv-${crypto.randomUUID()}`;
+    const version = db.createBlueprintVersion({
+      id: versionId,
+      blueprintId: blueprint.id,
+      version: '1.0.0',
+      specContent: overrides.specContent || parentVersion.specContent,
+      starterTemplate: overrides.starterTemplate !== undefined ? overrides.starterTemplate : parentVersion.starterTemplate,
+      acceptanceGates: overrides.acceptanceGates || parentVersion.acceptanceGates,
+      learnedRules: overrides.learnedRules || parentVersion.learnedRules,
+    });
+
+    return { success: true, blueprint, version, parentBlueprintId };
+  });
 }

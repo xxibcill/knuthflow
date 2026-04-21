@@ -122,13 +122,167 @@ export function registerRalphHandlers(): void {
   });
 
   ipcMain.handle('ralph:replanRun', async (_event: IpcMainInvokeEvent, runId: string) => {
-    getRunOrThrow(runId);
-    throw new Error('Replan is not implemented yet');
+    const run = getRunOrThrow(runId);
+    const db = getDatabase();
+    const project = db.getRalphProject(run.projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    const workspace = db.getWorkspace(project.workspaceId);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    // Read current fix_plan.md to preserve completed tasks
+    const fs = await import('fs');
+    const fixPlanPath = path.join(workspace.path, 'fix_plan.md');
+    if (!fs.existsSync(fixPlanPath)) {
+      throw new Error('fix_plan.md not found - workspace may not be bootstrapped for Ralph');
+    }
+
+    const currentContent = fs.readFileSync(fixPlanPath, 'utf-8');
+
+    // Parse the current plan to identify completed tasks
+    const { parsePlanContent } = await import('../ralph/planParser');
+    const tasks = parsePlanContent(currentContent);
+
+    // Count completed vs pending tasks
+    const completedTasks = tasks.filter(t => t.status === 'completed');
+    const pendingTasks = tasks.filter(t => t.status === 'pending');
+
+    // Read the blueprint metadata to regenerate plan with same goals
+    const blueprintMetaPath = path.join(workspace.path, '.ralph.blueprint.json');
+    if (!fs.existsSync(blueprintMetaPath)) {
+      throw new Error('Blueprint metadata not found - cannot replan without original blueprint');
+    }
+
+    const blueprintMeta = JSON.parse(fs.readFileSync(blueprintMetaPath, 'utf-8'));
+
+    // Regenerate fix_plan.md preserving completed tasks
+    const { BlueprintGenerator } = await import('../ralph/blueprintGenerator');
+    const generator = new BlueprintGenerator();
+
+    // Create a new plan that keeps completed tasks as done
+    const newPlanLines: string[] = [
+      '# Fix Plan',
+      '',
+      `## App: ${blueprintMeta.intake.appName}`,
+      '',
+      blueprintMeta.intake.appBrief,
+      '',
+      '## Target Platform',
+      `- ${blueprintMeta.intake.targetPlatform.join(', ')}`,
+      '',
+      '## Delivery Format',
+      `- ${blueprintMeta.intake.deliveryFormat}`,
+      '',
+      '## Milestones',
+      '',
+    ];
+
+    for (const milestone of blueprintMeta.milestones) {
+      newPlanLines.push(`### ${milestone.order}. ${milestone.title}`);
+      newPlanLines.push('');
+      newPlanLines.push(milestone.description);
+      newPlanLines.push('');
+      newPlanLines.push('**Tasks:**');
+
+      for (const task of milestone.tasks) {
+        // Check if this task was completed in the current plan
+        const isCompleted = tasks.some(t => t.title === task && t.status === 'completed');
+        const checkbox = isCompleted ? 'x' : ' ';
+        newPlanLines.push(`- [${checkbox}] ${task}`);
+      }
+      newPlanLines.push('');
+      newPlanLines.push(`**Acceptance Gate:** ${milestone.acceptanceGate}`);
+      newPlanLines.push('');
+    }
+
+    newPlanLines.push('## Success Criteria');
+    newPlanLines.push('');
+    for (const criterion of blueprintMeta.intake.successCriteria) {
+      // Check if criterion was completed
+      const isCompleted = tasks.some(t => t.title === criterion && t.status === 'completed');
+      const checkbox = isCompleted ? 'x' : ' ';
+      newPlanLines.push(`- [${checkbox}] ${criterion}`);
+    }
+    newPlanLines.push('');
+    newPlanLines.push('## Technical Constraints');
+    newPlanLines.push('');
+
+    if (blueprintMeta.intake.stackPreferences.length > 0) {
+      newPlanLines.push('**Allowed Stacks:**');
+      for (const stack of blueprintMeta.intake.stackPreferences) {
+        newPlanLines.push(`- ${stack}`);
+      }
+      newPlanLines.push('');
+    }
+
+    if (blueprintMeta.intake.forbiddenPatterns.length > 0) {
+      newPlanLines.push('**Forbidden Patterns:**');
+      for (const pattern of blueprintMeta.intake.forbiddenPatterns) {
+        newPlanLines.push(`- ${pattern}`);
+      }
+      newPlanLines.push('');
+    }
+
+    const newContent = newPlanLines.join('\n');
+
+    // Atomically write the new plan
+    fs.writeFileSync(fixPlanPath, newContent, 'utf-8');
+
+    // Create a plan snapshot before replanning
+    db.createPlanSnapshot(run.projectId, runId, run.iterationCount, newContent);
+
+    return {
+      success: true,
+      message: `Plan regenerated. Preserved ${completedTasks.length} completed tasks.`,
+      completedTasks: completedTasks.length,
+      pendingTasks: pendingTasks.length,
+    };
   });
 
   ipcMain.handle('ralph:validateRun', async (_event: IpcMainInvokeEvent, runId: string) => {
-    getRunOrThrow(runId);
-    throw new Error('Validation is not implemented yet');
+    const run = getRunOrThrow(runId);
+    const db = getDatabase();
+    const project = db.getRalphProject(run.projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    const workspace = db.getWorkspace(project.workspaceId);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    // Run milestone validation
+    const { getMilestoneValidation } = await import('../ralph/milestoneValidation');
+    const validation = getMilestoneValidation();
+
+    // Run build, test, and lint validation
+    const results = await Promise.all([
+      validation.runBuildValidation({ workspacePath: workspace.path, timeoutMs: 120000 }),
+      validation.runTestValidation({ workspacePath: workspace.path, timeoutMs: 120000 }),
+      validation.runLintValidation({ workspacePath: workspace.path, timeoutMs: 60000 }),
+    ]);
+
+    const [buildResult, testResult, lintResult] = results;
+
+    const allPassed = buildResult.passed && testResult.passed && lintResult.passed;
+
+    // Record validation outcome for metrics
+    const runtime = await import('../ralphRuntime');
+    const ralphRuntime = runtime.getRuntimeForRunId(runId);
+    if (ralphRuntime) {
+      ralphRuntime.recordValidationOutcome(runId, allPassed);
+    }
+
+    return {
+      success: true,
+      passed: allPassed,
+      build: buildResult,
+      test: testResult,
+      lint: lintResult,
+    };
   });
 
   // ─────────────────────────────────────────────────────────────────────────────

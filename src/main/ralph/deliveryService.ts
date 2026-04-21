@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import type { HandoffBundle, DeliveryArtifact, ReleaseGate, DeliveryResult, PlatformTarget, PlatformHandoff } from '../../shared/deliveryTypes';
 import { buildCapacitorMobile, type MobilePlatform } from './capacitorPipeline';
@@ -481,7 +481,8 @@ export async function buildHandoffBundle(
   workspacePath: string,
   appName: string,
   deliveryFormat: string,
-  platformTargets: PlatformTarget[] = []
+  platformTargets: PlatformTarget[] = [],
+  milestones?: Array<{ id: string; title: string; acceptanceGate: string; order: number }>
 ): Promise<HandoffBundle> {
   // Gather base artifacts
   const artifacts = gatherArtifacts(workspacePath, appName);
@@ -493,12 +494,15 @@ export async function buildHandoffBundle(
   // Evaluate base gates
   const baseGates = evaluateBaseReleaseGates(workspacePath);
 
+  // Evaluate acceptance gates from blueprint milestones
+  const acceptanceGates = await evaluateBlueprintAcceptanceGates(workspacePath, milestones);
+
   // Build platform-specific handoffs
   const { handoffs, additionalArtifacts, additionalGates } = await buildPlatformHandoffs(workspacePath, platformTargets);
 
   // Combine all artifacts and gates
   const allArtifacts = [...artifacts, ...additionalArtifacts];
-  const allGates = [...baseGates, ...additionalGates];
+  const allGates = [...baseGates, ...acceptanceGates, ...additionalGates];
 
   // Determine overall status
   const platformGates = handoffs.flatMap(h => h.gates);
@@ -520,6 +524,116 @@ export async function buildHandoffBundle(
     completedAt: allGatesPassed ? Date.now() : undefined,
     summary: summaryParts.join(' • '),
   };
+}
+
+/**
+ * Evaluate acceptance gates from blueprint milestones
+ * Parses acceptance gate strings and runs validation commands
+ */
+async function evaluateBlueprintAcceptanceGates(
+  workspacePath: string,
+  milestones?: Array<{ id: string; title: string; acceptanceGate: string; order: number }>
+): Promise<ReleaseGate[]> {
+  if (!milestones || milestones.length === 0) {
+    return [];
+  }
+
+  const gates: ReleaseGate[] = [];
+
+  for (const milestone of milestones) {
+    const gate = await evaluateAcceptanceGate(workspacePath, milestone);
+    gates.push(gate);
+  }
+
+  return gates;
+}
+
+/**
+ * Evaluate a single acceptance gate
+ * Acceptance gate format: "command1; command2; ..."
+ * Gate passes if all commands succeed
+ */
+async function evaluateAcceptanceGate(
+  workspacePath: string,
+  milestone: { id: string; title: string; acceptanceGate: string; order: number }
+): Promise<ReleaseGate> {
+  const gateId = `gate-acceptance-${milestone.order}`;
+  const commands = milestone.acceptanceGate.split(';').map(c => c.trim()).filter(Boolean);
+
+  if (commands.length === 0) {
+    return {
+      id: gateId,
+      name: `Acceptance Gate: ${milestone.title}`,
+      description: milestone.acceptanceGate || 'No acceptance criteria defined',
+      status: 'skipped',
+      evidence: 'No commands to execute',
+    };
+  }
+
+  const results: { command: string; passed: boolean; output: string }[] = [];
+  let allPassed = true;
+
+  for (const command of commands) {
+    const result = await runValidationCommand(workspacePath, command);
+    results.push(result);
+    if (!result.passed) {
+      allPassed = false;
+    }
+  }
+
+  const evidence = results.map(r =>
+    `${r.passed ? '✓' : '✗'} ${r.command}${r.output ? `: ${r.output.substring(0, 100)}` : ''}`
+  ).join('\n');
+
+  return {
+    id: gateId,
+    name: `Acceptance Gate: ${milestone.title}`,
+    description: milestone.acceptanceGate,
+    status: allPassed ? 'passed' : 'failed',
+    evidence,
+    passedAt: allPassed ? Date.now() : undefined,
+  };
+}
+
+/**
+ * Run a single validation command
+ */
+async function runValidationCommand(workspacePath: string, command: string): Promise<{ command: string; passed: boolean; output: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, [], {
+      cwd: workspacePath,
+      shell: true,
+      timeout: 120000,
+    });
+
+    let output = '';
+    let errorOutput = '';
+
+    child.stdout?.on('data', (data) => {
+      output += data.toString();
+    });
+
+    child.stderr?.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    child.on('close', (code) => {
+      const passed = code === 0;
+      resolve({
+        command,
+        passed,
+        output: passed ? output.substring(0, 500) : errorOutput.substring(0, 500),
+      });
+    });
+
+    child.on('error', (err) => {
+      resolve({
+        command,
+        passed: false,
+        output: err.message,
+      });
+    });
+  });
 }
 
 /**
@@ -570,6 +684,10 @@ export async function runPackaging(workspacePath: string, deliveryFormat: string
       platformTargets.push(...ralphMetadata.platformTargets.filter(t => !platformTargets.includes(t)));
     }
 
+    // Read blueprint metadata to get milestones for acceptance gates
+    const blueprintMeta = getBlueprintMetadata(workspacePath);
+    const milestones = blueprintMeta?.milestones;
+
     // Run npm install if node_modules doesn't exist
     const nodeModulesPath = path.join(workspacePath, 'node_modules');
     if (!fs.existsSync(nodeModulesPath)) {
@@ -597,8 +715,8 @@ export async function runPackaging(workspacePath: string, deliveryFormat: string
       }
     }
 
-    // Build handoff bundle with platform support
-    const bundle = await buildHandoffBundle(workspacePath, appName, deliveryFormat, platformTargets);
+    // Build handoff bundle with platform support and blueprint acceptance gates
+    const bundle = await buildHandoffBundle(workspacePath, appName, deliveryFormat, platformTargets, milestones);
     saveDeliveryManifest(workspacePath, bundle);
 
     return { success: true, bundle };
@@ -655,10 +773,27 @@ export async function getHandoffBundle(workspacePath: string): Promise<DeliveryR
     const deliveryFormat = scaffold?.template ?? 'web';
     const platformTargets = scaffold?.platformTargets ?? [];
 
-    const bundle = await buildHandoffBundle(workspacePath, appName, deliveryFormat, platformTargets);
+    // Read blueprint metadata to get milestones for acceptance gates
+    const blueprintMeta = getBlueprintMetadata(workspacePath);
+    const milestones = blueprintMeta?.milestones;
+
+    const bundle = await buildHandoffBundle(workspacePath, appName, deliveryFormat, platformTargets, milestones);
 
     return { success: true, bundle };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to get handoff bundle', code: 'GET_BUNDLE_FAILED' };
+  }
+}
+
+/**
+ * Get blueprint metadata from workspace
+ */
+function getBlueprintMetadata(workspacePath: string): { milestones?: Array<{ id: string; title: string; acceptanceGate: string; order: number }> } | null {
+  const blueprintPath = path.join(workspacePath, '.ralph.blueprint.json');
+  if (!fs.existsSync(blueprintPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(blueprintPath, 'utf-8'));
+  } catch {
+    return null;
   }
 }

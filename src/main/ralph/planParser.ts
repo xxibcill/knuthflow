@@ -148,3 +148,70 @@ export function flattenTasks(tasks: PlanTask[]): PlanTask[] {
   }
   return result;
 }
+
+/**
+ * Update task status in fix_plan.md content
+ * Returns new content with updated checkbox
+ */
+export function updateTaskStatus(content: string, taskTitle: string, newStatus: 'pending' | 'completed'): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+
+  for (const line of lines) {
+    // Match checkbox patterns for this task
+    const checkboxMatch = line.match(/^(\s*)-\s*\[([ xX])\]\s*(.+)$/);
+    if (checkboxMatch) {
+      const [, indent, checkbox, title] = checkboxMatch;
+      if (title.trim() === taskTitle) {
+        const newCheckbox = newStatus === 'completed' ? 'x' : ' ';
+        result.push(`${indent}- [${newCheckbox}] ${title}`);
+        continue;
+      }
+    }
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Write updated plan content to fix_plan.md
+ */
+export function writeUpdatedPlan(workspacePath: string, newContent: string): void {
+  const fixPlanPath = path.join(workspacePath, 'fix_plan.md');
+  // Validate path is within workspace
+  if (!fixPlanPath.startsWith(workspacePath)) {
+    throw new Error('Invalid workspace path for fix_plan.md');
+  }
+  fs.writeFileSync(fixPlanPath, newContent, 'utf-8');
+}
+
+/**
+ * Mark a task as completed in fix_plan.md
+ */
+export function markTaskCompleted(workspacePath: string, taskTitle: string): boolean {
+  const fixPlanPath = path.join(workspacePath, 'fix_plan.md');
+  if (!fs.existsSync(fixPlanPath)) {
+    return false;
+  }
+
+  const content = fs.readFileSync(fixPlanPath, 'utf-8');
+  const newContent = updateTaskStatus(content, taskTitle, 'completed');
+  writeUpdatedPlan(workspacePath, newContent);
+  return true;
+}
+
+/**
+ * Mark a task as pending in fix_plan.md
+ */
+export function markTaskPending(workspacePath: string, taskTitle: string): boolean {
+  const fixPlanPath = path.join(workspacePath, 'fix_plan.md');
+  if (!fs.existsSync(fixPlanPath)) {
+    return false;
+  }
+
+  const content = fs.readFileSync(fixPlanPath, 'utf-8');
+  const newContent = updateTaskStatus(content, taskTitle, 'pending');
+  writeUpdatedPlan(workspacePath, newContent);
+  return true;
+}
