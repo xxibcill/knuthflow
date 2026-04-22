@@ -192,7 +192,10 @@ export type ArtifactType =
   | 'exit_metadata'
   | 'generated_file'
   | 'validation_result'
-  | 'loop_summary';
+  | 'loop_summary'
+  | 'preview_screenshot'
+  | 'visual_smoke_check'
+  | 'console_evidence';
 
 export type ArtifactSeverity = 'error' | 'warning' | 'info';
 

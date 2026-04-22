@@ -1900,6 +1900,176 @@ export interface KnuthflowAPI {
       aggregateSuccessRate: number;
     }>;
   };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Preview & Visual Validation (Phase 28)
+  // ─────────────────────────────────────────────────────────────────────────────
+  preview: {
+    detectCommand(
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ): Promise<{
+      success: boolean;
+      result?: {
+        found: boolean;
+        preview: {
+          command: string;
+          cwd: string;
+          host: string;
+          port: number;
+          startupUrl: string;
+          routes: string[];
+          source: string;
+          framework: string | null;
+        } | null;
+        reason: string;
+        suggestion?: string;
+      };
+      error?: string;
+    }>;
+    startPreview(
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ): Promise<{
+      success: boolean;
+      result?: {
+        processId: string;
+        url: string;
+        port: number;
+        command: string;
+        logs: string;
+      };
+      error?: string;
+      suggestion?: string;
+    }>;
+    stopPreview(processId: string): Promise<{ success: boolean; error?: string }>;
+    getProcessStatus(processId: string): Promise<{
+      success: boolean;
+      result?: {
+        id: string;
+        status: string;
+        port: number;
+        pid: number | null;
+        startupTimeMs: number | null;
+        url: string | null;
+        error: string | null;
+        logs: string;
+      };
+      error?: string;
+    }>;
+    stopAllPreviews(): Promise<{ success: boolean; error?: string }>;
+    captureEvidence(
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ): Promise<{
+      success: boolean;
+      result?: {
+        screenshots: Array<{
+          route: string;
+          viewport: string;
+          screenshotPath: string | null;
+          errors: Array<{ code: string; message: string }>;
+          warnings: Array<{ code: string; message: string }>;
+          durationMs: number;
+          timestamp: number;
+        }>;
+        consoleEvidence: Array<{
+          route: string;
+          viewport: string;
+          consoleErrors: string[];
+          consoleWarnings: string[];
+          pageErrors: string[];
+          failedRequests: Array<{ url: string; status: number; failureReason: string }>;
+          timestamp: number;
+        }>;
+        routes: string[];
+        viewports: string[];
+        skipped: boolean;
+        skipReason: string | null;
+      };
+      skipped?: boolean;
+      skipReason?: string;
+      error?: string;
+    }>;
+    captureAndStoreEvidence(
+      projectId: string,
+      runId: string,
+      iteration: number,
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ): Promise<{
+      success: boolean;
+      result?: {
+        screenshots: Array<{
+          id: string;
+          route: string;
+          viewport: string;
+          timestamp: number;
+          passed: boolean;
+        }>;
+        smokeCheck: {
+          passed: boolean;
+          checks: number;
+          errors: number;
+          warnings: number;
+        };
+        consoleEvidence: {
+          artifactId: string;
+          totalErrors: number;
+        };
+        skipped: boolean;
+        skipReason: string | null;
+      };
+      error?: string;
+    }>;
+    runVisualSmokeChecks(
+      screenshots: Array<{
+        route: string;
+        viewport: string;
+        screenshotBase64: string | null;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      }>,
+      consoleEvidence: Array<{
+        route: string;
+        viewport: string;
+        consoleErrors: string[];
+        consoleWarnings: string[];
+        pageErrors: string[];
+        failedRequests: Array<{ url: string; status: number; failureReason: string }>;
+      }>,
+      options?: { checkOverflow?: boolean; allowedConsoleErrors?: string[] }
+    ): Promise<{
+      success: boolean;
+      result?: {
+        passed: boolean;
+        checks: Array<{
+          name: string;
+          passed: boolean;
+          severity: string;
+          description: string;
+          details?: string;
+        }>;
+        summary: string;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+        durationMs: number;
+        timestamp: number;
+      };
+      error?: string;
+    }>;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

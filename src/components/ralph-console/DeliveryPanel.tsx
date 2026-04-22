@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Delivery Panel - Review Packaging and Handoff UI (Phase 15)
+// Phase 28: Visual Review Gates
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useCallback } from 'react';
@@ -21,13 +22,33 @@ export interface DeliveryPanelProps {
   workspacePath: string | null;
   onOpenFile: (filePath: string, lineNumber?: number) => void;
   onRefresh?: () => void;
+  projectId?: string;
+  runId?: string;
+  iteration?: number;
 }
 
-export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh }: DeliveryPanelProps) {
+interface VisualGateState {
+  status: 'pending' | 'capturing' | 'passed' | 'failed' | 'skipped' | 'overridden';
+  lastCapturedAt?: number;
+  screenshotCount?: number;
+  errorCount?: number;
+  overrideReason?: string;
+  overrideBy?: string;
+}
+
+export function DeliveryPanel({
+  blueprint,
+  workspacePath,
+  onOpenFile,
+  onRefresh,
+  projectId,
+  runId,
+  iteration,
+}: DeliveryPanelProps) {
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('idle');
   const [handoffBundle, setHandoffBundle] = useState<HandoffBundle | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<{
-    action: 'package' | 'release';
+    action: 'package' | 'release' | 'capture_visual' | 'skip_visual' | 'override_visual';
     title: string;
     message: string;
     confirmLabel: string;
@@ -36,6 +57,8 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visualGate, setVisualGate] = useState<VisualGateState>({ status: 'pending' });
+  const [showVisualSection, setShowVisualSection] = useState(false);
 
   // Gather delivery milestones from blueprint
   const deliveryMilestones = blueprint?.milestones
@@ -44,6 +67,104 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
 
   // Current acceptance gate for the delivery milestone
   const deliveryGate = deliveryMilestones[0]?.acceptanceGate ?? null;
+
+  // Check if visual gate is required (for web delivery format that support preview)
+  const requiresVisualGate = blueprint?.intake.deliveryFormat === 'web';
+  const visualGateRequired = requiresVisualGate && visualGate.status !== 'skipped' && visualGate.status !== 'overridden';
+
+  // Find visual gate in handoff bundle if available
+  const visualGateFromBundle = handoffBundle?.gates.find(
+    (g) => g.name.toLowerCase().includes('visual') || g.name.toLowerCase().includes('preview')
+  );
+
+  const handleCaptureVisualEvidence = useCallback(async () => {
+    if (!workspacePath || !projectId || !runId) {
+      setError('Missing workspace or run information for visual capture');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setVisualGate({ status: 'capturing' });
+
+    try {
+      // First detect preview command
+      const detectResult = await window.ralph.preview.detectCommand(workspacePath);
+      if (!detectResult.success || !detectResult.result?.found) {
+        setVisualGate({ status: 'skipped' });
+        setError('No preview command detected. Visual validation skipped.');
+        return;
+      }
+
+      // Start preview server
+      const startResult = await window.ralph.preview.startPreview(workspacePath);
+      if (!startResult.success || !startResult.result) {
+        setVisualGate({ status: 'skipped' });
+        setError('Could not start preview server. Visual validation skipped.');
+        return;
+      }
+
+      const { url } = startResult.result;
+
+      try {
+        // Capture visual evidence
+        const routes = detectResult.result?.preview?.routes ?? ['/'];
+        const captureResult = await window.ralph.preview.captureAndStoreEvidence(
+          projectId,
+          runId,
+          iteration ?? 0,
+          url,
+          routes,
+          ['desktop', 'mobile']
+        );
+
+        if (captureResult.success && captureResult.result) {
+          const result = captureResult.result;
+          setVisualGate({
+            status: result.smokeCheck.passed ? 'passed' : 'failed',
+            lastCapturedAt: Date.now(),
+            screenshotCount: result.screenshots.length,
+            errorCount: result.smokeCheck.errors,
+          });
+        } else {
+          setVisualGate({ status: 'skipped' });
+          if (captureResult.result?.skipped) {
+            setError(`Visual capture skipped: ${captureResult.result.skipReason}`);
+          }
+        }
+      } finally {
+        // Stop preview server
+        await window.ralph.preview.stopPreview(startResult.result.processId);
+      }
+    } catch (err) {
+      setVisualGate({ status: 'skipped' });
+      setError(err instanceof Error ? err.message : 'Visual capture failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspacePath, projectId, runId, iteration]);
+
+  const handleSkipVisualGate = useCallback(() => {
+    setPendingConfirmation({
+      action: 'skip_visual',
+      title: 'Skip Visual Validation?',
+      message: 'Skipping visual validation is not recommended for web apps. Are you sure you want to skip?',
+      confirmLabel: 'Skip',
+      cancelLabel: 'Cancel',
+      isDangerous: false,
+    });
+  }, []);
+
+  const handleOverrideVisualGate = useCallback(() => {
+    setPendingConfirmation({
+      action: 'override_visual',
+      title: 'Override Visual Gate?',
+      message: 'Overriding the visual gate is a safety risk. Please provide a reason for this override.',
+      confirmLabel: 'Override',
+      cancelLabel: 'Cancel',
+      isDangerous: true,
+    });
+  }, []);
 
   const handleInspect = useCallback(async () => {
     if (!workspacePath) return;
@@ -112,6 +233,13 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
           setDeliveryStatus('failed');
         }
       } else if (action === 'release') {
+        // Check visual gate before release if required
+        if (requiresVisualGate && visualGate.status !== 'passed' && visualGate.status !== 'skipped' && visualGate.status !== 'overridden') {
+          setError('Visual validation must pass before release. Capture visual evidence or skip/override.');
+          setDeliveryStatus('blocked');
+          return;
+        }
+
         setDeliveryStatus('releasing');
         const result = await window.ralph.delivery.confirmRelease(workspacePath);
         if (result.success) {
@@ -121,6 +249,15 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
           setError(result.error || 'Release failed');
           setDeliveryStatus('failed');
         }
+      } else if (action === 'skip_visual') {
+        setVisualGate({ status: 'skipped' });
+      } else if (action === 'override_visual') {
+        setVisualGate({
+          ...visualGate,
+          status: 'overridden',
+          overrideReason: 'Operator override',
+          overrideBy: 'Operator',
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action failed');
@@ -128,7 +265,7 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
     } finally {
       setIsLoading(false);
     }
-  }, [pendingConfirmation, workspacePath, blueprint, handleInspect]);
+  }, [pendingConfirmation, workspacePath, blueprint, handleInspect, requiresVisualGate, visualGate]);
 
   const getStatusBadge = (status: DeliveryStatus) => {
     switch (status) {
@@ -213,6 +350,94 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
         </div>
       )}
 
+      {/* Visual Evidence Section (Phase 28) */}
+      {requiresVisualGate && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-semibold">Visual Validation</h4>
+            <button
+              onClick={() => setShowVisualSection(!showVisualSection)}
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              {showVisualSection ? 'Hide' : 'Show'}
+            </button>
+          </div>
+
+          {showVisualSection && (
+            <div className="surface-panel-inset p-4">
+              <div className="flex items-start gap-3 mb-3">
+                <span className={`badge ${
+                  visualGate.status === 'passed' ? 'badge-success' :
+                  visualGate.status === 'failed' ? 'badge-danger' :
+                  visualGate.status === 'skipped' ? 'badge-warning' :
+                  visualGate.status === 'overridden' ? 'badge-warning' :
+                  visualGate.status === 'capturing' ? 'badge-info' : 'badge-neutral'
+                }`}>
+                  {visualGate.status}
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    {visualGate.status === 'pending' && 'Visual evidence not yet captured. Click "Capture" to validate the app renders correctly.'}
+                    {visualGate.status === 'capturing' && 'Capturing visual evidence...'}
+                    {visualGate.status === 'passed' && `Visual validation passed. ${visualGate.screenshotCount ?? 0} screenshots captured.`}
+                    {visualGate.status === 'failed' && `Visual validation failed. ${visualGate.errorCount ?? 0} errors detected.`}
+                    {visualGate.status === 'skipped' && 'Visual validation was skipped.'}
+                    {visualGate.status === 'overridden' && `Visual validation was overridden by operator.`}
+                  </p>
+                  {visualGate.lastCapturedAt && (
+                    <p className="text-xs text-muted mt-1">
+                      Last captured: {new Date(visualGate.lastCapturedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {visualGate.status === 'failed' && (
+                <div className="p-2 mb-3 bg-red-900/20 border border-red-500/30 rounded text-xs text-red-300">
+                  <p className="font-semibold">Visual smoke checks failed. Review the screenshots and artifacts before releasing.</p>
+                </div>
+              )}
+
+              {visualGate.status === 'overridden' && visualGate.overrideReason && (
+                <div className="p-2 mb-3 bg-yellow-900/20 border border-yellow-500/30 rounded text-xs text-yellow-300">
+                  <p className="font-semibold">Override reason: {visualGate.overrideReason}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => void handleCaptureVisualEvidence()}
+                  disabled={isLoading || visualGate.status === 'capturing'}
+                  className="btn btn-primary btn-sm"
+                >
+                  {visualGate.status === 'capturing' ? 'Capturing...' : 'Capture Visual Evidence'}
+                </button>
+
+                {(visualGate.status === 'pending' || visualGate.status === 'failed') && (
+                  <button
+                    onClick={() => void handleSkipVisualGate()}
+                    disabled={isLoading}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    Skip Visual Validation
+                  </button>
+                )}
+
+                {visualGate.status === 'failed' && (
+                  <button
+                    onClick={() => void handleOverrideVisualGate()}
+                    disabled={isLoading}
+                    className="btn btn-warning btn-sm"
+                  >
+                    Override & Release
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Handoff Bundle */}
       {handoffBundle && (
         <div className="mt-4">
@@ -290,13 +515,42 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
         {handoffBundle && handoffBundle.gates.every(g => g.status === 'passed') && (
           <button
             onClick={() => void handleRelease()}
-            disabled={isLoading || deliveryStatus === 'releasing'}
+            disabled={
+              isLoading ||
+              deliveryStatus === 'releasing' ||
+              (requiresVisualGate &&
+                visualGate.status !== 'passed' &&
+                visualGate.status !== 'skipped' &&
+                visualGate.status !== 'overridden')
+            }
             className="btn btn-success"
+            title={
+              requiresVisualGate &&
+              visualGate.status !== 'passed' &&
+              visualGate.status !== 'skipped' &&
+              visualGate.status !== 'overridden'
+                ? 'Capture or skip visual evidence before releasing'
+                : undefined
+            }
           >
             {deliveryStatus === 'releasing' ? 'Releasing...' : 'Confirm Release'}
           </button>
         )}
       </div>
+
+      {/* Visual Gate Warning */}
+      {requiresVisualGate &&
+        visualGate.status !== 'passed' &&
+        visualGate.status !== 'skipped' &&
+        visualGate.status !== 'overridden' &&
+        handoffBundle &&
+        handoffBundle.gates.every(g => g.status === 'passed') && (
+          <div className="mt-3 p-3 border border-yellow-500/30 rounded bg-yellow-900/10">
+            <p className="text-sm text-yellow-300">
+              <span className="font-semibold">Visual validation required:</span> The app must pass visual smoke checks before release. Click "Capture Visual Evidence" to validate.
+            </p>
+          </div>
+        )}
 
       {/* Confirmation Dialog */}
       {pendingConfirmation && (

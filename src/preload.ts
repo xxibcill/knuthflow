@@ -916,6 +916,79 @@ const api: KnuthflowAPI = {
         aggregateSuccessRate: number;
       }>,
   },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Preview & Visual Validation (Phase 28)
+  // ─────────────────────────────────────────────────────────────────────────────
+  preview: {
+    detectCommand: (
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ) =>
+      ipcRenderer.invoke('preview:detectCommand', workspacePath, config),
+    startPreview: (
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ) =>
+      ipcRenderer.invoke('preview:startPreview', workspacePath, config),
+    stopPreview: (processId: string) =>
+      ipcRenderer.invoke('preview:stopPreview', processId),
+    getProcessStatus: (processId: string) =>
+      ipcRenderer.invoke('preview:getProcessStatus', processId),
+    stopAllPreviews: () =>
+      ipcRenderer.invoke('preview:stopAllPreviews'),
+    captureEvidence: (
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ) =>
+      ipcRenderer.invoke('preview:captureEvidence', previewUrl, routes, viewports),
+    captureAndStoreEvidence: (
+      projectId: string,
+      runId: string,
+      iteration: number,
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ) =>
+      ipcRenderer.invoke(
+        'preview:captureAndStoreEvidence',
+        projectId,
+        runId,
+        iteration,
+        previewUrl,
+        routes,
+        viewports
+      ),
+    runVisualSmokeChecks: (
+      screenshots: Array<{
+        route: string;
+        viewport: string;
+        screenshotBase64: string | null;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      }>,
+      consoleEvidence: Array<{
+        route: string;
+        viewport: string;
+        consoleErrors: string[];
+        consoleWarnings: string[];
+        pageErrors: string[];
+        failedRequests: Array<{ url: string; status: number; failureReason: string }>;
+      }>,
+      options?: { checkOverflow?: boolean; allowedConsoleErrors?: string[] }
+    ) =>
+      ipcRenderer.invoke('preview:runVisualSmokeChecks', screenshots, consoleEvidence, options),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

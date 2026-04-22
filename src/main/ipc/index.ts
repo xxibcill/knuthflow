@@ -19,6 +19,7 @@ export { registerAppIntakeHandlers } from './appIntakeHandlers';
 export { registerWorkspaceScaffoldingHandlers } from './scaffoldingHandlers';
 export { registerDeliveryHandlers } from './deliveryHandlers';
 export { registerMilestoneValidationHandlers } from './milestoneValidationHandlers';
+export { registerPreviewHandlers } from './previewHandlers';
 export { registerPortfolioHandlers } from './portfolioHandlers';
 export { registerPortfolioRuntimeHandlers } from './portfolioRuntimeHandlers';
 export { registerMonitoringHandlers } from './monitoringHandlers';

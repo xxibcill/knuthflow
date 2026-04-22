@@ -33,6 +33,7 @@ import {
   registerIterationBacklogHandlers,
   registerRunPatternsHandlers,
   registerPortfolioSummaryHandlers,
+  registerPreviewHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -185,6 +186,9 @@ function registerIpcHandlers(): void {
 
   // Milestone validation handlers
   registerMilestoneValidationHandlers();
+
+  // Preview handlers (Phase 28 - Visual Validation)
+  registerPreviewHandlers();
 
   // Portfolio handlers
   registerPortfolioHandlers();

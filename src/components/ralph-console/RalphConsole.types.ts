@@ -57,7 +57,10 @@ export type ArtifactType =
   | 'validation_result'
   | 'loop_summary'
   | 'prompt'
-  | 'agent_output';
+  | 'agent_output'
+  | 'preview_screenshot'
+  | 'visual_smoke_check'
+  | 'console_evidence';
 
 export type ArtifactSeverity = 'error' | 'warning' | 'info';
 
