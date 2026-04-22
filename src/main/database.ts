@@ -29,6 +29,8 @@ export {
 import type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
 export type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
 
+export type OnboardingState = 'not_started' | 'in_progress' | 'completed' | 'dismissed';
+
 import { runMigrations, SCHEMA_VERSION } from './databaseMigrations';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +83,11 @@ export interface AppSettings {
   showTabBar: boolean;
   showStatusBar: boolean;
   theme: 'dark' | 'light' | 'system';
+
+  // Onboarding (Phase 27)
+  onboardingState: OnboardingState;
+  onboardingCompletedAt: number | null;
+  firstWorkspaceId: string | null;
 }
 
 export interface LaunchProfile {
@@ -267,6 +274,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showTabBar: true,
   showStatusBar: true,
   theme: 'dark',
+  onboardingState: 'not_started',
+  onboardingCompletedAt: null,
+  firstWorkspaceId: null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

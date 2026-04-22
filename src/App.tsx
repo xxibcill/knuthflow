@@ -10,6 +10,7 @@ import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel'
 import { NotificationToast } from './components/NotificationToast'
 import { PortfolioDashboard } from './components/portfolio/PortfolioDashboard'
 import { BlueprintManager } from './components/blueprint'
+import { OnboardingPanel } from './components/onboarding/OnboardingPanel'
 import type {
   ClaudeCodeStatus,
   ClaudeRunState,
@@ -90,6 +91,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   showTabBar: true,
   showStatusBar: true,
   theme: 'dark',
+  onboardingState: 'not_started',
+  onboardingCompletedAt: null,
+  firstWorkspaceId: null,
 }
 
 function resolveTheme(theme: AppSettings['theme'], systemTheme: 'light' | 'dark') {
@@ -151,6 +155,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>('dark')
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
   const [diffFiles, setDiffFiles] = useState<DiffFile[]>([])
@@ -196,6 +201,11 @@ export default function App() {
 
         setStatus(claudeStatus)
         setSettings(appSettings)
+
+        // Check if onboarding should be shown
+        if (appSettings.onboardingState !== 'completed') {
+          setShowOnboarding(true)
+        }
 
         if (update.available) {
           setUpdateInfo(update)
@@ -451,6 +461,48 @@ export default function App() {
     setDiffFiles([])
   }, [])
 
+  const handleOnboardingComplete = useCallback(
+    async (firstWorkspaceId: string) => {
+      try {
+        await window.knuthflow.settings.set('onboardingState', 'completed')
+        await window.knuthflow.settings.set('onboardingCompletedAt', Date.now())
+        await window.knuthflow.settings.set('firstWorkspaceId', firstWorkspaceId)
+        setSettings((prev) => ({
+          ...prev,
+          onboardingState: 'completed',
+          onboardingCompletedAt: Date.now(),
+          firstWorkspaceId,
+        }))
+        setShowOnboarding(false)
+      } catch (err) {
+        console.error('Failed to save onboarding completion:', err)
+        setShowOnboarding(false)
+      }
+    },
+    [],
+  )
+
+  const handleOnboardingDismiss = useCallback(async () => {
+    try {
+      await window.knuthflow.settings.set('onboardingState', 'dismissed')
+      setSettings((prev) => ({ ...prev, onboardingState: 'dismissed' }))
+      setShowOnboarding(false)
+    } catch (err) {
+      console.error('Failed to save onboarding dismissal:', err)
+      setShowOnboarding(false)
+    }
+  }, [])
+
+  const handleOnboardingReplay = useCallback(async () => {
+    try {
+      await window.knuthflow.settings.set('onboardingState', 'in_progress')
+      setSettings((prev) => ({ ...prev, onboardingState: 'in_progress' }))
+      setShowOnboarding(true)
+    } catch (err) {
+      console.error('Failed to replay onboarding:', err)
+    }
+  }, [])
+
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
   const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null
   const resolvedTheme = resolveTheme(settings.theme, systemTheme)
@@ -475,6 +527,30 @@ export default function App() {
   return (
     <div className="app-shell" data-theme={resolvedTheme} data-testid="app-shell" style={rootStyle}>
       <div className="app-frame">
+        {showOnboarding && !loading && (
+          <OnboardingPanel
+            settings={settings}
+            onComplete={handleOnboardingComplete}
+            onDismiss={handleOnboardingDismiss}
+            onReplay={handleOnboardingReplay}
+            onOpenWorkspace={(path) => {
+              window.knuthflow.workspace.list().then((workspaces) => {
+                const workspace = workspaces.find((item) => item.path === path)
+                if (workspace) {
+                  setSelectedWorkspace(workspace)
+                }
+              })
+            }}
+            onLaunchClaudeSession={({ name, workspace }) =>
+              launchClaudeSession({
+                name,
+                args: ['--no-input'],
+                workspace,
+                switchToTerminal: false,
+              })
+            }
+          />
+        )}
         <section className="surface-panel shell-nav">
           <div className="shell-nav-main">
             <div className="shell-nav-brand">
@@ -763,6 +839,7 @@ export default function App() {
               setSettings(nextSettings)
               setShowSettings(false)
             }}
+            onReplayOnboarding={handleOnboardingReplay}
           />
         )}
       </div>

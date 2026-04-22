@@ -1,4 +1,4 @@
-# Roadmap Verification: Phases 21-26
+# Roadmap Verification: Phases 21-27
 
 **Date:** 2026-04-22
 **Status:** In Progress — gaps identified
@@ -13,6 +13,7 @@
 | Phase 24 | ✅ Mostly Complete | 8 | 1 | 1 |
 | Phase 25 | ✅ Mostly Complete | 6 | 3 | 1 |
 | Phase 26 | ⚠️ Partial | 7 | 4 | 2 |
+| Phase 27 | ✅ Complete | 6 | 0 | 0 |
 
 ---
 
@@ -209,6 +210,42 @@
 | 25 | p25-t8 | Packaging items in release checklist (manual validation) |
 | 25 | p25-t9 | CHANGELOG.md exists with v2.0.0 release notes |
 | 25 | p25-t10 | e2e tests exist for regression coverage |
+
+---
+
+## Phase 27 - Operator Onboarding and Guided First Run
+
+### Tasks
+
+| Task | File | Status | Notes |
+|------|------|--------|-------|
+| p27-t1 First Launch State | `src/App.tsx`, `src/shared/preloadTypes.ts` | ✅ Complete | Onboarding state persisted in settings (`onboardingState`, `onboardingCompletedAt`, `firstWorkspaceId`) |
+| p27-t2 Dependency Checklist | `src/components/onboarding/DependencyChecklist.tsx` | ✅ Complete | Checks Claude Code, Git, npm, workspace permissions with pass/warning/blocked status |
+| p27-t3 Guided Sample Brief | `src/components/onboarding/SampleBriefPicker.tsx` | ✅ Complete | Templates for Web App, Desktop Utility, API Service with safe defaults |
+| p27-t4 Onboarding Recovery | `src/components/onboarding/DependencyChecklist.tsx` | ✅ Complete | Recovery copy and retry/recheck behavior for failed dependencies |
+| p27-t5 Replay Onboarding | `src/components/settings/AboutSettings.tsx` | ✅ Complete | "Replay Onboarding" button in Settings > About |
+| p27-t6 Onboarding Tests | `tests/e2e/ralph-onboarding.spec.ts` | ✅ Complete | E2e tests for first launch, dependency checks, replay |
+
+### Implementation Details
+
+**Onboarding State Machine:**
+- States: `not_started` → `in_progress` → `completed` (or `dismissed`)
+- Persisted in app settings via `window.knuthflow.settings.set()`
+- Onboarding shows when `onboardingState !== 'completed'`
+
+**Onboarding Flow:**
+1. Welcome screen with Ralph product explanation
+2. Dependency checklist (Claude Code, Git, npm, workspace permissions)
+3. Workspace selection/creation
+4. Sample brief picker (template or custom)
+5. Completion screen
+
+**Key Components:**
+- `OnboardingPanel` - Main orchestrator component
+- `DependencyChecklist` - System dependency checker
+- `SampleBriefPicker` - Template selection for first app
+- `OnboardingWorkspaceSetup` - Workspace creation/selection
+- `OnboardingCompletion` - Final screen with replay option
 
 ---
 

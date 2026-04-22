@@ -2,9 +2,10 @@ import type { SystemDiagnostics } from '../../shared/preloadTypes';
 
 interface AboutSettingsProps {
   diagnostics: SystemDiagnostics | null;
+  onReplayOnboarding?: () => void;
 }
 
-export function AboutSettings({ diagnostics }: AboutSettingsProps) {
+export function AboutSettings({ diagnostics, onReplayOnboarding }: AboutSettingsProps) {
   return (
     <div className="stack-lg">
       <section className="surface-panel-muted p-8 text-center">
@@ -29,6 +30,18 @@ export function AboutSettings({ diagnostics }: AboutSettingsProps) {
           <p className="metric-value">{diagnostics?.app.nodeVersion ?? 'Unknown'}</p>
         </div>
       </section>
+
+      {onReplayOnboarding && (
+        <section className="surface-panel-muted p-4">
+          <h3 className="font-medium mb-2">Need Help Getting Started?</h3>
+          <p className="text-sm text-muted mb-3">
+            Replay the onboarding tour to learn about Ralph's features and workflow.
+          </p>
+          <button onClick={onReplayOnboarding} className="btn btn-primary">
+            Replay Onboarding
+          </button>
+        </section>
+      )}
     </div>
   );
 }

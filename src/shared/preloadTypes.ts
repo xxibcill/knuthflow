@@ -267,6 +267,8 @@ export interface PortfolioProject {
 // Settings Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type OnboardingState = 'not_started' | 'in_progress' | 'completed' | 'dismissed';
+
 export interface AppSettings {
   cliPath: string | null;
   defaultArgs: string[];
@@ -282,6 +284,9 @@ export interface AppSettings {
   showTabBar: boolean;
   showStatusBar: boolean;
   theme: 'dark' | 'light' | 'system';
+  onboardingState: OnboardingState;
+  onboardingCompletedAt: number | null;
+  firstWorkspaceId: string | null;
 }
 
 export interface LaunchProfile {
