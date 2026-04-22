@@ -27,7 +27,7 @@ Current product bias:
 | [Phase 12](./phases/phase-12-ralph-flow-upgrade.md) | Ralph Flow Upgrade | Ralph mode becomes a coherent end-to-end loop with deterministic control files, stable plan semantics, and implemented operator actions |
 | [Phase 13](./phases/phase-13-goal-to-app-bootstrap.md) | Goal To App Bootstrap | Users can turn an app idea into a scaffolded Ralph-ready workspace with generated specs, starter structure, and an approved initial plan |
 | [Phase 14](./phases/phase-14-long-horizon-app-builder.md) | Long-Horizon App Builder | Ralph can build a larger application across milestones with resumable context, preview feedback, and milestone-aware replanning |
-| [Phase 15](./phases/phase-15-desktop-one-shot-delivery.md) | Desktop One-Shot Delivery | Users can request an app from Knuthflow, review it in the desktop UI, and receive packaged delivery artifacts with explicit approval gates |
+| [Phase 15](./phases/phase-15-desktop-one-shot-delivery.md) | Desktop One-Shot Delivery | Users can request an app from Ralph, review it in the desktop UI, and receive packaged delivery artifacts with explicit approval gates |
 | [Phase 16](./phases/phase-16.md) | Multi-App Portfolio Orchestrator | Ralph manages a pipeline of multiple concurrent app builds with portfolio goals, priorities, and cross-project visibility |
 | [Phase 17](./phases/phase-17.md) | Learning Feedback Loop | Ralph learns from delivered apps and applies pattern-based improvements to future builds |
 | [Phase 18](./phases/phase-18.md) | Maintenance and Monitoring | Ralph tracks delivered apps after handoff and identifies follow-up work from health, regression, or feedback signals |
