@@ -63,6 +63,7 @@ When a workspace is bootstrapped for Ralph, these files are created:
 - **SQLite DB**: `knuthflow.db` in Electron userData - workspaces, sessions, settings, profiles, Ralph state
 - **Logs**: `logs/` directory under userData
 - **Secrets**: macOS Keychain when available; encrypted file fallback in `secrets/`
+- **Environment Variable**: `RALPH_USER_DATA_DIR` (preferred) or `KNUTHFLOW_USER_DATA_DIR` (legacy) to override userData path for testing
 
 ## Tech Stack
 

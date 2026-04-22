@@ -266,15 +266,15 @@ export function RalphConsolePanel({
 
     try {
       const [report, project] = await Promise.all([
-        window.knuthflow.ralph.getReadinessReport(workspace.id, workspace.path),
-        window.knuthflow.ralph.getProject(workspace.id),
+        window.ralph.ralph.getReadinessReport(workspace.id, workspace.path),
+        window.ralph.ralph.getProject(workspace.id),
       ]);
 
       setWorkspaceReadiness(report);
       setWorkspaceProject(project);
 
       if (project) {
-        const activeRuns = await window.knuthflow.ralph.getActiveRuns(project.id);
+        const activeRuns = await window.ralph.ralph.getActiveRuns(project.id);
         setActiveWorkspaceRuns(activeRuns);
       } else {
         setActiveWorkspaceRuns([]);
@@ -291,20 +291,20 @@ export function RalphConsolePanel({
   const loadRuns = useCallback(async (): Promise<RalphRunDashboardItem[]> => {
     setIsRefreshing(true);
     try {
-      const workspaces = await window.knuthflow.workspace.list();
+      const workspaces = await window.ralph.workspace.list();
       const nextRuns: RalphRunDashboardItem[] = [];
 
       for (const workspaceItem of workspaces) {
-        const project = await window.knuthflow.ralph.getProject(workspaceItem.id);
+        const project = await window.ralph.ralph.getProject(workspaceItem.id);
         if (!project) continue;
 
-        const projectRuns = await window.knuthflow.ralph.getProjectRuns(project.id);
+        const projectRuns = await window.ralph.ralph.getProjectRuns(project.id);
         for (const run of projectRuns) {
           let phase: RalphPhase = 'idle';
 
           if (run.status === 'running' || run.status === 'pending') {
             try {
-              const runtimeState = await window.knuthflow.ralphRuntime?.getState(run.id);
+              const runtimeState = await window.ralph.ralphRuntime?.getState(run.id);
               if (runtimeState?.success && runtimeState.state) {
                 phase = runtimeState.state;
               }
@@ -362,9 +362,9 @@ export function RalphConsolePanel({
     setIsLoading(true);
     try {
       const [summaries, snapshots, artifactList] = await Promise.all([
-        window.knuthflow.ralph.getRunSummaries(run.runId),
-        window.knuthflow.ralph.getRunSnapshots(run.runId),
-        window.knuthflow.ralph.listArtifacts({ runId: run.runId }),
+        window.ralph.ralph.getRunSummaries(run.runId),
+        window.ralph.ralph.getRunSnapshots(run.runId),
+        window.ralph.ralph.listArtifacts({ runId: run.runId }),
       ]);
 
       setLoopSummaries(summaries || []);
@@ -392,7 +392,7 @@ export function RalphConsolePanel({
 
       if (run.workspacePath) {
         try {
-          const content = await window.knuthflow.filesystem.readFile(`${run.workspacePath}/fix_plan.md`);
+          const content = await window.ralph.filesystem.readFile(`${run.workspacePath}/fix_plan.md`);
           setFixPlanTasks(content ? parseFixPlanTasks(content) : []);
         } catch (error) {
           console.debug('fix_plan.md not available:', error);
@@ -439,7 +439,7 @@ export function RalphConsolePanel({
 
     try {
       // Generate blueprint
-      const result = await window.knuthflow.appintake.generateBlueprint(intake);
+      const result = await window.ralph.appintake.generateBlueprint(intake);
       if (!result.success || !result.blueprint) {
         setKickoffError(result.error || 'Failed to generate blueprint');
         return;
@@ -472,7 +472,7 @@ export function RalphConsolePanel({
 
     try {
       // Write blueprint files to workspace
-      const writeResult = await window.knuthflow.appintake.writeBlueprintFiles(
+      const writeResult = await window.ralph.appintake.writeBlueprintFiles(
         workspace.path,
         generatedBlueprint
       );
@@ -483,7 +483,7 @@ export function RalphConsolePanel({
       }
 
       // Bootstrap Ralph in the workspace
-      const bootstrapResult = await window.knuthflow.ralph.bootstrap(
+      const bootstrapResult = await window.ralph.ralph.bootstrap(
         workspace.id,
         workspace.path,
         false,
@@ -536,7 +536,7 @@ export function RalphConsolePanel({
     setWorkspaceNotice(null);
 
     try {
-      const result = await window.knuthflow.ralph.bootstrap(workspace.id, workspace.path, force);
+      const result = await window.ralph.ralph.bootstrap(workspace.id, workspace.path, force);
       if (!result.success) {
         setWorkspaceNotice({
           tone: 'error',
@@ -567,7 +567,7 @@ export function RalphConsolePanel({
     setWorkspaceNotice(null);
 
     try {
-      const validation = await window.knuthflow.ralph.validateBeforeStart(workspace.id, workspace.path);
+      const validation = await window.ralph.ralph.validateBeforeStart(workspace.id, workspace.path);
       if (!validation.valid) {
         setWorkspaceNotice({
           tone: 'error',
@@ -576,7 +576,7 @@ export function RalphConsolePanel({
         return;
       }
 
-      const project = workspaceProject ?? await window.knuthflow.ralph.getProject(workspace.id);
+      const project = workspaceProject ?? await window.ralph.ralph.getProject(workspace.id);
       if (!project) {
         setWorkspaceNotice({
           tone: 'error',
@@ -595,7 +595,7 @@ export function RalphConsolePanel({
         return;
       }
 
-      const runtimeResult = await window.knuthflow.ralphRuntime?.start(
+      const runtimeResult = await window.ralph.ralphRuntime?.start(
         project.id,
         runName,
         launch.sessionRecordId,
@@ -604,11 +604,11 @@ export function RalphConsolePanel({
 
       if (!runtimeResult?.success || !runtimeResult.run) {
         if (launch.claudeRunId) {
-          await window.knuthflow.claude.kill(launch.claudeRunId);
+          await window.ralph.claude.kill(launch.claudeRunId);
         }
 
         if (launch.sessionRecordId) {
-          await window.knuthflow.session.updateEnd(launch.sessionRecordId, 'failed', null, null);
+          await window.ralph.session.updateEnd(launch.sessionRecordId, 'failed', null, null);
         }
 
         setWorkspaceNotice({
@@ -658,10 +658,10 @@ export function RalphConsolePanel({
     try {
       switch (action) {
         case 'pause':
-          await window.knuthflow.ralph.pauseRun(selectedRun.runId);
+          await window.ralph.ralph.pauseRun(selectedRun.runId);
           break;
         case 'resume':
-          await window.knuthflow.ralph.resumeRun(selectedRun.runId);
+          await window.ralph.ralph.resumeRun(selectedRun.runId);
           break;
         case 'replan':
           setPendingConfirmation({
@@ -674,7 +674,7 @@ export function RalphConsolePanel({
           });
           return;
         case 'validate':
-          await window.knuthflow.ralph.validateRun(selectedRun.runId);
+          await window.ralph.ralph.validateRun(selectedRun.runId);
           setWorkspaceNotice({
             tone: 'info',
             message: 'Validation complete. Check the validation panel for results.',
@@ -704,17 +704,17 @@ export function RalphConsolePanel({
 
     try {
       if (pendingConfirmation.action === 'stop') {
-        await window.knuthflow.ralph.stopRun(selectedRun.runId);
+        await window.ralph.ralph.stopRun(selectedRun.runId);
 
         if (selectedRun.ptySessionId) {
-          await window.knuthflow.pty.kill(selectedRun.ptySessionId, 'SIGTERM');
+          await window.ralph.pty.kill(selectedRun.ptySessionId, 'SIGTERM');
         }
 
         if (selectedRun.sessionId) {
-          await window.knuthflow.session.updateEnd(selectedRun.sessionId, 'completed', null, null);
+          await window.ralph.session.updateEnd(selectedRun.sessionId, 'completed', null, null);
         }
       } else if (pendingConfirmation.action === 'replan') {
-        await window.knuthflow.ralph.replanRun(selectedRun.runId);
+        await window.ralph.ralph.replanRun(selectedRun.runId);
         setWorkspaceNotice({
           tone: 'info',
           message: 'Plan regenerated. The run will continue with the new plan.',

@@ -316,7 +316,8 @@ export type {
 } from './ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KnuthflowAPI Interface
+// RalphAPI / KnuthflowAPI Interface
+// KnuthflowAPI is the canonical interface name; RalphDesktopAPI is an alias for new code.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface KnuthflowAPI {
@@ -1640,3 +1641,13 @@ export interface KnuthflowAPI {
     }>;
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ralph API Alias (Phase 24 - API Compatibility)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ralph API type alias for the preload API.
+ * This is the preferred API name for new development.
+ */
+export type RalphDesktopAPI = KnuthflowAPI;

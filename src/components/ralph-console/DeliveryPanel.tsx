@@ -52,7 +52,7 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
     setDeliveryStatus('inspecting');
 
     try {
-      const result = await window.knuthflow.delivery.getHandoffBundle(workspacePath);
+      const result = await window.ralph.delivery.getHandoffBundle(workspacePath);
       if (result.success && result.bundle) {
         setHandoffBundle(result.bundle as HandoffBundle);
         setDeliveryStatus(result.bundle.gates.every(g => g.status === 'passed') ? 'complete' : 'blocked');
@@ -103,7 +103,7 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
     try {
       if (action === 'package') {
         setDeliveryStatus('packaging');
-        const result = await window.knuthflow.delivery.runPackaging(workspacePath, blueprint?.intake.deliveryFormat ?? 'web');
+        const result = await window.ralph.delivery.runPackaging(workspacePath, blueprint?.intake.deliveryFormat ?? 'web');
         if (result.success) {
           setDeliveryStatus('complete');
           await handleInspect();
@@ -113,7 +113,7 @@ export function DeliveryPanel({ blueprint, workspacePath, onOpenFile, onRefresh 
         }
       } else if (action === 'release') {
         setDeliveryStatus('releasing');
-        const result = await window.knuthflow.delivery.confirmRelease(workspacePath);
+        const result = await window.ralph.delivery.confirmRelease(workspacePath);
         if (result.success) {
           setDeliveryStatus('complete');
           await handleInspect();

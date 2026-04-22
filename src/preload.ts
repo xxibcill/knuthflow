@@ -23,6 +23,7 @@ import type {
   AppSettings,
   LaunchProfile,
   KnuthflowAPI,
+  RalphDesktopAPI,
   LoopRunStatus,
   RalphProject,
   LoopRun,
@@ -64,6 +65,7 @@ export type {
   AppSettings,
   LaunchProfile,
   KnuthflowAPI,
+  RalphDesktopAPI,
   LoopRunStatus,
   RalphProject,
   LoopRun,
@@ -704,11 +706,17 @@ const api: KnuthflowAPI = {
 // Context Bridge - Expose API to renderer
 // ─────────────────────────────────────────────────────────────────────────────
 
+contextBridge.exposeInMainWorld('ralph', api);
 contextBridge.exposeInMainWorld('knuthflow', api);
 
 // Extend Window interface for TypeScript
 declare global {
   interface Window {
-    knuthflow: KnuthflowAPI;
+    /**
+     * Ralph desktop API - preferred interface for renderer code.
+     * @deprecated Use window.ralph for new code. window.knuthflow is retained for backward compatibility.
+     */
+    knuthflow: typeof api;
+    ralph: typeof api;
   }
 }

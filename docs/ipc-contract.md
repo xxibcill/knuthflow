@@ -2,7 +2,30 @@
 
 ## Overview
 
-This document defines the explicit boundaries between the main process, preload layer, and renderer process in the Knuthflow Electron application.
+This document defines the explicit boundaries between the main process, preload layer, and renderer process in the Ralph Desktop application (formerly Knuthflow).
+
+## Ralph API Naming
+
+**`window.ralph`** is the preferred API for renderer code to interact with the main process.
+
+**`window.knuthflow`** is retained as a deprecated compatibility alias during the compatibility window. New code should use `window.ralph`.
+
+Both globals point to the same secure API implementation. IPC channel names remain unchanged internally.
+
+### TypeScript Types
+
+```typescript
+// Preferred type for new code
+import type { RalphDesktopAPI } from './preload';
+
+// Legacy type alias (deprecated)
+import type { KnuthflowAPI } from './preload';
+// KnuthflowAPI is an alias for RalphDesktopAPI - they are the same type
+```
+
+### Migration Note
+
+The preload bridge was updated in Phase 24 to expose both `window.ralph` and `window.knuthflow`. Existing renderer code using `window.knuthflow` continues to work during the compatibility window.
 
 ## Process Model
 
@@ -113,7 +136,8 @@ domains:
 ## Typed API Surface (Preload)
 
 ```typescript
-interface KnuthflowAPI {
+// RalphDesktopAPI (preferred) - alias of the canonical interface
+interface RalphDesktopAPI {
   // Process management
   process: {
     spawn(args: string[], cwd?: string): Promise<{ pid: number }>;
@@ -141,6 +165,12 @@ interface KnuthflowAPI {
   claude: {
     detect(): Promise<ClaudeCodeStatus>;
   };
+  // Ralph operations
+  ralph: { /* ... */ };
+  // Portfolio operations
+  portfolio: { /* ... */ };
+  // Blueprint operations
+  blueprint: { /* ... */ };
 }
 
 interface ClaudeCodeStatus {
@@ -149,6 +179,9 @@ interface ClaudeCodeStatus {
   version: string | null;
   error: string | null;
 }
+
+// Type alias for backward compatibility
+type KnuthflowAPI = RalphDesktopAPI;
 ```
 
 ## Safe Expansion Guidelines
@@ -159,7 +192,7 @@ When adding new IPC channels:
 2. **Use typed payloads** - All channels must have TypeScript interfaces
 3. **Document in this file** - Add new channels to the tables above
 4. **Implement in main handlers** - Follow existing pattern in main process
-5. **Expose via preload** - Add to KnuthflowAPI interface
+5. **Expose via preload** - Add to RalphDesktopAPI interface (formerly KnuthflowAPI)
 6. **Validate input** - Never trust renderer data, validate in main handler
 
 ## Security Configuration
@@ -199,3 +232,46 @@ This policy restricts loading to same-origin scripts and allows inline styles (r
 - Preload uses `contextBridge.exposeInMainWorld` for secure API exposure
 - Renderer receives no direct Electron API access
 - No `ipcRenderer.on` listeners in renderer (单向数据流)
+
+## Deprecation Policy (Phase 24)
+
+### Deprecated Names
+
+The following names are deprecated during the compatibility window:
+
+| Deprecated Name | Replacement | Retention Policy |
+|-----------------|--------------|------------------|
+| `window.knuthflow` | `window.ralph` | Retained until Phase 25+ |
+| `KnuthflowAPI` TypeScript type | `RalphDesktopAPI` | Retained until Phase 25+ |
+| `KNUTHFLOW_USER_DATA_DIR` | `RALPH_USER_DATA_DIR` | Retained indefinitely |
+
+### Long-Lived Compatibility Surfaces
+
+The following are retained indefinitely and will not be removed:
+
+| Surface | Reason |
+|---------|--------|
+| `knuthflow.db` database filename | Existing user data must remain accessible |
+| `KNUTHFLOW_USER_DATA_DIR` env var | Tests and scripts may depend on it |
+
+### Removal Criteria
+
+A deprecated name may be removed when:
+
+1. All internal renderer code has migrated to the replacement
+2. E2e tests verify the replacement works
+3. A grace period of at least one phase (Phase 25) has passed
+4. External plugin/automation authors have been notified
+
+### Migration Notes for External Authors
+
+For plugin or automation authors:
+
+- **Preload API**: Migrate `window.knuthflow` calls to `window.ralph`
+- **TypeScript**: Replace `KnuthflowAPI` imports with `RalphDesktopAPI`
+- **Environment Variables**: Use `RALPH_USER_DATA_DIR` for new scripts
+- **Database**: No changes needed - `knuthflow.db` remains accessible
+
+### Warning Strategy
+
+During the compatibility window, no runtime warnings are emitted for `window.knuthflow` usage. The deprecation is documented for developer awareness.

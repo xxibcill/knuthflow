@@ -56,7 +56,8 @@ if (require('electron-squirrel-startup')) {
 let mainWindow: BrowserWindow | null = null;
 
 // Test isolation: allow overriding user data path via environment variable
-const testUserDataPath = process.env.KNUTHFLOW_USER_DATA_DIR;
+// Supports both KNUTHFLOW_USER_DATA_DIR (legacy) and RALPH_USER_DATA_DIR (preferred)
+const testUserDataPath = process.env.RALPH_USER_DATA_DIR ?? process.env.KNUTHFLOW_USER_DATA_DIR;
 if (testUserDataPath) {
   fs.mkdirSync(testUserDataPath, { recursive: true });
   app.setPath('userData', testUserDataPath);

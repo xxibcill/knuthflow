@@ -102,6 +102,10 @@ Ralph stores its local application data under Electron's `userData` directory, i
 - `logs/` for rotating application logs
 - `secrets/` for fallback encrypted secret storage when platform keychain support is unavailable
 
+**Environment Variables:**
+- `RALPH_USER_DATA_DIR` - Override userData path (for testing)
+- `KNUTHFLOW_USER_DATA_DIR` - Legacy alias (still supported for backward compatibility)
+
 ## Repository Layout
 
 ```text

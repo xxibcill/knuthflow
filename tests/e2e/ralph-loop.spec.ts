@@ -356,7 +356,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -400,7 +400,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -420,7 +420,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -440,7 +440,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -527,7 +527,7 @@ test.describe('Phase 12: Operator Controls', () => {
 
     // Register workspace in the app
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'phase-23-test', path });
+      await window.ralph.workspace.create({ name: 'phase-23-test', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -550,7 +550,7 @@ test.describe('Phase 12: Operator Controls', () => {
   test('New App button opens intake form', async ({ page }) => {
     workspace = createRalphTestWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'phase-23-intake-test', path });
+      await window.ralph.workspace.create({ name: 'phase-23-intake-test', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -587,8 +587,8 @@ test.describe('Phase 12: Operator Controls', () => {
 
     // Register workspace and bootstrap
     await page.evaluate(async ({ path }) => {
-      const ws = await window.knuthflow.workspace.create({ name: 'phase-23-run-card-test', path });
-      await window.knuthflow.ralph.bootstrap(ws.id, path, false, ['web']);
+      const ws = await window.ralph.workspace.create({ name: 'phase-23-run-card-test', path });
+      await window.ralph.ralph.bootstrap(ws.id, path, false, ['web']);
     }, { path: workspace.path });
 
     // Navigate to Ralph Console

@@ -247,7 +247,7 @@ export function PortfolioDashboard() {
   const loadPortfolios = useCallback(async () => {
     setIsLoading(true);
     try {
-      const portfolioList = await window.knuthflow.portfolio.list();
+      const portfolioList = await window.ralph.portfolio.list();
       const portfoliosWithProjects: PortfolioWithProjects[] = [];
 
       // Collect all project IDs first to batch workspace lookups
@@ -255,7 +255,7 @@ export function PortfolioDashboard() {
       const portfolioProjectsMap = new Map<string, PortfolioProject[]>();
 
       for (const portfolio of portfolioList) {
-        const projects = await window.knuthflow.portfolio.listProjects(portfolio.id);
+        const projects = await window.ralph.portfolio.listProjects(portfolio.id);
         portfolioProjectsMap.set(portfolio.id, projects);
         for (const pp of projects) {
           allProjectIds.push(pp.projectId.replace('ralph-', ''));
@@ -264,7 +264,7 @@ export function PortfolioDashboard() {
 
       // Batch load all workspaces in parallel
       const workspaceResults = await Promise.all(
-        allProjectIds.map(id => window.knuthflow.workspace.get(id).catch(() => null))
+        allProjectIds.map(id => window.ralph.workspace.get(id).catch(() => null))
       );
       const workspaceMap = new Map<string, Workspace | null>();
       allProjectIds.forEach((id, i) => workspaceMap.set(id, workspaceResults[i]));
@@ -307,7 +307,7 @@ export function PortfolioDashboard() {
 
   const loadActiveRuns = useCallback(async (portfolioId: string) => {
     try {
-      const runs = await window.knuthflow.portfolioRuntime.getPortfolioActiveRuns(portfolioId);
+      const runs = await window.ralph.portfolioRuntime.getPortfolioActiveRuns(portfolioId);
       const runsMap = new Map<string, ActivePortfolioRun[]>();
 
       for (const run of runs) {
@@ -324,7 +324,7 @@ export function PortfolioDashboard() {
 
   const loadQueuedRuns = useCallback(async (portfolioId: string) => {
     try {
-      const queued = await window.knuthflow.portfolioRuntime.getQueuedRuns(portfolioId);
+      const queued = await window.ralph.portfolioRuntime.getQueuedRuns(portfolioId);
       setQueuedRuns(queued);
     } catch (error) {
       console.error('Failed to load queued runs:', error);
@@ -333,7 +333,7 @@ export function PortfolioDashboard() {
 
   const loadMaxConcurrentRuns = useCallback(async () => {
     try {
-      const max = await window.knuthflow.portfolioRuntime.getMaxConcurrentRuns();
+      const max = await window.ralph.portfolioRuntime.getMaxConcurrentRuns();
       setMaxConcurrentRuns(max);
     } catch (error) {
       console.error('Failed to load max concurrent runs:', error);
@@ -342,11 +342,11 @@ export function PortfolioDashboard() {
 
   const loadAvailableProjects = useCallback(async () => {
     try {
-      const workspaces = await window.knuthflow.workspace.list();
+      const workspaces = await window.ralph.workspace.list();
       const projects: Array<{ project: { id: string; workspaceId: string }; workspace?: Workspace }> = [];
 
       for (const workspace of workspaces) {
-        const ralphProject = await window.knuthflow.ralph.getProject(workspace.id);
+        const ralphProject = await window.ralph.ralph.getProject(workspace.id);
         if (ralphProject) {
           projects.push({ project: ralphProject, workspace });
         }
@@ -370,8 +370,8 @@ export function PortfolioDashboard() {
     }
 
     try {
-      const portfolio = await window.knuthflow.portfolio.create(newPortfolioName.trim(), newPortfolioDescription.trim());
-      await window.knuthflow.portfolioRuntime.register(portfolio.id);
+      const portfolio = await window.ralph.portfolio.create(newPortfolioName.trim(), newPortfolioDescription.trim());
+      await window.ralph.portfolioRuntime.register(portfolio.id);
       await loadPortfolios();
       setShowCreateDialog(false);
       setNewPortfolioName('');
@@ -384,8 +384,8 @@ export function PortfolioDashboard() {
 
   const handleDeletePortfolio = useCallback(async (portfolioId: string) => {
     try {
-      await window.knuthflow.portfolioRuntime.unregister(portfolioId);
-      await window.knuthflow.portfolio.delete(portfolioId);
+      await window.ralph.portfolioRuntime.unregister(portfolioId);
+      await window.ralph.portfolio.delete(portfolioId);
       if (selectedPortfolio?.id === portfolioId) {
         setSelectedPortfolio(null);
       }
@@ -400,8 +400,8 @@ export function PortfolioDashboard() {
     if (!selectedPortfolio) return;
 
     try {
-      await window.knuthflow.portfolio.addProject(selectedPortfolio.id, projectId);
-      await window.knuthflow.portfolioRuntime.addProject(selectedPortfolio.id, projectId);
+      await window.ralph.portfolio.addProject(selectedPortfolio.id, projectId);
+      await window.ralph.portfolioRuntime.addProject(selectedPortfolio.id, projectId);
       await loadPortfolios();
       setShowAddProjectDialog(false);
       showNotification('success', 'Project added to portfolio');
@@ -414,8 +414,8 @@ export function PortfolioDashboard() {
     if (!selectedPortfolio) return;
 
     try {
-      await window.knuthflow.portfolioRuntime.removeProject(selectedPortfolio.id, projectId);
-      await window.knuthflow.portfolio.removeProject(portfolioProjectId);
+      await window.ralph.portfolioRuntime.removeProject(selectedPortfolio.id, projectId);
+      await window.ralph.portfolio.removeProject(portfolioProjectId);
       await loadPortfolios();
       showNotification('success', 'Project removed from portfolio');
     } catch (error) {
@@ -426,7 +426,7 @@ export function PortfolioDashboard() {
   const handlePauseAll = useCallback(async () => {
     if (!selectedPortfolio) return;
     try {
-      await window.knuthflow.portfolioRuntime.pauseAll(selectedPortfolio.id);
+      await window.ralph.portfolioRuntime.pauseAll(selectedPortfolio.id);
       await loadActiveRuns(selectedPortfolio.id);
       showNotification('success', 'All runs paused');
     } catch (error) {
@@ -437,7 +437,7 @@ export function PortfolioDashboard() {
   const handleResumeAll = useCallback(async () => {
     if (!selectedPortfolio) return;
     try {
-      await window.knuthflow.portfolioRuntime.resumeAll(selectedPortfolio.id);
+      await window.ralph.portfolioRuntime.resumeAll(selectedPortfolio.id);
       await loadActiveRuns(selectedPortfolio.id);
       showNotification('success', 'All runs resumed');
     } catch (error) {
@@ -448,7 +448,7 @@ export function PortfolioDashboard() {
   const handleStopAll = useCallback(async () => {
     if (!selectedPortfolio) return;
     try {
-      await window.knuthflow.portfolioRuntime.stopAll(selectedPortfolio.id, 'user_stopped');
+      await window.ralph.portfolioRuntime.stopAll(selectedPortfolio.id, 'user_stopped');
       await loadActiveRuns(selectedPortfolio.id);
       await loadQueuedRuns(selectedPortfolio.id);
       showNotification('success', 'All runs stopped');
@@ -460,7 +460,7 @@ export function PortfolioDashboard() {
   const handleCancelQueuedRun = useCallback(async (queuedRunId: string) => {
     if (!selectedPortfolio) return;
     try {
-      await window.knuthflow.portfolioRuntime.cancelQueuedRun(queuedRunId);
+      await window.ralph.portfolioRuntime.cancelQueuedRun(queuedRunId);
       await loadQueuedRuns(selectedPortfolio.id);
       showNotification('success', 'Queued run cancelled');
     } catch (error) {
@@ -470,7 +470,7 @@ export function PortfolioDashboard() {
 
   const handleUpdatePriority = useCallback(async (portfolioProjectId: string, newPriority: number) => {
     try {
-      await window.knuthflow.portfolioRuntime.updatePriority(portfolioProjectId, newPriority);
+      await window.ralph.portfolioRuntime.updatePriority(portfolioProjectId, newPriority);
       await loadPortfolios();
     } catch (error) {
       showNotification('error', error instanceof Error ? error.message : 'Failed to update priority');
@@ -479,7 +479,7 @@ export function PortfolioDashboard() {
 
   const handleSetMaxConcurrent = useCallback(async (max: number) => {
     try {
-      await window.knuthflow.portfolioRuntime.setMaxConcurrentRuns(max);
+      await window.ralph.portfolioRuntime.setMaxConcurrentRuns(max);
       setMaxConcurrentRuns(max);
     } catch (error) {
       showNotification('error', error instanceof Error ? error.message : 'Failed to update setting');
@@ -499,7 +499,7 @@ export function PortfolioDashboard() {
       // For simplicity, store the project itself as depending on these deps
       newGraph[portfolioProject.projectId] = depsArray;
 
-      await window.knuthflow.portfolio.updateProject(portfolioProject.id, { dependencyGraph: newGraph });
+      await window.ralph.portfolio.updateProject(portfolioProject.id, { dependencyGraph: newGraph });
       await loadPortfolios();
       showNotification('success', 'Dependencies updated');
     } catch (error) {

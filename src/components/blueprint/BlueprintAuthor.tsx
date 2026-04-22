@@ -58,7 +58,7 @@ export function BlueprintAuthor({
 
   const loadExistingBlueprint = useCallback(async () => {
     if (blueprint) {
-      const latestVersion = await window.knuthflow.blueprint.getLatestVersion(blueprint.id);
+      const latestVersion = await window.ralph.blueprint.getLatestVersion(blueprint.id);
       if (latestVersion) {
         setVersion(latestVersion.version);
         setLearnedRules(latestVersion.learnedRules || []);
@@ -181,7 +181,7 @@ export function BlueprintAuthor({
         learnedRules,
       };
 
-      const result = await window.knuthflow.blueprint.import({
+      const result = await window.ralph.blueprint.import({
         spec: spec as unknown as Record<string, unknown>,
         isPublished,
         parentBlueprintId: parentBlueprintId || blueprint?.parentBlueprintId || null,

@@ -58,14 +58,14 @@ export function BlueprintImportExport({
       }
 
       const spec = JSON.parse(specFile.content);
-      const validation = await window.knuthflow.blueprint.validateSpec(spec);
+      const validation = await window.ralph.blueprint.validateSpec(spec);
 
       if (!validation.valid) {
         setError(`Invalid blueprint spec: ${validation.errors.join(', ')}`);
         return;
       }
 
-      const result = await window.knuthflow.blueprint.import({
+      const result = await window.ralph.blueprint.import({
         spec: spec as Record<string, unknown>,
         isPublished: true,
       });
@@ -95,7 +95,7 @@ export function BlueprintImportExport({
     setError(null);
 
     try {
-      const result = await window.knuthflow.dialog.openFile({
+      const result = await window.ralph.dialog.openFile({
         filters: [
           { name: 'Tarball', extensions: ['tar.gz', 'tgz'] },
           { name: 'All Files', extensions: ['*'] },
@@ -107,16 +107,16 @@ export function BlueprintImportExport({
         return;
       }
 
-      const content = await window.knuthflow.filesystem.readFile(result.filePath);
+      const content = await window.ralph.filesystem.readFile(result.filePath);
       const spec = JSON.parse(content);
 
-      const validation = await window.knuthflow.blueprint.validateSpec(spec);
+      const validation = await window.ralph.blueprint.validateSpec(spec);
       if (!validation.valid) {
         setError(`Invalid blueprint spec: ${validation.errors.join(', ')}`);
         return;
       }
 
-      const importResult = await window.knuthflow.blueprint.import({
+      const importResult = await window.ralph.blueprint.import({
         spec: spec as Record<string, unknown>,
       });
 
@@ -146,7 +146,7 @@ export function BlueprintImportExport({
     setError(null);
 
     try {
-      const result = await window.knuthflow.blueprint.export(blueprintIdToExport);
+      const result = await window.ralph.blueprint.export(blueprintIdToExport);
       if (!result.success || !result.spec) {
         setError(result.error || 'Failed to export blueprint');
         return;
@@ -193,14 +193,14 @@ export function BlueprintImportExport({
     setError(null);
 
     try {
-      const result = await window.knuthflow.blueprint.export(blueprintIdToExport);
+      const result = await window.ralph.blueprint.export(blueprintIdToExport);
       if (!result.success || !result.spec) {
         setError(result.error || 'Failed to export blueprint');
         return;
       }
 
       const specContent = JSON.stringify(result.spec, null, 2);
-      const saveResult = await window.knuthflow.dialog.saveFile({
+      const saveResult = await window.ralph.dialog.saveFile({
         defaultPath: `${result.spec.name.replace(/\s+/g, '-').toLowerCase()}-blueprint.json`,
         filters: [
           { name: 'JSON', extensions: ['json'] },
@@ -213,7 +213,7 @@ export function BlueprintImportExport({
         return;
       }
 
-      await window.knuthflow.filesystem.writeFile(saveResult.filePath, specContent);
+      await window.ralph.filesystem.writeFile(saveResult.filePath, specContent);
       setSuccess(`Exported to ${saveResult.filePath}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export to tarball');

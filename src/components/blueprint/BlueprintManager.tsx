@@ -28,15 +28,15 @@ export function BlueprintManager() {
   }, []);
 
   const handleExport = useCallback(async (blueprintId: string) => {
-    const result = await window.knuthflow.blueprint.export(blueprintId);
+    const result = await window.ralph.blueprint.export(blueprintId);
     if (result.success && result.spec) {
       const specContent = JSON.stringify(result.spec, null, 2);
-      const saveResult = await window.knuthflow.dialog.saveFile({
+      const saveResult = await window.ralph.dialog.saveFile({
         defaultPath: `${result.spec.name.replace(/\s+/g, '-').toLowerCase()}-blueprint.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (!saveResult.canceled && saveResult.filePath) {
-        await window.knuthflow.filesystem.writeFile(saveResult.filePath, specContent);
+        await window.ralph.filesystem.writeFile(saveResult.filePath, specContent);
       }
     }
   }, []);
@@ -52,7 +52,7 @@ export function BlueprintManager() {
   }, []);
 
   const handleCreateVersion = useCallback(async (blueprintId: string, newVersion: string) => {
-    await window.knuthflow.blueprint.createNewVersion(blueprintId, newVersion);
+    await window.ralph.blueprint.createNewVersion(blueprintId, newVersion);
   }, []);
 
   const handleBack = useCallback(() => {

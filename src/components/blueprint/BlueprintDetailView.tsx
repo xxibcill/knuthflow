@@ -28,9 +28,9 @@ export function BlueprintDetailView({
   const loadVersions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const vers = await window.knuthflow.blueprint.listVersions(blueprint.id);
+      const vers = await window.ralph.blueprint.listVersions(blueprint.id);
       setVersions(vers);
-      const stats = await window.knuthflow.blueprint.getUsageStats(blueprint.id, 50);
+      const stats = await window.ralph.blueprint.getUsageStats(blueprint.id, 50);
       setUsageStats(stats);
     } catch (error) {
       console.error('Failed to load versions:', error);
@@ -59,7 +59,7 @@ export function BlueprintDetailView({
     if (!newVersionInput.trim()) return;
 
     try {
-      const result = await window.knuthflow.blueprint.createNewVersion(
+      const result = await window.ralph.blueprint.createNewVersion(
         blueprint.id,
         newVersionInput,
       );
@@ -74,7 +74,7 @@ export function BlueprintDetailView({
 
   const handleDelete = useCallback(async () => {
     try {
-      await window.knuthflow.blueprint.delete(blueprint.id);
+      await window.ralph.blueprint.delete(blueprint.id);
       onDelete(blueprint.id);
     } catch (error) {
       console.error('Failed to delete blueprint:', error);
@@ -85,7 +85,7 @@ export function BlueprintDetailView({
     if (compareVersionIds.length !== 2) return;
 
     try {
-      const result = await window.knuthflow.blueprint.compareVersions(
+      const result = await window.ralph.blueprint.compareVersions(
         compareVersionIds[0],
         compareVersionIds[1],
       );
