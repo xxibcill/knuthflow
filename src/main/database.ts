@@ -9,7 +9,12 @@ import type {
   LoopRun,
   LoopSummary,
   PlanSnapshot,
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
 } from '../shared/ralphTypes';
+import { DEFAULT_POLICY_RULES } from '../shared/ralphTypes';
 export type {
   RalphProject,
   LoopRunStatus,
@@ -21,9 +26,14 @@ export type {
   ValidationSeverity,
   ValidationIssue,
   ReadinessReport,
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
 } from '../shared/ralphTypes';
 export {
   STALE_RUN_THRESHOLD_MS,
+  DEFAULT_POLICY_RULES,
 } from '../shared/ralphTypes';
 
 import type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
@@ -839,6 +849,10 @@ class SessionDatabase {
       INSERT INTO ralph_projects (id, workspace_id, version, created_at, updated_at)
       VALUES (?, ?, 1, ?, ?)
     `).run(id, workspaceId, now, now);
+
+    // Initialize default policy rules for the new project (Phase 29)
+    this.initializeDefaultPolicy(id);
+
     return { id, workspaceId, version: 1, createdAt: now, updatedAt: now };
   }
 
@@ -879,10 +893,370 @@ class SessionDatabase {
       this.db.prepare('DELETE FROM loop_summaries WHERE project_id = ?').run(projectId);
       this.db.prepare('DELETE FROM plan_snapshots WHERE project_id = ?').run(projectId);
       this.db.prepare('DELETE FROM loop_runs WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM policy_audit WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM policy_overrides WHERE project_id = ?').run(projectId);
+      this.db.prepare('DELETE FROM policy_rules WHERE project_id = ?').run(projectId);
       this.db.prepare('DELETE FROM ralph_projects WHERE id = ?').run(projectId);
     });
 
     deleteProject(id);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Policy Operations (Phase 29)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Initialize default policy rules for a new project from DEFAULT_POLICY_RULES
+   */
+  initializeDefaultPolicy(projectId: string): PolicyRule[] {
+    const rules: PolicyRule[] = [];
+    const now = Date.now();
+    const insert = this.db.prepare(`
+      INSERT INTO policy_rules (id, project_id, type, label, description, pattern, enabled, scope, severity, inheritable, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const rule of DEFAULT_POLICY_RULES) {
+      const id = `policy-${crypto.randomUUID()}`;
+      insert.run(
+        id,
+        projectId,
+        rule.type,
+        rule.label,
+        rule.description,
+        rule.pattern,
+        rule.enabled ? 1 : 0,
+        rule.scope,
+        rule.severity,
+        rule.inheritable ? 1 : 0,
+        now,
+        now
+      );
+      rules.push({ id, projectId, ...rule, createdAt: now, updatedAt: now });
+    }
+    return rules;
+  }
+
+  /**
+   * Create a single policy rule
+   */
+  createPolicyRule(params: {
+    projectId: string;
+    type: PolicyRule['type'];
+    label: string;
+    description: string;
+    pattern: string;
+    enabled?: boolean;
+    scope?: string | null;
+    severity?: 'error' | 'warning';
+    inheritable?: boolean;
+  }): PolicyRule {
+    const id = `policy-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO policy_rules (id, project_id, type, label, description, pattern, enabled, scope, severity, inheritable, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.type,
+      params.label,
+      params.description,
+      params.pattern,
+      params.enabled ?? true ? 1 : 0,
+      params.scope ?? null,
+      params.severity ?? 'error',
+      params.inheritable ?? true ? 1 : 0,
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      type: params.type,
+      label: params.label,
+      description: params.description,
+      pattern: params.pattern,
+      enabled: params.enabled ?? true,
+      scope: params.scope ?? null,
+      severity: params.severity ?? 'error',
+      inheritable: params.inheritable ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getPolicyRule(id: string): PolicyRule | null {
+    const row = this.db.prepare('SELECT * FROM policy_rules WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPolicyRule(row);
+  }
+
+  listPolicyRules(projectId: string): PolicyRule[] {
+    const rows = this.db.prepare('SELECT * FROM policy_rules WHERE project_id = ? ORDER BY type, label').all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPolicyRule(row));
+  }
+
+  listEnabledPolicyRules(projectId: string): PolicyRule[] {
+    const rows = this.db.prepare('SELECT * FROM policy_rules WHERE project_id = ? AND enabled = 1 ORDER BY type, label').all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPolicyRule(row));
+  }
+
+  updatePolicyRule(id: string, updates: Partial<Omit<PolicyRule, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>>): PolicyRule | null {
+    const existing = this.getPolicyRule(id);
+    if (!existing) return null;
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.type !== undefined) { setClauses.push('type = ?'); values.push(updates.type); }
+    if (updates.label !== undefined) { setClauses.push('label = ?'); values.push(updates.label); }
+    if (updates.description !== undefined) { setClauses.push('description = ?'); values.push(updates.description); }
+    if (updates.pattern !== undefined) { setClauses.push('pattern = ?'); values.push(updates.pattern); }
+    if (updates.enabled !== undefined) { setClauses.push('enabled = ?'); values.push(updates.enabled ? 1 : 0); }
+    if (updates.scope !== undefined) { setClauses.push('scope = ?'); values.push(updates.scope); }
+    if (updates.severity !== undefined) { setClauses.push('severity = ?'); values.push(updates.severity); }
+    if (updates.inheritable !== undefined) { setClauses.push('inheritable = ?'); values.push(updates.inheritable ? 1 : 0); }
+
+    values.push(id);
+    this.db.prepare(`UPDATE policy_rules SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    return this.getPolicyRule(id);
+  }
+
+  deletePolicyRule(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM policy_rules WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  private rowToPolicyRule(row: Record<string, unknown>): PolicyRule {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      type: row.type as PolicyRule['type'],
+      label: row.label as string,
+      description: row.description as string,
+      pattern: row.pattern as string,
+      enabled: (row.enabled as number) === 1,
+      scope: row.scope as string | null,
+      severity: row.severity as 'error' | 'warning',
+      inheritable: (row.inheritable as number) === 1,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  /**
+   * Get effective policy for a project: project rules + active overrides
+   */
+  getEffectivePolicy(projectId: string): EffectivePolicy | null {
+    const rules = this.listPolicyRules(projectId);
+    const overrides = this.listActivePolicyOverrides(projectId);
+    return {
+      projectId,
+      rules,
+      overrides,
+      inheritedRuleIds: rules.filter(r => r.inheritable).map(r => r.id),
+      version: rules.length > 0 ? Math.max(...rules.map(r => r.updatedAt)) : 0,
+      updatedAt: Date.now(),
+    };
+  }
+
+  /**
+   * Validate that a policy value is well-formed
+   */
+  validatePolicyRule(rule: Partial<PolicyRule>): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    if (rule.type && !['protected_path', 'forbidden_command', 'dependency_limit', 'connector_access', 'delivery_gate', 'approval_required'].includes(rule.type)) {
+      errors.push(`Invalid rule type: ${rule.type}`);
+    }
+    if (rule.severity && !['error', 'warning'].includes(rule.severity)) {
+      errors.push(`Invalid severity: ${rule.severity}`);
+    }
+    if (rule.pattern !== undefined && !rule.pattern.trim()) {
+      errors.push('Pattern cannot be empty');
+    }
+    if (rule.label !== undefined && !rule.label.trim()) {
+      errors.push('Label cannot be empty');
+    }
+    return { valid: errors.length === 0, errors };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Policy Override Operations (Phase 29)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createPolicyOverride(params: {
+    projectId: string;
+    ruleId: string;
+    action: string;
+    reason: string;
+    scope: PolicyOverride['scope'];
+    expiresAt?: number | null;
+    approver?: string | null;
+    status?: PolicyOverride['status'];
+  }): PolicyOverride {
+    const id = `override-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO policy_overrides (id, project_id, rule_id, action, reason, scope, expires_at, approver, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.ruleId,
+      params.action,
+      params.reason,
+      params.scope,
+      params.expiresAt ?? null,
+      params.approver ?? null,
+      params.status ?? 'pending',
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      ruleId: params.ruleId,
+      action: params.action,
+      reason: params.reason,
+      scope: params.scope,
+      expiresAt: params.expiresAt ?? null,
+      approver: params.approver ?? null,
+      status: params.status ?? 'pending',
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  getPolicyOverride(id: string): PolicyOverride | null {
+    const row = this.db.prepare('SELECT * FROM policy_overrides WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToPolicyOverride(row);
+  }
+
+  listPolicyOverrides(projectId: string): PolicyOverride[] {
+    const rows = this.db.prepare('SELECT * FROM policy_overrides WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPolicyOverride(row));
+  }
+
+  listActivePolicyOverrides(projectId: string): PolicyOverride[] {
+    const now = Date.now();
+    const rows = this.db.prepare(`
+      SELECT * FROM policy_overrides
+      WHERE project_id = ? AND status = 'approved' AND (expires_at IS NULL OR expires_at > ?)
+      ORDER BY created_at DESC
+    `).all(projectId, now) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPolicyOverride(row));
+  }
+
+  listPendingPolicyOverrides(projectId: string): PolicyOverride[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM policy_overrides WHERE project_id = ? AND status = 'pending' ORDER BY created_at ASC
+    `).all(projectId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPolicyOverride(row));
+  }
+
+  updatePolicyOverride(id: string, updates: Partial<{
+    status: PolicyOverride['status'];
+    approver: string | null;
+    expiresAt: number | null;
+  }>): PolicyOverride | null {
+    const existing = this.getPolicyOverride(id);
+    if (!existing) return null;
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }
+    if (updates.approver !== undefined) { setClauses.push('approver = ?'); values.push(updates.approver); }
+    if (updates.expiresAt !== undefined) { setClauses.push('expires_at = ?'); values.push(updates.expiresAt); }
+
+    values.push(id);
+    this.db.prepare(`UPDATE policy_overrides SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    return this.getPolicyOverride(id);
+  }
+
+  /**
+   * Expire all overrides past their expiry time
+   */
+  expirePolicyOverrides(): number {
+    const now = Date.now();
+    const result = this.db.prepare(`
+      UPDATE policy_overrides SET status = 'expired', updated_at = ?
+      WHERE status = 'approved' AND expires_at IS NOT NULL AND expires_at <= ?
+    `).run(now, now);
+    return result.changes;
+  }
+
+  private rowToPolicyOverride(row: Record<string, unknown>): PolicyOverride {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      ruleId: row.rule_id as string,
+      action: row.action as string,
+      reason: row.reason as string,
+      scope: row.scope as PolicyOverride['scope'],
+      expiresAt: row.expires_at as number | null,
+      approver: row.approver as string | null,
+      status: row.status as PolicyOverride['status'],
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Policy Audit Operations (Phase 29)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createPolicyAuditEntry(params: {
+    projectId: string;
+    eventType: PolicyAuditEntry['eventType'];
+    entityId?: string | null;
+    summary: string;
+    metadata?: Record<string, unknown>;
+  }): PolicyAuditEntry {
+    const id = `paudit-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO policy_audit (id, project_id, event_type, entity_id, summary, metadata, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId,
+      params.eventType,
+      params.entityId ?? null,
+      params.summary,
+      JSON.stringify(params.metadata ?? {}),
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId,
+      eventType: params.eventType,
+      entityId: params.entityId ?? null,
+      summary: params.summary,
+      metadata: JSON.stringify(params.metadata ?? {}),
+      createdAt: now,
+    };
+  }
+
+  listPolicyAuditEntries(projectId: string, limit = 100): PolicyAuditEntry[] {
+    const rows = this.db.prepare('SELECT * FROM policy_audit WHERE project_id = ? ORDER BY created_at DESC LIMIT ?').all(projectId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToPolicyAuditEntry(row));
+  }
+
+  private rowToPolicyAuditEntry(row: Record<string, unknown>): PolicyAuditEntry {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      eventType: row.event_type as PolicyAuditEntry['eventType'],
+      entityId: row.entity_id as string | null,
+      summary: row.summary as string,
+      metadata: row.metadata as string,
+      createdAt: row.created_at as number,
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

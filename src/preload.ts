@@ -40,6 +40,10 @@ import type {
   Portfolio,
   PortfolioProject,
   LoopState,
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
 } from './shared/preloadTypes';
 export type {
   ProcessSpawnResult,
@@ -988,6 +992,54 @@ const api: KnuthflowAPI = {
       options?: { checkOverflow?: boolean; allowedConsoleErrors?: string[] }
     ) =>
       ipcRenderer.invoke('preview:runVisualSmokeChecks', screenshots, consoleEvidence, options),
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Policy & Governance (Phase 29)
+  // ─────────────────────────────────────────────────────────────────────────────
+  policy: {
+    getEffective: (projectId: string) =>
+      ipcRenderer.invoke('policy:getEffective', projectId),
+    listRules: (projectId: string) =>
+      ipcRenderer.invoke('policy:listRules', projectId),
+    createRule: (params: {
+      projectId: string;
+      type: PolicyRule['type'];
+      label: string;
+      description: string;
+      pattern: string;
+      enabled?: boolean;
+      scope?: string | null;
+      severity?: 'error' | 'warning';
+      inheritable?: boolean;
+    }) =>
+      ipcRenderer.invoke('policy:createRule', params),
+    updateRule: (id: string, updates: Partial<PolicyRule>) =>
+      ipcRenderer.invoke('policy:updateRule', id, updates),
+    deleteRule: (id: string) =>
+      ipcRenderer.invoke('policy:deleteRule', id),
+    check: (projectId: string, enforcementPoint: string, action: string, context?: { filePath?: string; command?: string }) =>
+      ipcRenderer.invoke('policy:check', projectId, enforcementPoint, action, context),
+    getSummary: (projectId: string) =>
+      ipcRenderer.invoke('policy:getSummary', projectId),
+    createOverride: (params: {
+      projectId: string;
+      ruleId: string;
+      action: string;
+      reason: string;
+      scope: PolicyOverride['scope'];
+      expiresAt?: number | null;
+    }) =>
+      ipcRenderer.invoke('policy:createOverride', params),
+    listOverrides: (projectId: string) =>
+      ipcRenderer.invoke('policy:listOverrides', projectId),
+    pendingOverrides: (projectId: string) =>
+      ipcRenderer.invoke('policy:pendingOverrides', projectId),
+    approveOverride: (id: string, approver: string) =>
+      ipcRenderer.invoke('policy:approveOverride', id, approver),
+    rejectOverride: (id: string, approver: string) =>
+      ipcRenderer.invoke('policy:rejectOverride', id, approver),
+    listAuditEntries: (projectId: string, limit?: number) =>
+      ipcRenderer.invoke('policy:listAuditEntries', projectId, limit),
   },
 };
 

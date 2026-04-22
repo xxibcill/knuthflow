@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -85,8 +85,80 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
     migrateToV16(db);
   }
 
+  // Migrate from version 16 to 17 (add Phase 29 policy tables)
+  if (currentVersion < 17) {
+    migrateToV17(db);
+  }
+
   // Update schema version
   db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
+}
+
+function migrateToV17(db: Database.Database): void {
+  // Create policy_rules table (Phase 29)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS policy_rules (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      label TEXT NOT NULL,
+      description TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      scope TEXT,
+      severity TEXT NOT NULL DEFAULT 'error',
+      inheritable INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create policy_overrides table (Phase 29)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS policy_overrides (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      rule_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'command',
+      expires_at INTEGER,
+      approver TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (rule_id) REFERENCES policy_rules(id)
+    )
+  `);
+
+  // Create policy_audit table (Phase 29)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS policy_audit (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      entity_id TEXT,
+      summary TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create indexes for policy queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_policy_rules_project_id ON policy_rules(project_id);
+    CREATE INDEX IF NOT EXISTS idx_policy_rules_type ON policy_rules(type);
+    CREATE INDEX IF NOT EXISTS idx_policy_rules_enabled ON policy_rules(enabled);
+    CREATE INDEX IF NOT EXISTS idx_policy_overrides_project_id ON policy_overrides(project_id);
+    CREATE INDEX IF NOT EXISTS idx_policy_overrides_status ON policy_overrides(status);
+    CREATE INDEX IF NOT EXISTS idx_policy_overrides_expires_at ON policy_overrides(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_policy_audit_project_id ON policy_audit(project_id);
+    CREATE INDEX IF NOT EXISTS idx_policy_audit_event_type ON policy_audit(event_type);
+    CREATE INDEX IF NOT EXISTS idx_policy_audit_created_at ON policy_audit(created_at);
+  `);
 }
 
 function migrateToV1(db: Database.Database): void {

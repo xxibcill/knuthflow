@@ -34,6 +34,7 @@ import {
   registerRunPatternsHandlers,
   registerPortfolioSummaryHandlers,
   registerPreviewHandlers,
+  registerPolicyHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -209,6 +210,9 @@ function registerIpcHandlers(): void {
   registerIterationBacklogHandlers();
   registerRunPatternsHandlers();
   registerPortfolioSummaryHandlers();
+
+  // Policy handlers (Phase 29)
+  registerPolicyHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

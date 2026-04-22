@@ -8,6 +8,16 @@ import type {
   BootstrapResult,
   RalphControlFiles,
   LoopState,
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
+} from './ralphTypes';
+export type {
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
 } from './ralphTypes';
 import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
 import type { Blueprint, BlueprintVersion } from './blueprintTypes';
@@ -2069,6 +2079,55 @@ export interface KnuthflowAPI {
       };
       error?: string;
     }>;
+  };
+  policy: {
+    getEffective(projectId: string): Promise<{
+      success: boolean;
+      policy: EffectivePolicy | null;
+    }>;
+    listRules(projectId: string): Promise<{ success: boolean; rules: PolicyRule[] }>;
+    createRule(params: {
+      projectId: string;
+      type: PolicyRule['type'];
+      label: string;
+      description: string;
+      pattern: string;
+      enabled?: boolean;
+      scope?: string | null;
+      severity?: 'error' | 'warning';
+      inheritable?: boolean;
+    }): Promise<{ success: boolean; rule?: PolicyRule; error?: string }>;
+    updateRule(id: string, updates: Partial<PolicyRule>): Promise<{ success: boolean; rule?: PolicyRule; error?: string }>;
+    deleteRule(id: string): Promise<{ success: boolean; error?: string }>;
+    check(projectId: string, enforcementPoint: string, action: string, context?: { filePath?: string; command?: string }): Promise<{
+      success: boolean;
+      allowed: boolean;
+      violations: Array<{
+        ruleId: string;
+        ruleLabel: string;
+        ruleType: PolicyRule['type'];
+        severity: 'error' | 'warning';
+        message: string;
+        enforcementPoint: string;
+        action: string;
+        overrideableBy: string | null;
+        recovery: string;
+      }>;
+    }>;
+    getSummary(projectId: string): Promise<{ success: boolean; summary: { ruleCount: number; enabledCount: number; activeOverrideCount: number } | null }>;
+    createOverride(params: {
+      projectId: string;
+      ruleId: string;
+      action: string;
+      reason: string;
+      scope: PolicyOverride['scope'];
+      expiresAt?: number | null;
+    }): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
+    listOverrides(projectId: string): Promise<{ success: boolean; overrides: PolicyOverride[] }>;
+    pendingOverrides(projectId: string): Promise<{ success: boolean; overrides: PolicyOverride[] }>;
+    approveOverride(id: string, approver: string): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
+    rejectOverride(id: string, approver: string): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
+    listAuditEntries(projectId: string, limit?: number): Promise<{ success: boolean; entries: PolicyAuditEntry[] }>;
   };
 }
 

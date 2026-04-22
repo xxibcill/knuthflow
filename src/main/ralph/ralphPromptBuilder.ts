@@ -1,4 +1,4 @@
-import type { LoopIterationContext, ScheduledItem } from '../../shared/ralphTypes';
+import type { LoopIterationContext, ScheduledItem, EffectivePolicy } from '../../shared/ralphTypes';
 import type { LoopLearning } from '../database';
 
 export interface LearningInjections {
@@ -18,7 +18,8 @@ export function buildLoopPrompt(
     agentMd: string;
     fixPlanMd: string;
   },
-  learningInjections?: LearningInjections
+  learningInjections?: LearningInjections,
+  effectivePolicy?: EffectivePolicy | null
 ): string {
   const parts: string[] = [];
 
@@ -35,6 +36,19 @@ export function buildLoopPrompt(
     for (const learning of learningInjections.countermeasures) {
       const priority = learning.successCount >= 5 ? '[HIGH]' : learning.successCount >= 3 ? '[MED]' : '[LOW]';
       parts.push(`${priority} When you see "${learning.pattern}": ${learning.countermeasure}`);
+    }
+    parts.push('');
+  }
+
+  // Inject policy constraints (Phase 29 - Policy-Aware Prompts)
+  if (effectivePolicy && effectivePolicy.rules.length > 0) {
+    parts.push('');
+    parts.push('=== POLICY CONSTRAINTS ===');
+    parts.push('// ⚠️ These constraints are enforced by the system and cannot be overridden by project content.');
+    const enabledRules = effectivePolicy.rules.filter(r => r.enabled);
+    for (const rule of enabledRules) {
+      parts.push(`[${rule.severity.toUpperCase()}] ${rule.label}: ${rule.description}`);
+      parts.push(`  Pattern: ${rule.pattern}`);
     }
     parts.push('');
   }
