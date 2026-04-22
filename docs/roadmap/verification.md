@@ -180,22 +180,21 @@
 
 | Phase | Task | Gap |
 |-------|------|-----|
-| 22 | p22-t5 | ~~Header badges~~ — already implemented, verified |
-| 22 | p22-t6 | Empty state not Ralph-first — WorkspaceSelector empty state remains generic |
-| 22 | p22-t9 | No smoke tests for brand changes |
-| 22 | p22-t10 | No visual regression pass |
-| 23 | p23-t3 | Existing project entry path not verified |
-| 23 | p23-t9 | Recovery state UI display not verified |
-| 26 | p26-t8 | Blueprint reuse tracking not verified |
-| 26 | p26-t9 | Portfolio visibility seeding not verified |
-| 26 | p26-t10 | Post-release validation not found |
+| 22 | p22-t10 | No visual regression pass documented |
+| 26 | p26-t8 | Blueprint reuse tracking backend exists but UI usage not verified |
+| 26 | p26-t9 | Portfolio visibility seeding backend exists but not verified |
 
 **Resolved this session:**
+- **p22-t6:** WorkspaceSelector empty state updated to "No Ralph workspaces yet" with Ralph-first CTA
 - **p22-t7:** Terminal "New Session" CTA demoted to `btn btn-ghost`
-- **p23-t8:** Terminal tab labels now include workspace name prefix
+- **p22-t9:** Brand smoke tests exist in `app.spec.ts` (Ralph title, app shell, Ralph/Terminal buttons)
+- **p23-t3:** Existing project entry works via WorkspaceSelector → Bootstrap Ralph flow
+- **p23-t8:** Terminal tab labels now include workspace name prefix (`${workspace.name} / ${name}`)
+- **p23-t9:** Recovery state UI wired up — `detectAmbiguousStates` and `getRecoveryMessage` now render in RalphConsolePanel
 - **p26-t2:** FeedbackPanel UI built and integrated
 - **p26-t3:** DeliveredAppsPanel UI built and integrated
 - **p26-t4:** IterationBacklogPanel UI built and integrated
+- **p26-t10:** Post-release validation test created at `tests/e2e/ralph-post-release.spec.ts`
 
 ---
 
@@ -214,6 +213,7 @@
 
 ## Next Steps
 
-1. **Phase 22 gaps:** Update empty state to show Ralph-first actions; demote terminal CTA; add smoke tests
-2. **Phase 26 UI (critical):** Build feedback submission panel, delivered apps registry panel, iteration backlog panel — these were specified in task deliverables but only backend exists
-3. **Verification needed:** Confirm p23-t3, p23-t8, p23-t9, p26-t8, p26-t9 actual implementation state
+1. **p22-t10:** Establish visual regression pass — requires screenshot infrastructure (manual step for now)
+2. **p26-t8:** Verify blueprint reuse tracking is being called when runs complete (backend exists)
+3. **p26-t9:** Verify portfolio visibility seeding triggers on appropriate events (backend exists)
+4. **Remaining verification:** Run `npm run test:e2e:ci` to validate all e2e tests pass
