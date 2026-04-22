@@ -738,6 +738,14 @@ export default function App() {
                     switchToTerminal: false,
                   })
                 }
+                onOpenTerminal={(run) => {
+                  // Find the tab associated with this run's session
+                  const tab = tabs.find(t => t.sessionId === run.sessionId)
+                  if (tab) {
+                    setActiveTabId(tab.id)
+                  }
+                  setViewMode('terminal')
+                }}
               />
             )}
 

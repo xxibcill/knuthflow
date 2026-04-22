@@ -5,6 +5,7 @@ interface RalphRunCardProps {
   isSelected: boolean;
   onSelect: (run: RalphRunDashboardItem) => void;
   onOpenWorkspace: (workspacePath: string) => void;
+  onOpenTerminal?: (run: RalphRunDashboardItem) => void;
 }
 
 function getStatusBadge(status: RalphRunDashboardItem['status']) {
@@ -25,7 +26,7 @@ function getPhaseTone(phase: RalphPhase) {
   return 'text-muted';
 }
 
-export function RalphRunCard({ run, isSelected, onSelect, onOpenWorkspace }: RalphRunCardProps) {
+export function RalphRunCard({ run, isSelected, onSelect, onOpenWorkspace, onOpenTerminal }: RalphRunCardProps) {
   const formatDuration = (startTime: number | null, endTime: number | null) => {
     if (!startTime) return '—';
     const end = endTime ?? Date.now();
@@ -93,16 +94,30 @@ export function RalphRunCard({ run, isSelected, onSelect, onOpenWorkspace }: Ral
           <p className="mt-3 text-xs text-red-400" title={run.error}>{run.error}</p>
         )}
 
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenWorkspace(run.workspacePath);
-          }}
-          className="mt-3 text-left text-xs text-blue-400 hover:text-blue-300"
-          title={run.workspacePath}
-        >
-          {run.workspacePath}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenWorkspace(run.workspacePath);
+            }}
+            className="text-left text-xs text-blue-400 hover:text-blue-300"
+            title={run.workspacePath}
+          >
+            {run.workspacePath}
+          </button>
+          {run.sessionId && onOpenTerminal && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenTerminal(run);
+              }}
+              className="text-left text-xs text-green-400 hover:text-green-300"
+              title={`Open terminal for ${run.name}`}
+            >
+              Open Terminal →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

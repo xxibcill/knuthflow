@@ -17,6 +17,12 @@ import type {
   RalphRunDashboardItem,
   SafetyAlert,
 } from './RalphConsole.types';
+import {
+  getRalphLifecycleState,
+  getLifecycleStateInfo,
+  type RalphLifecycleState,
+  type RalphLifecycleContext,
+} from '../../shared/ralphLifecycle';
 import { AppIntakeForm } from './AppIntakeForm';
 import { BlueprintReview } from './BlueprintReview';
 import { DeliveryPanel } from './DeliveryPanel';
@@ -89,6 +95,7 @@ interface RalphConsolePanelProps {
     sessionRecordId?: string;
     error?: string;
   }>;
+  onOpenTerminal?: (run: RalphRunDashboardItem) => void;
 }
 
 type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts' | 'delivery';
@@ -165,6 +172,7 @@ export function RalphConsolePanel({
   onOpenWorkspace,
   onOpenFile,
   onLaunchClaudeSession,
+  onOpenTerminal,
 }: RalphConsolePanelProps) {
   const [runs, setRuns] = useState<RalphRunDashboardItem[]>([]);
   const [selectedRun, setSelectedRun] = useState<RalphRunDashboardItem | null>(null);
@@ -486,11 +494,27 @@ export function RalphConsolePanel({
         return;
       }
 
+      // Build summary of file operations for visibility
+      const fileSummary = [
+        ...(writeResult.filesCreated ?? []).map(f => `Created: ${f}`),
+        ...(bootstrapResult.created ?? []).map(f => `Created: ${f}`),
+        ...(bootstrapResult.updated ?? []).map(f => `Updated: ${f}`),
+        ...(bootstrapResult.skipped ?? []).map(f => `Preserved: ${f}`),
+      ].join('\n');
+
       setKickoffState('approved');
 
       // Reload workspace context
       await loadWorkspaceContext();
       await loadRuns();
+
+      // Show file operation summary as a notice
+      if (fileSummary) {
+        setWorkspaceNotice({
+          tone: 'info',
+          message: `Workspace prepared:\n${fileSummary}`,
+        });
+      }
     } catch (error) {
       setKickoffError(error instanceof Error ? error.message : 'Failed to finalize blueprint');
     } finally {
@@ -776,6 +800,20 @@ export function RalphConsolePanel({
     workspaceActionState === null,
   );
 
+  // Derive lifecycle state from workspace context (Phase 23)
+  const lifecycleContext: RalphLifecycleContext = {
+    workspaceId: workspace?.id ?? null,
+    workspacePath: workspace?.path ?? null,
+    readiness: workspaceReadiness,
+    activeRuns: activeWorkspaceRuns,
+    completedRunsCount: activeWorkspaceRuns.filter(r => r.status === 'completed').length,
+    isDelivered: false, // TODO: wire up to delivery service
+    isMaintenanceTracked: false, // TODO: wire up to maintenance service
+    latestRun: activeWorkspaceRuns[0] ?? null,
+  };
+  const lifecycleState = getRalphLifecycleState(lifecycleContext);
+  const lifecycleInfo = getLifecycleStateInfo(lifecycleContext);
+
   return (
     <div className="section-shell">
       <div className="section-header">
@@ -802,6 +840,7 @@ export function RalphConsolePanel({
                   <p className="mt-2 text-sm text-muted text-mono">{workspace.path}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <span className="badge badge-info">{lifecycleInfo.label}</span>
                   <span className={workspaceBadge.className}>{workspaceBadge.label}</span>
                   {activeWorkspaceRun && <span className="badge badge-info">Run Active</span>}
                   {workspaceProject && <span className="badge badge-neutral text-mono">{workspaceProject.id.slice(0, 12)}…</span>}
@@ -984,6 +1023,7 @@ export function RalphConsolePanel({
                   isSelected={selectedRun?.runId === run.runId}
                   onSelect={handleSelectRun}
                   onOpenWorkspace={onOpenWorkspace}
+                  onOpenTerminal={onOpenTerminal}
                 />
               ))}
             </div>
@@ -994,11 +1034,20 @@ export function RalphConsolePanel({
           {selectedRun ? (
             <>
               <div className="section-header !border-b-0">
-                <div>
-                  <h3 className="section-title">{selectedRun.name}</h3>
-                  <p className="section-lead">
-                    {selectedRun.workspaceName} • {selectedRun.workspacePath}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className="btn btn-ghost btn-sm"
+                    title="Back to dashboard"
+                  >
+                    ← Dashboard
+                  </button>
+                  <div>
+                    <h3 className="section-title">{selectedRun.name}</h3>
+                    <p className="section-lead">
+                      {selectedRun.workspaceName} • {selectedRun.workspacePath}
+                    </p>
+                  </div>
                 </div>
                 <div className="toolbar-inline">
                   <span className={getRunStatusBadge(selectedRun.status)}>
@@ -1026,6 +1075,33 @@ export function RalphConsolePanel({
               <div className="min-h-0 flex-1">
                 {activeTab === 'dashboard' && (
                   <div className="list-pane">
+                    {/* Run state summary banner */}
+                    <div className="surface-panel-muted p-4 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="metric-label">Current State</p>
+                          <p className="text-lg font-semibold">
+                            {selectedRun.phase.charAt(0).toUpperCase() + selectedRun.phase.slice(1)}
+                          </p>
+                        </div>
+                        {selectedRun.iterationCount > 0 && (
+                          <div className="text-right">
+                            <p className="metric-label">Progress</p>
+                            <p className="text-lg font-semibold">{selectedRun.iterationCount} iterations</p>
+                          </div>
+                        )}
+                      </div>
+                      {selectedRun.selectedItem && (
+                        <div className="mt-3 p-3 surface-panel-inset">
+                          <p className="metric-label">Current Task</p>
+                          <p className="text-md font-semibold">{selectedRun.selectedItem.title}</p>
+                          {selectedRun.selectedItem.description && (
+                            <p className="text-sm text-muted mt-1">{selectedRun.selectedItem.description}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="metrics-grid">
                       <div className="metric-card">
                         <p className="metric-label">Run ID</p>
@@ -1043,15 +1119,6 @@ export function RalphConsolePanel({
                         <p className="metric-label">Phase</p>
                         <p className="metric-value">{selectedRun.phase}</p>
                       </div>
-                      {selectedRun.selectedItem && (
-                        <div className="metric-card">
-                          <p className="metric-label">Current Task</p>
-                          <p className="metric-value">{selectedRun.selectedItem.title}</p>
-                          {selectedRun.selectedItem.description && (
-                            <p className="mt-2 text-sm text-muted">{selectedRun.selectedItem.description}</p>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
