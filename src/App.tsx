@@ -353,7 +353,7 @@ export default function App() {
 
       const newTab: Tab = {
         id: savedSession.id,
-        name,
+        name: workspace ? `${workspace.name} / ${name}` : name,
         sessionId: result.sessionId,
         runId: result.runId,
         workspaceId: workspace?.id || null,
@@ -563,7 +563,7 @@ export default function App() {
                     Stop Session
                   </button>
                 ) : (
-                  <button onClick={handleStartClaude} className="btn">
+                  <button onClick={handleStartClaude} className="btn btn-ghost">
                     New Session
                   </button>
                 ))}

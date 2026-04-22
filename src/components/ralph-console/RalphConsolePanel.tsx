@@ -26,6 +26,9 @@ import {
 import { AppIntakeForm } from './AppIntakeForm';
 import { BlueprintReview } from './BlueprintReview';
 import { DeliveryPanel } from './DeliveryPanel';
+import { FeedbackPanel } from './FeedbackPanel';
+import { DeliveredAppsPanel } from './DeliveredAppsPanel';
+import { IterationBacklogPanel } from './IterationBacklogPanel';
 import { RalphArtifactViewer } from './RalphArtifactViewer';
 import { RalphFixPlanPanel } from './RalphFixPlanPanel';
 import { RalphLoopHistoryPanel } from './RalphLoopHistoryPanel';
@@ -98,7 +101,7 @@ interface RalphConsolePanelProps {
   onOpenTerminal?: (run: RalphRunDashboardItem) => void;
 }
 
-type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts' | 'delivery';
+type ViewTab = 'dashboard' | 'timeline' | 'artifacts' | 'plan' | 'history' | 'controls' | 'alerts' | 'delivery' | 'feedback' | 'backlog';
 type WorkspaceActionState = 'bootstrap' | 'repair' | 'start' | null;
 type KickoffState = 'idle' | 'intake' | 'review' | 'approved';
 
@@ -788,6 +791,8 @@ export function RalphConsolePanel({
     { id: 'controls', label: 'Controls' },
     { id: 'alerts', label: 'Alerts', count: alerts.length },
     { id: 'delivery', label: 'Delivery' },
+    { id: 'feedback', label: 'Feedback' },
+    { id: 'backlog', label: 'Backlog' },
   ];
 
   const workspaceBadge = getReadinessBadge(workspaceReadiness);
@@ -1185,6 +1190,16 @@ export function RalphConsolePanel({
                     onOpenFile={onOpenFile}
                     onRefresh={() => void loadSelectedRunDetails(selectedRun!)}
                   />
+                )}
+
+                {activeTab === 'feedback' && (
+                  <FeedbackPanel
+                    runId={selectedRun?.runId}
+                  />
+                )}
+
+                {activeTab === 'backlog' && (
+                  <IterationBacklogPanel />
                 )}
               </div>
             </>
