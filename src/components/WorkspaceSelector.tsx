@@ -152,7 +152,7 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
               <div className="mb-4">
                 <p className="metric-label">Register Workspace</p>
                 <p className="m-0 text-sm text-muted">
-                  Give the repository a clear label and point Knuthflow to the root directory.
+                  Give the repository a clear label and point Ralph to the root directory.
                 </p>
               </div>
 
@@ -244,7 +244,7 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
                 </svg>
                 <h3 className="text-lg font-semibold">No workspaces configured</h3>
                 <p className="mt-2 text-sm text-muted">
-                  Add a repository to start routing Claude Code sessions through Knuthflow.
+                  Add a repository to start routing Claude Code sessions through Ralph.
                 </p>
                 <button onClick={() => setShowAddForm(true)} className="btn btn-primary mt-4">
                   Add First Workspace

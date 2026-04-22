@@ -21,7 +21,7 @@ import type {
 } from './preload'
 import type { AppSettings } from './shared/preloadTypes'
 
-type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console' | 'portfolio' | 'blueprints'
+type ViewMode = 'ralph' | 'terminal' | 'workspaces' | 'history' | 'editor' | 'portfolio' | 'blueprints'
 
 interface ActiveRun {
   runId: string
@@ -66,11 +66,11 @@ interface LaunchSessionResult {
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = {
+  ralph: 'Ralph',
   terminal: 'Terminal',
-  workspaces: 'Workspaces',
+  workspaces: 'Projects',
   history: 'History',
   editor: 'Editor',
-  console: 'Console',
   portfolio: 'Portfolio',
   blueprints: 'Blueprints',
 }
@@ -97,25 +97,25 @@ function resolveTheme(theme: AppSettings['theme'], systemTheme: 'light' | 'dark'
 }
 
 function getRunSummary(activeRun: ActiveRun | null) {
-  if (!activeRun) return 'Ready'
+  if (!activeRun) return 'Ready for Ralph'
 
   if (activeRun.state === 'running') {
-    return `Run ${activeRun.runId.slice(0, 8)} active`
+    return `Ralph run ${activeRun.runId.slice(0, 8)} active`
   }
 
   if (activeRun.state === 'starting') {
-    return 'Session booting'
+    return 'Ralph initializing'
   }
 
   if (activeRun.state === 'exited') {
-    return `Exited with code ${activeRun.exitCode ?? 0}`
+    return `Run ended with code ${activeRun.exitCode ?? 0}`
   }
 
   if (activeRun.state === 'failed') {
-    return `Failed: ${activeRun.error || activeRun.exitCode || 'Unknown error'}`
+    return `Run failed: ${activeRun.error || activeRun.exitCode || 'Unknown error'}`
   }
 
-  return 'Ready'
+  return 'Ready for Ralph'
 }
 
 function getRunBadge(activeRun: ActiveRun | null): { label: string; className: string } {
@@ -143,7 +143,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('workspaces')
+  const [viewMode, setViewMode] = useState<ViewMode>('ralph')
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -470,7 +470,7 @@ export default function App() {
     [settings.fontFamily, settings.fontSize],
   )
 
-  const activeWorkspaceLabel = selectedWorkspace ? selectedWorkspace.name : 'No workspace selected'
+  const activeWorkspaceLabel = selectedWorkspace ? `Project: ${selectedWorkspace.name}` : 'No project selected'
 
   return (
     <div className="app-shell" data-theme={resolvedTheme} data-testid="app-shell" style={rootStyle}>
@@ -483,7 +483,7 @@ export default function App() {
                 <div className="toolbar-inline shell-nav-meta">
                   <span className={`badge ${statusBadge.className}`}>{statusBadge.label}</span>
                   {!status?.installed && !loading && (
-                    <span className="badge badge-danger">Install Claude Code</span>
+                    <span className="badge badge-danger">Claude Code missing</span>
                   )}
                 </div>
               </div>
@@ -563,11 +563,12 @@ export default function App() {
                     Stop Session
                   </button>
                 ) : (
-                  <button onClick={handleStartClaude} className="btn btn-primary">
+                  <button onClick={handleStartClaude} className="btn">
                     New Session
                   </button>
                 ))}
-            </div>
+
+                          </div>
           </div>
         </section>
 
@@ -615,7 +616,7 @@ export default function App() {
                 <section className="surface-panel-muted workspace-hero">
                   <div className="workspace-hero-main">
                     <div className="stack-sm">
-                      <h2 className="brand-title">Operator Workspace</h2>
+                      <h2 className="brand-title">Ralph Projects</h2>
                       <p className="nav-subtitle">{claudeStatusLabel}</p>
                     </div>
                   </div>
@@ -656,10 +657,10 @@ export default function App() {
                   <footer className="status-bar">
                     <span className="text-mono">
                       {selectedWorkspace
-                        ? `Workspace ${selectedWorkspace.path}`
+                        ? `Project ${selectedWorkspace.path}`
                         : status?.installed
                           ? `Claude Code ${status.executablePath}`
-                          : 'Claude Code not detected'}
+                          : 'Claude Code not available — install to enable Ralph runs'}
                     </span>
                     <span>{getRunSummary(activeRun)}</span>
                     {activeTab?.crashed && activeTab.crashMessage && (
@@ -713,7 +714,7 @@ export default function App() {
                 </SplitPane>
               ))}
 
-            {viewMode === 'console' && (
+            {viewMode === 'ralph' && (
               <RalphConsolePanel
                 workspace={selectedWorkspace}
                 onOpenWorkspace={(path) => {

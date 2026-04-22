@@ -13,10 +13,10 @@ import { rendererConfig } from './webpack.renderer.config';
 
 // Package metadata - these values are used for all platforms
 const packageMetadata = {
-  name: 'knuthflow',
-  productName: 'Knuthflow',
+  name: 'ralph',
+  productName: 'Ralph',
   version: '1.0.0', // Synced from package.json - update package.json version
-  description: 'Desktop wrapper for Claude Code CLI',
+  description: 'Operator desktop for Ralph-managed build loops',
   author: {
     name: 'xxibcill',
     email: 'cchayanin@hotmail.com',
@@ -29,7 +29,7 @@ const config: ForgeConfig = {
     asar: true,
     name: packageMetadata.productName,
     executableName: packageMetadata.name,
-    appBundleId: 'com.knuthflow.app',
+    appBundleId: 'com.ralph.app',
     appCategoryType: 'public.app-category.developer-tools',
     // macOS-specific
     osxSign: {

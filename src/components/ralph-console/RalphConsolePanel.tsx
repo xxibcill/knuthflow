@@ -781,7 +781,7 @@ export function RalphConsolePanel({
       <div className="section-header">
         <div>
           <h2 className="section-title">Ralph Console</h2>
-          <p className="section-lead">Bootstrap a workspace, edit Ralph control files, and supervise active loop runs.</p>
+          <p className="section-lead">Manage Ralph projects, bootstrap workspaces, and supervise autonomous build loops.</p>
         </div>
         <div className="toolbar-inline">
           <span className="badge badge-neutral">{runs.length} runs</span>

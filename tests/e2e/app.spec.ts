@@ -9,8 +9,8 @@ const skipUITests = ci || isMacWithoutDevServer;
 test.skip(skipUITests, 'requires display server and working Electron launch');
 
 test('shows the main application shell', async ({ page }) => {
-  await expect(page).toHaveTitle(/Knuthflow/i);
+  await expect(page).toHaveTitle(/Ralph/i);
   await expect(page.getByTestId('app-shell')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Operator Workspace' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Workspaces' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ralph' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Terminal' })).toBeVisible();
 });

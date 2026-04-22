@@ -8,10 +8,10 @@ export function AboutSettings({ diagnostics }: AboutSettingsProps) {
   return (
     <div className="stack-lg">
       <section className="surface-panel-muted p-8 text-center">
-        <p className="brand-kicker">Knuthflow</p>
+        <p className="brand-kicker">Ralph</p>
         <h1 className="brand-title">Operator Desktop</h1>
         <p className="mt-3 text-sm text-muted">
-          Version {diagnostics?.app.version ?? 'Unknown'} • Desktop wrapper for Claude Code CLI
+          Version {diagnostics?.app.version ?? 'Unknown'} • Operator desktop for Ralph-managed build loops
         </p>
       </section>
 
