@@ -27,6 +27,12 @@ import {
   registerPortfolioRuntimeHandlers,
   registerMonitoringHandlers,
   registerBlueprintHandlers,
+  registerHealthHandlers,
+  registerFeedbackHandlers,
+  registerDeliveredAppsHandlers,
+  registerIterationBacklogHandlers,
+  registerRunPatternsHandlers,
+  registerPortfolioSummaryHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -191,6 +197,14 @@ function registerIpcHandlers(): void {
 
   // Blueprint handlers (Phase 20)
   registerBlueprintHandlers();
+
+  // Phase 26 handlers (health, feedback, delivered apps, iteration backlog, run patterns)
+  registerHealthHandlers();
+  registerFeedbackHandlers();
+  registerDeliveredAppsHandlers();
+  registerIterationBacklogHandlers();
+  registerRunPatternsHandlers();
+  registerPortfolioSummaryHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

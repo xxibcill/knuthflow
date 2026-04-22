@@ -23,6 +23,7 @@ export interface RalphRuntimeEvents {
   stopped: (stop: SafetyStop) => void;
   paused: () => void;
   resumed: () => void;
+  runCompleted: (data: { runId: string; projectId: string; outcome: string; iterationCount: number }) => void;
 }
 
 export type RalphRuntimeEvent = keyof RalphRuntimeEvents;
@@ -516,6 +517,27 @@ export class RalphRuntime extends EventEmitter {
         lessonSummary,
         lessonPattern: topPattern?.pattern ?? null,
         lessonCountermeasure: topPattern?.countermeasure ?? null,
+      });
+
+      // Phase 26: Record run pattern for learning feedback loop
+      try {
+        this.db.createRunPattern({
+          projectId: activeRun.run.projectId,
+          runId,
+          milestoneCount: activeRun.run.iterationCount,
+          validationResult: validationPassRate !== null ? (validationPassRate >= 0.8 ? 'passed' : 'failed') : undefined,
+          deliveryStatus: outcome,
+        });
+      } catch (patternErr) {
+        console.warn('[RalphRuntime] Failed to record run pattern:', patternErr);
+      }
+
+      // Phase 26: Emit health event for run completion
+      this.emit('runCompleted', {
+        runId,
+        projectId: activeRun.run.projectId,
+        outcome,
+        iterationCount: activeRun.run.iterationCount,
       });
 
       // Generate additional pattern-specific lessons (outside transaction - non-critical)

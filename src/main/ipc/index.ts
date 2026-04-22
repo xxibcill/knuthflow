@@ -23,4 +23,5 @@ export { registerPortfolioHandlers } from './portfolioHandlers';
 export { registerPortfolioRuntimeHandlers } from './portfolioRuntimeHandlers';
 export { registerMonitoringHandlers } from './monitoringHandlers';
 export { registerBlueprintHandlers } from './blueprintHandlers';
+export { registerHealthHandlers, registerFeedbackHandlers, registerDeliveredAppsHandlers, registerIterationBacklogHandlers, registerRunPatternsHandlers, registerPortfolioSummaryHandlers } from './phase26Handlers';
 export { detectClaudeCode } from '../utils/claudeDetection';

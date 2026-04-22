@@ -3675,6 +3675,357 @@ class SessionDatabase {
     };
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Health Event Operations (Phase 26)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createHealthEvent(params: {
+    eventType: string;
+    appId?: string;
+    workspaceId?: string;
+    runId?: string;
+    status: string;
+    message?: string;
+    details?: string;
+    triggeredAt: number;
+  }): { id: string; eventType: string; appId: string | null; workspaceId: string | null; runId: string | null; status: string; message: string | null; details: string | null; triggeredAt: number; createdAt: number } {
+    const id = `he-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO health_events (id, event_type, app_id, workspace_id, run_id, status, message, details, triggered_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, params.eventType, params.appId ?? null, params.workspaceId ?? null, params.runId ?? null, params.status, params.message ?? null, params.details ?? null, params.triggeredAt, now);
+    return { id, eventType: params.eventType, appId: params.appId ?? null, workspaceId: params.workspaceId ?? null, runId: params.runId ?? null, status: params.status, message: params.message ?? null, details: params.details ?? null, triggeredAt: params.triggeredAt, createdAt: now };
+  }
+
+  listHealthEvents(limit = 100): { id: string; eventType: string; appId: string | null; workspaceId: string | null; runId: string | null; status: string; message: string | null; details: string | null; triggeredAt: number; createdAt: number }[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM health_events ORDER BY created_at DESC LIMIT ?
+    `).all(limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToHealthEvent(row));
+  }
+
+  private rowToHealthEvent(row: Record<string, unknown>): { id: string; eventType: string; appId: string | null; workspaceId: string | null; runId: string | null; status: string; message: string | null; details: string | null; triggeredAt: number; createdAt: number } {
+    return {
+      id: row.id as string,
+      eventType: row.event_type as string,
+      appId: row.app_id as string | null,
+      workspaceId: row.workspace_id as string | null,
+      runId: row.run_id as string | null,
+      status: row.status as string,
+      message: row.message as string | null,
+      details: row.details as string | null,
+      triggeredAt: row.triggered_at as number,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Feedback Operations (Phase 26)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createFeedback(params: {
+    appId?: string;
+    runId?: string;
+    type: string;
+    content: string;
+    rating?: number;
+    source?: string;
+    linkedBacklogId?: string;
+  }): { id: string; appId: string | null; runId: string | null; type: string; content: string; rating: number | null; source: string | null; linkedBacklogId: string | null; createdAt: number } {
+    const id = `fb-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO feedback (id, app_id, run_id, type, content, rating, source, linked_backlog_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, params.appId ?? null, params.runId ?? null, params.type, params.content, params.rating ?? null, params.source ?? null, params.linkedBacklogId ?? null, now);
+    return { id, appId: params.appId ?? null, runId: params.runId ?? null, type: params.type, content: params.content, rating: params.rating ?? null, source: params.source ?? null, linkedBacklogId: params.linkedBacklogId ?? null, createdAt: now };
+  }
+
+  listFeedback(limit = 100): { id: string; appId: string | null; runId: string | null; type: string; content: string; rating: number | null; source: string | null; linkedBacklogId: string | null; createdAt: number }[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM feedback ORDER BY created_at DESC LIMIT ?
+    `).all(limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToFeedback(row));
+  }
+
+  getFeedbackByRunId(runId: string): { id: string; appId: string | null; runId: string | null; type: string; content: string; rating: number | null; source: string | null; linkedBacklogId: string | null; createdAt: number }[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM feedback WHERE run_id = ? ORDER BY created_at DESC
+    `).all(runId) as Record<string, unknown>[];
+    return rows.map(row => this.rowToFeedback(row));
+  }
+
+  linkFeedbackToBacklog(feedbackId: string, backlogId: string): void {
+    this.db.prepare('UPDATE feedback SET linked_backlog_id = ? WHERE id = ?').run(backlogId, feedbackId);
+  }
+
+  private rowToFeedback(row: Record<string, unknown>): { id: string; appId: string | null; runId: string | null; type: string; content: string; rating: number | null; source: string | null; linkedBacklogId: string | null; createdAt: number } {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string | null,
+      runId: row.run_id as string | null,
+      type: row.type as string,
+      content: row.content as string,
+      rating: row.rating as number | null,
+      source: row.source as string | null,
+      linkedBacklogId: row.linked_backlog_id as string | null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Delivered Apps Registry Operations (Phase 26)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createDeliveredApp(params: {
+    appId: string;
+    workspacePath: string;
+    deliveryFormat: string;
+    bundlePath?: string;
+    runId?: string;
+    metadata?: Record<string, unknown>;
+  }): { id: string; appId: string; workspacePath: string; deliveryFormat: string; healthStatus: string; bundlePath: string | null; runId: string | null; metadata: Record<string, unknown>; deliveredAt: number; lastSeenAt: number | null; followUpSignal: string | null; followUpNotes: string | null; createdAt: number; updatedAt: number } {
+    const id = `da-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO delivered_apps (id, app_id, workspace_path, delivery_format, health_status, bundle_path, run_id, metadata, delivered_at, last_seen_at, follow_up_signal, follow_up_notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'unknown', ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
+    `).run(id, params.appId, params.workspacePath, params.deliveryFormat, params.bundlePath ?? null, params.runId ?? null, JSON.stringify(params.metadata ?? {}), now, now, now, now);
+    return { id, appId: params.appId, workspacePath: params.workspacePath, deliveryFormat: params.deliveryFormat, healthStatus: 'unknown', bundlePath: params.bundlePath ?? null, runId: params.runId ?? null, metadata: params.metadata ?? {}, deliveredAt: now, lastSeenAt: now, followUpSignal: null, followUpNotes: null, createdAt: now, updatedAt: now };
+  }
+
+  getDeliveredApp(id: string): { id: string; appId: string; workspacePath: string; deliveryFormat: string; healthStatus: string; bundlePath: string | null; runId: string | null; metadata: Record<string, unknown>; deliveredAt: number; lastSeenAt: number | null; followUpSignal: string | null; followUpNotes: string | null; createdAt: number; updatedAt: number } | null {
+    const row = this.db.prepare('SELECT * FROM delivered_apps WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToDeliveredApp(row);
+  }
+
+  getDeliveredAppByAppId(appId: string): { id: string; appId: string; workspacePath: string; deliveryFormat: string; healthStatus: string; bundlePath: string | null; runId: string | null; metadata: Record<string, unknown>; deliveredAt: number; lastSeenAt: number | null; followUpSignal: string | null; followUpNotes: string | null; createdAt: number; updatedAt: number } | null {
+    const row = this.db.prepare('SELECT * FROM delivered_apps WHERE app_id = ? ORDER BY delivered_at DESC LIMIT 1').get(appId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToDeliveredApp(row);
+  }
+
+  listDeliveredApps(limit = 50): { id: string; appId: string; workspacePath: string; deliveryFormat: string; healthStatus: string; bundlePath: string | null; runId: string | null; metadata: Record<string, unknown>; deliveredAt: number; lastSeenAt: number | null; followUpSignal: string | null; followUpNotes: string | null; createdAt: number; updatedAt: number }[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM delivered_apps ORDER BY delivered_at DESC LIMIT ?
+    `).all(limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToDeliveredApp(row));
+  }
+
+  updateDeliveredAppHealth(id: string, healthStatus: string): void {
+    const now = Date.now();
+    this.db.prepare('UPDATE delivered_apps SET health_status = ?, updated_at = ? WHERE id = ?').run(healthStatus, now, id);
+  }
+
+  updateDeliveredAppFollowUp(id: string, followUpSignal: string, followUpNotes?: string): void {
+    const now = Date.now();
+    this.db.prepare('UPDATE delivered_apps SET follow_up_signal = ?, follow_up_notes = ?, updated_at = ? WHERE id = ?').run(followUpSignal, followUpNotes ?? null, now, id);
+  }
+
+  updateDeliveredAppLastSeen(id: string): void {
+    const now = Date.now();
+    this.db.prepare('UPDATE delivered_apps SET last_seen_at = ? WHERE id = ?').run(now, id);
+  }
+
+  private rowToDeliveredApp(row: Record<string, unknown>): { id: string; appId: string; workspacePath: string; deliveryFormat: string; healthStatus: string; bundlePath: string | null; runId: string | null; metadata: Record<string, unknown>; deliveredAt: number; lastSeenAt: number | null; followUpSignal: string | null; followUpNotes: string | null; createdAt: number; updatedAt: number } {
+    return {
+      id: row.id as string,
+      appId: row.app_id as string,
+      workspacePath: row.workspace_path as string,
+      deliveryFormat: row.delivery_format as string,
+      healthStatus: row.health_status as string,
+      bundlePath: row.bundle_path as string | null,
+      runId: row.run_id as string | null,
+      metadata: JSON.parse(row.metadata as string || '{}'),
+      deliveredAt: row.delivered_at as number,
+      lastSeenAt: row.last_seen_at as number | null,
+      followUpSignal: row.follow_up_signal as string | null,
+      followUpNotes: row.follow_up_notes as string | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Iteration Backlog Operations (Phase 26)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createIterationBacklogItem(params: {
+    title: string;
+    description: string;
+    source: string;
+    priority?: 'high' | 'medium' | 'low';
+    linkedFeedbackId?: string;
+  }): { id: string; title: string; description: string; source: string; priority: string; status: string; createdAt: number; updatedAt: number; startedAt: number | null; completedAt: number | null; linkedFeedbackId: string | null } {
+    const id = `ib-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO iteration_backlog (id, title, description, source, priority, status, created_at, updated_at, linked_feedback_id)
+      VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)
+    `).run(id, params.title, params.description, params.source, params.priority ?? 'medium', now, now, params.linkedFeedbackId ?? null);
+    return { id, title: params.title, description: params.description, source: params.source, priority: params.priority ?? 'medium', status: 'open', createdAt: now, updatedAt: now, startedAt: null, completedAt: null, linkedFeedbackId: params.linkedFeedbackId ?? null };
+  }
+
+  getIterationBacklogItem(id: string): { id: string; title: string; description: string; source: string; priority: string; status: string; createdAt: number; updatedAt: number; startedAt: number | null; completedAt: number | null; linkedFeedbackId: string | null } | null {
+    const row = this.db.prepare('SELECT * FROM iteration_backlog WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToIterationBacklogItem(row);
+  }
+
+  listIterationBacklog(options?: { status?: string; priority?: string; limit?: number }): { id: string; title: string; description: string; source: string; priority: string; status: string; createdAt: number; updatedAt: number; startedAt: number | null; completedAt: number | null; linkedFeedbackId: string | null }[] {
+    let query = 'SELECT * FROM iteration_backlog';
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (options?.status) {
+      conditions.push('status = ?');
+      values.push(options.status);
+    }
+    if (options?.priority) {
+      conditions.push('priority = ?');
+      values.push(options.priority);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ' ORDER BY CASE priority WHEN \'high\' THEN 1 WHEN \'medium\' THEN 2 WHEN \'low\' THEN 3 ELSE 4 END, created_at DESC';
+
+    if (options?.limit) {
+      query += ' LIMIT ?';
+      values.push(options.limit);
+    }
+
+    const rows = this.db.prepare(query).all(...values) as Record<string, unknown>[];
+    return rows.map(row => this.rowToIterationBacklogItem(row));
+  }
+
+  updateIterationBacklogItem(id: string, updates: { status?: string; priority?: string }): void {
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+      if (updates.status === 'in-progress' || updates.status === 'started') {
+        setClauses.push('started_at = ?');
+        values.push(now);
+      }
+      if (updates.status === 'done' || updates.status === 'completed') {
+        setClauses.push('completed_at = ?');
+        values.push(now);
+      }
+    }
+    if (updates.priority !== undefined) {
+      setClauses.push('priority = ?');
+      values.push(updates.priority);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE iteration_backlog SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  private rowToIterationBacklogItem(row: Record<string, unknown>): { id: string; title: string; description: string; source: string; priority: string; status: string; createdAt: number; updatedAt: number; startedAt: number | null; completedAt: number | null; linkedFeedbackId: string | null } {
+    return {
+      id: row.id as string,
+      title: row.title as string,
+      description: row.description as string,
+      source: row.source as string,
+      priority: row.priority as string,
+      status: row.status as string,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+      startedAt: row.started_at as number | null,
+      completedAt: row.completed_at as number | null,
+      linkedFeedbackId: row.linked_feedback_id as string | null,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Run Patterns Operations (Phase 26)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createRunPattern(params: {
+    projectId: string;
+    runId?: string;
+    goalType?: string;
+    blueprintId?: string;
+    blueprintVersion?: string;
+    milestoneCount?: number;
+    validationResult?: string;
+    deliveryStatus?: string;
+    patternTags?: string[];
+  }): { id: string; projectId: string; runId: string | null; goalType: string | null; blueprintId: string | null; blueprintVersion: string | null; milestoneCount: number; validationResult: string | null; deliveryStatus: string | null; patternTags: string[]; createdAt: number } {
+    const id = `rp-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO run_patterns (id, project_id, run_id, goal_type, blueprint_id, blueprint_version, milestone_count, validation_result, delivery_status, pattern_tags, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, params.projectId, params.runId ?? null, params.goalType ?? null, params.blueprintId ?? null, params.blueprintVersion ?? null, params.milestoneCount ?? 0, params.validationResult ?? null, params.deliveryStatus ?? null, JSON.stringify(params.patternTags ?? []), now);
+    return { id, projectId: params.projectId, runId: params.runId ?? null, goalType: params.goalType ?? null, blueprintId: params.blueprintId ?? null, blueprintVersion: params.blueprintVersion ?? null, milestoneCount: params.milestoneCount ?? 0, validationResult: params.validationResult ?? null, deliveryStatus: params.deliveryStatus ?? null, patternTags: params.patternTags ?? [], createdAt: now };
+  }
+
+  listRunPatterns(projectId: string, limit = 50): { id: string; projectId: string; runId: string | null; goalType: string | null; blueprintId: string | null; blueprintVersion: string | null; milestoneCount: number; validationResult: string | null; deliveryStatus: string | null; patternTags: string[]; createdAt: number }[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM run_patterns WHERE project_id = ? ORDER BY created_at DESC LIMIT ?
+    `).all(projectId, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToRunPattern(row));
+  }
+
+  getRunPatternSummary(): { goalType: string; count: number; successCount: number; avgMilestones: number }[] {
+    const rows = this.db.prepare(`
+      SELECT goal_type, COUNT(*) as count,
+             SUM(CASE WHEN delivery_status = 'success' THEN 1 ELSE 0 END) as success_count,
+             AVG(milestone_count) as avg_milestones
+      FROM run_patterns WHERE goal_type IS NOT NULL
+      GROUP BY goal_type
+    `).all() as Record<string, unknown>[];
+    return rows.map(row => ({
+      goalType: row.goal_type as string,
+      count: row.count as number,
+      successCount: row.success_count as number,
+      avgMilestones: row.avg_milestones as number,
+    }));
+  }
+
+  private rowToRunPattern(row: Record<string, unknown>): { id: string; projectId: string; runId: string | null; goalType: string | null; blueprintId: string | null; blueprintVersion: string | null; milestoneCount: number; validationResult: string | null; deliveryStatus: string | null; patternTags: string[]; createdAt: number } {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      runId: row.run_id as string | null,
+      goalType: row.goal_type as string | null,
+      blueprintId: row.blueprint_id as string | null,
+      blueprintVersion: row.blueprint_version as string | null,
+      milestoneCount: row.milestone_count as number,
+      validationResult: row.validation_result as string | null,
+      deliveryStatus: row.delivery_status as string | null,
+      patternTags: JSON.parse(row.pattern_tags as string || '[]'),
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Portfolio Summary Operations (Phase 26)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  getPortfolioSummary(): { totalApps: number; healthyCount: number; recentDeliveries: number; aggregateSuccessRate: number } {
+    const totalRow = this.db.prepare('SELECT COUNT(*) as total FROM delivered_apps').get() as { total: number };
+    const healthyRow = this.db.prepare('SELECT COUNT(*) as healthy FROM delivered_apps WHERE health_status = \'healthy\'').get() as { healthy: number };
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recentRow = this.db.prepare('SELECT COUNT(*) as recent FROM delivered_apps WHERE delivered_at > ?').get(weekAgo) as { recent: number };
+    const successRow = this.db.prepare('SELECT COUNT(*) as total, SUM(CASE WHEN delivery_status = \'success\' THEN 1 ELSE 0 END) as successes FROM run_patterns WHERE delivery_status IS NOT NULL').get() as { total: number; successes: number };
+
+    return {
+      totalApps: totalRow.total,
+      healthyCount: healthyRow.healthy,
+      recentDeliveries: recentRow.recent,
+      aggregateSuccessRate: successRow.total > 0 ? successRow.successes / successRow.total : 0,
+    };
+  }
+
   close(): void {
     this.db.close();
   }

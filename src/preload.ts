@@ -700,6 +700,222 @@ const api: KnuthflowAPI = {
     ) =>
       ipcRenderer.invoke('blueprint:extend', parentBlueprintId, name, description, overrides),
   },
+  health: {
+    createEvent: (params: {
+      eventType: string;
+      appId?: string;
+      workspaceId?: string;
+      runId?: string;
+      status: string;
+      message?: string;
+      details?: string;
+      triggeredAt: number;
+    }) =>
+      ipcRenderer.invoke('health:createEvent', params),
+    listEvents: (limit?: number) =>
+      ipcRenderer.invoke('health:listEvents', limit) as Promise<Array<{
+        id: string;
+        eventType: string;
+        appId: string | null;
+        workspaceId: string | null;
+        runId: string | null;
+        status: string;
+        message: string | null;
+        details: string | null;
+        triggeredAt: number;
+        createdAt: number;
+      }>>,
+  },
+  feedback: {
+    create: (params: {
+      appId?: string;
+      runId?: string;
+      type: string;
+      content: string;
+      rating?: number;
+      source?: string;
+      linkedBacklogId?: string;
+    }) =>
+      ipcRenderer.invoke('feedback:create', params),
+    list: (limit?: number) =>
+      ipcRenderer.invoke('feedback:list', limit) as Promise<Array<{
+        id: string;
+        appId: string | null;
+        runId: string | null;
+        type: string;
+        content: string;
+        rating: number | null;
+        source: string | null;
+        linkedBacklogId: string | null;
+        createdAt: number;
+      }>>,
+    getByRunId: (runId: string) =>
+      ipcRenderer.invoke('feedback:getByRunId', runId) as Promise<Array<{
+        id: string;
+        appId: string | null;
+        runId: string | null;
+        type: string;
+        content: string;
+        rating: number | null;
+        source: string | null;
+        linkedBacklogId: string | null;
+        createdAt: number;
+      }>>,
+    linkToBacklog: (feedbackId: string, backlogId: string) =>
+      ipcRenderer.invoke('feedback:linkToBacklog', feedbackId, backlogId),
+  },
+  deliveredApps: {
+    create: (params: {
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      bundlePath?: string;
+      runId?: string;
+      metadata?: Record<string, unknown>;
+    }) =>
+      ipcRenderer.invoke('deliveredApps:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('deliveredApps:get', id) as Promise<{
+        id: string;
+        appId: string;
+        workspacePath: string;
+        deliveryFormat: string;
+        healthStatus: string;
+        bundlePath: string | null;
+        runId: string | null;
+        metadata: Record<string, unknown>;
+        deliveredAt: number;
+        lastSeenAt: number | null;
+        followUpSignal: string | null;
+        followUpNotes: string | null;
+        createdAt: number;
+        updatedAt: number;
+      } | null>,
+    getByAppId: (appId: string) =>
+      ipcRenderer.invoke('deliveredApps:getByAppId', appId) as Promise<{
+        id: string;
+        appId: string;
+        workspacePath: string;
+        deliveryFormat: string;
+        healthStatus: string;
+        bundlePath: string | null;
+        runId: string | null;
+        metadata: Record<string, unknown>;
+        deliveredAt: number;
+        lastSeenAt: number | null;
+        followUpSignal: string | null;
+        followUpNotes: string | null;
+        createdAt: number;
+        updatedAt: number;
+      } | null>,
+    list: (limit?: number) =>
+      ipcRenderer.invoke('deliveredApps:list', limit) as Promise<Array<{
+        id: string;
+        appId: string;
+        workspacePath: string;
+        deliveryFormat: string;
+        healthStatus: string;
+        bundlePath: string | null;
+        runId: string | null;
+        metadata: Record<string, unknown>;
+        deliveredAt: number;
+        lastSeenAt: number | null;
+        followUpSignal: string | null;
+        followUpNotes: string | null;
+        createdAt: number;
+        updatedAt: number;
+      }>>,
+    updateHealth: (id: string, healthStatus: string) =>
+      ipcRenderer.invoke('deliveredApps:updateHealth', id, healthStatus),
+    updateFollowUp: (id: string, followUpSignal: string, followUpNotes?: string) =>
+      ipcRenderer.invoke('deliveredApps:updateFollowUp', id, followUpSignal, followUpNotes),
+    updateLastSeen: (id: string) =>
+      ipcRenderer.invoke('deliveredApps:updateLastSeen', id),
+  },
+  iterationBacklog: {
+    create: (params: {
+      title: string;
+      description: string;
+      source: string;
+      priority?: 'high' | 'medium' | 'low';
+      linkedFeedbackId?: string;
+    }) =>
+      ipcRenderer.invoke('iterationBacklog:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('iterationBacklog:get', id) as Promise<{
+        id: string;
+        title: string;
+        description: string;
+        source: string;
+        priority: string;
+        status: string;
+        createdAt: number;
+        updatedAt: number;
+        startedAt: number | null;
+        completedAt: number | null;
+        linkedFeedbackId: string | null;
+      } | null>,
+    list: (options?: { status?: string; priority?: string; limit?: number }) =>
+      ipcRenderer.invoke('iterationBacklog:list', options) as Promise<Array<{
+        id: string;
+        title: string;
+        description: string;
+        source: string;
+        priority: string;
+        status: string;
+        createdAt: number;
+        updatedAt: number;
+        startedAt: number | null;
+        completedAt: number | null;
+        linkedFeedbackId: string | null;
+      }>>,
+    update: (id: string, updates: { status?: string; priority?: string }) =>
+      ipcRenderer.invoke('iterationBacklog:update', id, updates),
+  },
+  runPatterns: {
+    create: (params: {
+      projectId: string;
+      runId?: string;
+      goalType?: string;
+      blueprintId?: string;
+      blueprintVersion?: string;
+      milestoneCount?: number;
+      validationResult?: string;
+      deliveryStatus?: string;
+      patternTags?: string[];
+    }) =>
+      ipcRenderer.invoke('runPatterns:create', params),
+    list: (projectId: string, limit?: number) =>
+      ipcRenderer.invoke('runPatterns:list', projectId, limit) as Promise<Array<{
+        id: string;
+        projectId: string;
+        runId: string | null;
+        goalType: string | null;
+        blueprintId: string | null;
+        blueprintVersion: string | null;
+        milestoneCount: number;
+        validationResult: string | null;
+        deliveryStatus: string | null;
+        patternTags: string[];
+        createdAt: number;
+      }>>,
+    getSummary: () =>
+      ipcRenderer.invoke('runPatterns:getSummary') as Promise<Array<{
+        goalType: string;
+        count: number;
+        successCount: number;
+        avgMilestones: number;
+      }>>,
+  },
+  portfolioSummary: {
+    get: () =>
+      ipcRenderer.invoke('portfolio:getSummary') as Promise<{
+        totalApps: number;
+        healthyCount: number;
+        recentDeliveries: number;
+        aggregateSuccessRate: number;
+      }>,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

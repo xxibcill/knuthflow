@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -78,6 +78,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 14 to 15 (add blueprints tables for Phase 20)
   if (currentVersion < 15) {
     migrateToV15(db);
+  }
+
+  // Migrate from version 15 to 16 (add Phase 26 tables: health_events, feedback, delivered_apps, iteration_backlog, run_patterns)
+  if (currentVersion < 16) {
+    migrateToV16(db);
   }
 
   // Update schema version
@@ -852,5 +857,111 @@ function migrateToV15(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_blueprint_versions_version ON blueprint_versions(version);
     CREATE INDEX IF NOT EXISTS idx_blueprint_usage_stats_blueprint_id ON blueprint_usage_stats(blueprint_id);
     CREATE INDEX IF NOT EXISTS idx_blueprint_usage_stats_app_id ON blueprint_usage_stats(app_id);
+  `);
+}
+
+function migrateToV16(db: Database.Database): void {
+  // Create health_events table for lightweight telemetry (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS health_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      app_id TEXT,
+      workspace_id TEXT,
+      run_id TEXT,
+      status TEXT NOT NULL,
+      message TEXT,
+      details TEXT,
+      triggered_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create feedback table for operator feedback (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id TEXT PRIMARY KEY,
+      app_id TEXT,
+      run_id TEXT,
+      type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      rating INTEGER,
+      source TEXT,
+      linked_backlog_id TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create delivered_apps registry table (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS delivered_apps (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      workspace_path TEXT NOT NULL,
+      delivery_format TEXT NOT NULL,
+      health_status TEXT NOT NULL DEFAULT 'unknown',
+      bundle_path TEXT,
+      run_id TEXT,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      delivered_at INTEGER NOT NULL,
+      last_seen_at INTEGER,
+      follow_up_signal TEXT,
+      follow_up_notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create iteration_backlog table for improvement ideas (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS iteration_backlog (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      source TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      started_at INTEGER,
+      completed_at INTEGER,
+      linked_feedback_id TEXT
+    )
+  `);
+
+  // Create run_patterns table for learning feedback loop (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS run_patterns (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT,
+      goal_type TEXT,
+      blueprint_id TEXT,
+      blueprint_version TEXT,
+      milestone_count INTEGER NOT NULL DEFAULT 0,
+      validation_result TEXT,
+      delivery_status TEXT,
+      pattern_tags TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create indexes for Phase 26 tables
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_health_events_event_type ON health_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_health_events_created_at ON health_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_health_events_app_id ON health_events(app_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_app_id ON feedback(app_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_run_id ON feedback(run_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(type);
+    CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at);
+    CREATE INDEX IF NOT EXISTS idx_delivered_apps_app_id ON delivered_apps(app_id);
+    CREATE INDEX IF NOT EXISTS idx_delivered_apps_health_status ON delivered_apps(health_status);
+    CREATE INDEX IF NOT EXISTS idx_delivered_apps_delivered_at ON delivered_apps(delivered_at);
+    CREATE INDEX IF NOT EXISTS idx_iteration_backlog_status ON iteration_backlog(status);
+    CREATE INDEX IF NOT EXISTS idx_iteration_backlog_priority ON iteration_backlog(priority);
+    CREATE INDEX IF NOT EXISTS idx_iteration_backlog_created_at ON iteration_backlog(created_at);
+    CREATE INDEX IF NOT EXISTS idx_run_patterns_project_id ON run_patterns(project_id);
+    CREATE INDEX IF NOT EXISTS idx_run_patterns_created_at ON run_patterns(created_at);
   `);
 }

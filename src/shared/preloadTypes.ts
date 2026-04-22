@@ -1640,6 +1640,261 @@ export interface KnuthflowAPI {
       error?: string;
     }>;
   };
+  health: {
+    createEvent(params: {
+      eventType: string;
+      appId?: string;
+      workspaceId?: string;
+      runId?: string;
+      status: string;
+      message?: string;
+      details?: string;
+      triggeredAt: number;
+    }): Promise<{
+      id: string;
+      eventType: string;
+      appId: string | null;
+      workspaceId: string | null;
+      runId: string | null;
+      status: string;
+      message: string | null;
+      details: string | null;
+      triggeredAt: number;
+      createdAt: number;
+    }>;
+    listEvents(limit?: number): Promise<Array<{
+      id: string;
+      eventType: string;
+      appId: string | null;
+      workspaceId: string | null;
+      runId: string | null;
+      status: string;
+      message: string | null;
+      details: string | null;
+      triggeredAt: number;
+      createdAt: number;
+    }>>;
+  };
+  feedback: {
+    create(params: {
+      appId?: string;
+      runId?: string;
+      type: string;
+      content: string;
+      rating?: number;
+      source?: string;
+      linkedBacklogId?: string;
+    }): Promise<{
+      id: string;
+      appId: string | null;
+      runId: string | null;
+      type: string;
+      content: string;
+      rating: number | null;
+      source: string | null;
+      linkedBacklogId: string | null;
+      createdAt: number;
+    }>;
+    list(limit?: number): Promise<Array<{
+      id: string;
+      appId: string | null;
+      runId: string | null;
+      type: string;
+      content: string;
+      rating: number | null;
+      source: string | null;
+      linkedBacklogId: string | null;
+      createdAt: number;
+    }>>;
+    getByRunId(runId: string): Promise<Array<{
+      id: string;
+      appId: string | null;
+      runId: string | null;
+      type: string;
+      content: string;
+      rating: number | null;
+      source: string | null;
+      linkedBacklogId: string | null;
+      createdAt: number;
+    }>>;
+    linkToBacklog(feedbackId: string, backlogId: string): Promise<{ success: boolean; error?: string }>;
+  };
+  deliveredApps: {
+    create(params: {
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      bundlePath?: string;
+      runId?: string;
+      metadata?: Record<string, unknown>;
+    }): Promise<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    getByAppId(appId: string): Promise<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    list(limit?: number): Promise<Array<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    }>>;
+    updateHealth(id: string, healthStatus: string): Promise<{ success: boolean; error?: string }>;
+    updateFollowUp(id: string, followUpSignal: string, followUpNotes?: string): Promise<{ success: boolean; error?: string }>;
+    updateLastSeen(id: string): Promise<{ success: boolean; error?: string }>;
+  };
+  iterationBacklog: {
+    create(params: {
+      title: string;
+      description: string;
+      source: string;
+      priority?: 'high' | 'medium' | 'low';
+      linkedFeedbackId?: string;
+    }): Promise<{
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      priority: string;
+      status: string;
+      createdAt: number;
+      updatedAt: number;
+      startedAt: number | null;
+      completedAt: number | null;
+      linkedFeedbackId: string | null;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      priority: string;
+      status: string;
+      createdAt: number;
+      updatedAt: number;
+      startedAt: number | null;
+      completedAt: number | null;
+      linkedFeedbackId: string | null;
+    } | null>;
+    list(options?: { status?: string; priority?: string; limit?: number }): Promise<Array<{
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      priority: string;
+      status: string;
+      createdAt: number;
+      updatedAt: number;
+      startedAt: number | null;
+      completedAt: number | null;
+      linkedFeedbackId: string | null;
+    }>>;
+    update(id: string, updates: { status?: string; priority?: string }): Promise<{ success: boolean; error?: string }>;
+  };
+  runPatterns: {
+    create(params: {
+      projectId: string;
+      runId?: string;
+      goalType?: string;
+      blueprintId?: string;
+      blueprintVersion?: string;
+      milestoneCount?: number;
+      validationResult?: string;
+      deliveryStatus?: string;
+      patternTags?: string[];
+    }): Promise<{
+      id: string;
+      projectId: string;
+      runId: string | null;
+      goalType: string | null;
+      blueprintId: string | null;
+      blueprintVersion: string | null;
+      milestoneCount: number;
+      validationResult: string | null;
+      deliveryStatus: string | null;
+      patternTags: string[];
+      createdAt: number;
+    }>;
+    list(projectId: string, limit?: number): Promise<Array<{
+      id: string;
+      projectId: string;
+      runId: string | null;
+      goalType: string | null;
+      blueprintId: string | null;
+      blueprintVersion: string | null;
+      milestoneCount: number;
+      validationResult: string | null;
+      deliveryStatus: string | null;
+      patternTags: string[];
+      createdAt: number;
+    }>>;
+    getSummary(): Promise<Array<{
+      goalType: string;
+      count: number;
+      successCount: number;
+      avgMilestones: number;
+    }>>;
+  };
+  portfolioSummary: {
+    get(): Promise<{
+      totalApps: number;
+      healthyCount: number;
+      recentDeliveries: number;
+      aggregateSuccessRate: number;
+    }>;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

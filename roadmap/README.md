@@ -38,6 +38,7 @@ Current product bias:
 | [Phase 23](./phases/phase-23-ralph-first-project-flow.md) | Ralph-First Project Flow | Users can move from app idea or existing folder through intake, bootstrap, run supervision, artifacts, and delivery without dropping into generic terminal flow |
 | [Phase 24](./phases/phase-24-ralph-api-compatibility-and-data.md) | Ralph API Compatibility and Data | New code can use Ralph-named APIs while existing Knuthflow integrations, local data, and projects continue to work |
 | [Phase 25](./phases/phase-25-ralph-release-readiness.md) | Ralph Release Readiness | Ralph can ship as a coherent Ralph-focused desktop release with docs, packaging, QA, release notes, and regression checks |
+| [Phase 26](./phases/phase-26-post-release-stability-and-iteration-foundation.md) | Post-Release Stability and Iteration Foundation | Ralph ships as a stable desktop release with health monitoring foundations, operator feedback channels, delivered app tracking, and an iteration backlog that lets Ralph learn from completed work |
 
 ## Sequencing Logic
 
@@ -66,6 +67,7 @@ Current product bias:
 23. Make the Ralph project lifecycle the primary interaction model, from brief to bootstrap to run to delivery.
 24. Add Ralph-named API and data compatibility layers before broad internal renames, preserving existing user data and tests.
 25. Run the release-readiness pass only after product story, shell behavior, workflow, API compatibility, and data policy are aligned.
+26. Instrument health monitoring, feedback channels, and iteration backlog after first release to close the learning loop.
 
 ## Creating a New Phase
 
