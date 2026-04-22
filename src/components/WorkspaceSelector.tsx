@@ -152,7 +152,7 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
               <div className="mb-4">
                 <p className="metric-label">Register Workspace</p>
                 <p className="m-0 text-sm text-muted">
-                  Give the repository a clear label and point Ralph to the root directory.
+                  Give this Ralph workspace a clear name and point it to the project root.
                 </p>
               </div>
 
@@ -242,12 +242,12 @@ export function WorkspaceSelector({ onSelect, selectedWorkspace }: WorkspaceSele
                 <svg className="empty-state-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
-                <h3 className="text-lg font-semibold">No workspaces configured</h3>
+                <h3 className="text-lg font-semibold">No Ralph workspaces yet</h3>
                 <p className="mt-2 text-sm text-muted">
-                  Add a repository to start routing Claude Code sessions through Ralph.
+                  Add a repository to give Ralph a workspace to operate in.
                 </p>
                 <button onClick={() => setShowAddForm(true)} className="btn btn-primary mt-4">
-                  Add First Workspace
+                  Add Ralph Workspace
                 </button>
               </div>
             </div>

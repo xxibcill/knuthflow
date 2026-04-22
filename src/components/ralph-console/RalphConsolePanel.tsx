@@ -20,6 +20,8 @@ import type {
 import {
   getRalphLifecycleState,
   getLifecycleStateInfo,
+  detectAmbiguousStates,
+  getRecoveryMessage,
   type RalphLifecycleState,
   type RalphLifecycleContext,
 } from '../../shared/ralphLifecycle';
@@ -819,6 +821,16 @@ export function RalphConsolePanel({
   const lifecycleState = getRalphLifecycleState(lifecycleContext);
   const lifecycleInfo = getLifecycleStateInfo(lifecycleContext);
 
+  // Compute recovery state for ambiguous/warning conditions (Phase 23)
+  const activePtySessionIds = new Set(
+    activeWorkspaceRuns.filter(r => r.status === 'running' && r.ptySessionId).map(r => r.ptySessionId!)
+  );
+  const ambiguousStates = detectAmbiguousStates(lifecycleContext, activePtySessionIds);
+  const recoveryMessage = getRecoveryMessage(
+    lifecycleState,
+    workspaceReadiness?.issues ?? []
+  );
+
   return (
     <div className="section-shell">
       <div className="section-header">
@@ -934,6 +946,37 @@ export function RalphConsolePanel({
                   <p className={`m-0 text-sm ${workspaceNotice.tone === 'error' ? 'text-red-300' : 'text-[var(--text-primary)]'}`}>
                     {workspaceNotice.message}
                   </p>
+                </div>
+              )}
+
+              {/* Recovery state banner (Phase 23) */}
+              {(recoveryMessage || ambiguousStates.length > 0) && (
+                <div className="mt-4 p-4 border border-yellow-500/50 rounded-lg bg-yellow-500/10">
+                  {recoveryMessage && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-warning">Recovery Required</span>
+                        <h4 className="font-semibold text-yellow-200">{recoveryMessage.title}</h4>
+                      </div>
+                      <p className="text-sm text-yellow-100/80 m-0">{recoveryMessage.description}</p>
+                      {recoveryMessage.technicalDetails && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-yellow-200/60 cursor-pointer">Technical details</summary>
+                          <pre className="mt-1 text-xs text-yellow-200/60 whitespace-pre-wrap">{recoveryMessage.technicalDetails}</pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                  {ambiguousStates.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {ambiguousStates.map((state, i) => (
+                        <div key={i} className="text-sm">
+                          <span className="font-semibold text-yellow-200">{state.message}</span>
+                          <span className="text-yellow-100/70 ml-2">{state.recovery}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
