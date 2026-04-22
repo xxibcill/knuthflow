@@ -1,8 +1,70 @@
 # Changelog
 
-All notable changes to Knuthflow are documented here.
+All notable changes to Ralph (formerly Knuthflow) are documented here.
 
 ## [Unreleased]
+
+## [2.0.0] - 2026-04-22 - Ralph Refocus Release
+
+### Changed
+
+#### Phase 21: Ralph Product Source of Truth
+- Product repositioned from "Knuthflow" to "Ralph" as the primary product name
+- PRD rewritten to reflect Ralph as an autonomous desktop app builder
+- Terminology updated: "Ralph loop" replaces "autonomous mode", "operator" replaces "developer"
+- User jobs and success metrics redefined around Ralph's core value proposition
+
+#### Phase 22: Ralph Brand and Shell
+- App title changed from "Knuthflow" to "Ralph"
+- Navigation updated: Ralph Console is the primary entry point (not Terminal)
+- Default route changed to Ralph-first shell on launch
+- Empty states and onboarding flows rewritten for Ralph workflow
+- Package metadata (productName, name, etc.) updated to Ralph branding
+- UI smoke tests updated to verify Ralph-first launch
+
+#### Phase 23: Ralph-First Project Flow
+- Project lifecycle model redesigned around Ralph enablement states:
+  - `no_workspace` → `workspace_selected_not_enabled` → `needs_fresh_bootstrap` → `ready_no_active_run` → `active_run` → `delivery_ready` → `delivered`
+- New Project entry via "New App" button opens intake form first
+- Existing Project entry via Open Folder detects .ralph/ directory
+- Intake → Blueprint → Bootstrap/Scaffold → Run → Delivery workflow
+- Recovery states for: stale runs, missing control files, failed bootstrap, missing dependencies
+
+#### Phase 24: Ralph API Compatibility and Data
+- `window.ralph` is now the preferred API (replaces `window.knuthflow`)
+- `window.knuthflow` retained as deprecated alias for backward compatibility
+- `RALPH_USER_DATA_DIR` is the preferred env var override
+- `KNUTHFLOW_USER_DATA_DIR` retained as legacy alias
+- Database filename `knuthflow.db` unchanged for data compatibility
+- Preload API exposed both `window.ralph` and `window.knuthflow` pointing to same implementation
+- IPC contract documentation updated with Ralph branding
+
+### Added
+
+#### Phase 25: Ralph Release Readiness
+- QA matrix documenting Ralph-first workflow coverage, safety checks, compatibility verification
+- Release checklist with Ralph branding, package identity, dependency messaging, data compatibility items
+- Operator guide rewritten for Ralph-first workflows (no generic terminal as default path)
+- E2E tests for primary Ralph happy path (intake → blueprint → bootstrap → run → delivery)
+- E2E tests for existing Ralph project open, repair, and recovery
+- E2E tests for safety controls (pause/resume/stop), validation failure, missing dependencies
+- E2E tests for compatibility (`window.ralph` and `window.knuthflow` alias behavior)
+- Changelog updated to reflect Ralph refocus
+
+### Fixed
+
+- IPC handler code review issues
+- Runtime errors in operator console
+- Race conditions and task hierarchy issues
+- Memory leaks and path handling bugs
+- Codebase search and context gathering job implementation
+- Workspace selector path handling and secure storage command execution
+- Blueprint type imports and IPC event type
+- Phase 19 monitoring issues (updateMaintenanceRun missing runId field)
+- Phase 18 review issues (type consolidation, path validation, error handling)
+- Phase 17 bugs (atomic delivery+lessons, id-based lookups, pattern threshold, autoInject precedence)
+- CSP blocking Monaco editor CDN
+- E2E test runner issues (Linux executable name, CI packaging, UI test skipping on macOS)
 
 ## [1.0.0] - 2026-04-11
 
