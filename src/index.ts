@@ -36,6 +36,12 @@ import {
   registerPreviewHandlers,
   registerPolicyHandlers,
   registerConnectorHandlers,
+  registerAnalyticsEventHandlers,
+  registerAnalyticsRollupHandlers,
+  registerBottleneckHandlers,
+  registerForecastHandlers,
+  registerRecommendationHandlers,
+  registerReportHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -217,6 +223,14 @@ function registerIpcHandlers(): void {
 
   // Connector handlers (Phase 30)
   registerConnectorHandlers();
+
+  // Analytics and reporting handlers (Phase 31)
+  registerAnalyticsEventHandlers();
+  registerAnalyticsRollupHandlers();
+  registerBottleneckHandlers();
+  registerForecastHandlers();
+  registerRecommendationHandlers();
+  registerReportHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
