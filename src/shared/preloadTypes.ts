@@ -12,12 +12,22 @@ import type {
   PolicyOverride,
   PolicyAuditEntry,
   EffectivePolicy,
+  AnalyticsEvent,
+  AnalyticsRollup,
+  BottleneckDetection,
+  Forecast,
+  RecommendationRecord,
 } from './ralphTypes';
 export type {
   PolicyRule,
   PolicyOverride,
   PolicyAuditEntry,
   EffectivePolicy,
+  AnalyticsEvent,
+  AnalyticsRollup,
+  BottleneckDetection,
+  Forecast,
+  RecommendationRecord,
 } from './ralphTypes';
 import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
 import type { Blueprint, BlueprintVersion } from './blueprintTypes';
@@ -2178,6 +2188,124 @@ export interface KnuthflowAPI {
       params?: Record<string, unknown>;
     }): Promise<{ success: boolean; result?: unknown; error?: { code: ConnectorErrorCode; message: string; retryable: boolean } }>;
     redactedConfig(configId: string): Promise<{ success: boolean; configValues: Record<string, string> }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Analytics Types (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+  analytics: {
+    createEvent(params: {
+      projectId?: string | null;
+      runId?: string | null;
+      sessionId?: string | null;
+      eventType: string;
+      category: AnalyticsEvent['category'];
+      metricName: string;
+      metricValue: number;
+      dimensions?: Record<string, unknown>;
+    }): Promise<{ success: boolean; event?: AnalyticsEvent; error?: string }>;
+    listEvents(filter?: {
+      projectId?: string | null;
+      runId?: string | null;
+      eventType?: string;
+      category?: AnalyticsEvent['category'];
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number): Promise<{ success: boolean; events: AnalyticsEvent[] }>;
+    getEvent(id: string): Promise<{ success: boolean; event?: AnalyticsEvent; error?: string }>;
+    createRollup(params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType: string;
+      timeWindow: string;
+      metricName: string;
+      metricValue: number;
+      sampleSize: number;
+      dimensions?: Record<string, unknown>;
+    }): Promise<{ success: boolean; rollup?: AnalyticsRollup; error?: string }>;
+    listRollups(filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType?: string;
+      timeWindow?: string;
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number): Promise<{ success: boolean; rollups: AnalyticsRollup[] }>;
+    listBottlenecks(filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      bottleneckType?: BottleneckDetection['bottleneckType'];
+      severity?: BottleneckDetection['severity'];
+      status?: BottleneckDetection['status'];
+    }, limit?: number): Promise<{ success: boolean; bottlenecks: BottleneckDetection[] }>;
+    updateBottleneck(id: string, updates: { status?: BottleneckDetection['status']; suggestion?: string }): Promise<{ success: boolean; bottleneck?: BottleneckDetection; error?: string }>;
+    createForecast(params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      appType?: string | null;
+      platformTargets?: string[];
+      stackPreferences?: string[];
+      estimatedDurationMs?: number | null;
+      estimatedIterationCount?: number | null;
+      estimatedRiskLevel?: Forecast['estimatedRiskLevel'];
+      confidenceScore?: number | null;
+      caveats?: string | null;
+    }): Promise<{ success: boolean; forecast?: Forecast; error?: string }>;
+    listForecasts(filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      resolved?: boolean;
+    }, limit?: number): Promise<{ success: boolean; forecasts: Forecast[] }>;
+    resolveForecast(id: string, actuals: {
+      actualDurationMs: number;
+      actualIterationCount: number;
+      actualOutcome: Forecast['actualOutcome'];
+    }): Promise<{ success: boolean; forecast?: Forecast; error?: string }>;
+    listRecommendations(filter?: {
+      projectId?: string | null;
+      recommendationType?: RecommendationRecord['recommendationType'];
+      targetEntityType?: RecommendationRecord['targetEntityType'];
+      targetEntityId?: string | null;
+      status?: RecommendationRecord['status'];
+    }, limit?: number): Promise<{ success: boolean; recommendations: RecommendationRecord[] }>;
+    updateRecommendation(id: string, updates: {
+      status?: RecommendationRecord['status'];
+      outcome?: string | null;
+      outcomeNotes?: string | null;
+      deferredUntil?: number | null;
+    }): Promise<{ success: boolean; recommendation?: RecommendationRecord; error?: string }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Report Types (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+  report: {
+    generate(filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }): Promise<{ success: boolean; report?: unknown; error?: string }>;
+    exportJson(filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }): Promise<{ success: boolean; content?: string; error?: string }>;
+    exportMarkdown(filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }): Promise<{ success: boolean; content?: string; error?: string }>;
   };
 }
 

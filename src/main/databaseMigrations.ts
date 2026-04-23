@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -93,6 +93,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
   // Migrate from version 17 to 18 (add Phase 30 connector tables)
   if (currentVersion < 18) {
     migrateToV18(db);
+  }
+
+  // Migrate from version 18 to 19 (add Phase 31 analytics tables)
+  if (currentVersion < 19) {
+    migrateToV19(db);
   }
 
   // Update schema version
@@ -186,6 +191,135 @@ function migrateToV18(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_connector_configs_connector_id ON connector_configs(connector_id);
     CREATE INDEX IF NOT EXISTS idx_connector_configs_project_id ON connector_configs(project_id);
     CREATE INDEX IF NOT EXISTS idx_connector_configs_scope ON connector_configs(scope);
+  `);
+}
+
+function migrateToV19(db: Database.Database): void {
+  // Create analytics_events table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      run_id TEXT,
+      session_id TEXT,
+      event_type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      metric_name TEXT NOT NULL,
+      metric_value REAL NOT NULL,
+      dimensions TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create analytics_rollups table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_rollups (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      blueprint_id TEXT,
+      portfolio_id TEXT,
+      rollup_type TEXT NOT NULL,
+      time_window TEXT NOT NULL,
+      metric_name TEXT NOT NULL,
+      metric_value REAL NOT NULL,
+      sample_size INTEGER NOT NULL,
+      dimensions TEXT NOT NULL DEFAULT '{}',
+      computed_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id),
+      FOREIGN KEY (portfolio_id) REFERENCES portfolios(id)
+    )
+  `);
+
+  // Create bottleneck_detections table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bottleneck_detections (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      blueprint_id TEXT,
+      bottleneck_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      frequency INTEGER NOT NULL,
+      impact_score REAL NOT NULL,
+      example_run_ids TEXT NOT NULL DEFAULT '[]',
+      suggestion TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'detected',
+      dismissed_at INTEGER,
+      addressed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id)
+    )
+  `);
+
+  // Create forecasts table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS forecasts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      blueprint_id TEXT,
+      app_type TEXT,
+      platform_targets TEXT NOT NULL DEFAULT '[]',
+      stack_preferences TEXT NOT NULL DEFAULT '[]',
+      estimated_duration_ms INTEGER,
+      estimated_iteration_count INTEGER,
+      estimated_risk_level TEXT,
+      confidence_score REAL,
+      caveats TEXT,
+      actual_duration_ms INTEGER,
+      actual_iteration_count INTEGER,
+      actual_outcome TEXT,
+      created_at INTEGER NOT NULL,
+      resolved_at INTEGER,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id)
+    )
+  `);
+
+  // Create recommendation_records table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recommendation_records (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      recommendation_type TEXT NOT NULL,
+      target_entity_type TEXT NOT NULL,
+      target_entity_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      actionable_steps TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      approved_at INTEGER,
+      dismissed_at INTEGER,
+      deferred_until INTEGER,
+      outcome TEXT,
+      outcome_notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create indexes for analytics queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_project_id ON analytics_events(project_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_run_id ON analytics_events(run_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_category ON analytics_events(category);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_metric_name ON analytics_events(metric_name);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_created_at ON analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_analytics_rollups_project_id ON analytics_rollups(project_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_rollups_blueprint_id ON analytics_rollups(blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_rollups_time_window ON analytics_rollups(time_window);
+    CREATE INDEX IF NOT EXISTS idx_bottleneck_detections_project_id ON bottleneck_detections(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bottleneck_detections_type ON bottleneck_detections(bottleneck_type);
+    CREATE INDEX IF NOT EXISTS idx_bottleneck_detections_status ON bottleneck_detections(status);
+    CREATE INDEX IF NOT EXISTS idx_forecasts_project_id ON forecasts(project_id);
+    CREATE INDEX IF NOT EXISTS idx_forecasts_blueprint_id ON forecasts(blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_recommendation_records_project_id ON recommendation_records(project_id);
+    CREATE INDEX IF NOT EXISTS idx_recommendation_records_status ON recommendation_records(status);
   `);
 }
 

@@ -1076,6 +1076,136 @@ const api: KnuthflowAPI = {
     redactedConfig: (configId: string) =>
       ipcRenderer.invoke('connector:redactedConfig', configId),
   },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Analytics (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+  analytics: {
+    createEvent: (params: {
+      projectId?: string | null;
+      runId?: string | null;
+      sessionId?: string | null;
+      eventType: string;
+      category: string;
+      metricName: string;
+      metricValue: number;
+      dimensions?: Record<string, unknown>;
+    }) =>
+      ipcRenderer.invoke('analytics:createEvent', params),
+    listEvents: (filter?: {
+      projectId?: string | null;
+      runId?: string | null;
+      eventType?: string;
+      category?: string;
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number) =>
+      ipcRenderer.invoke('analytics:listEvents', filter, limit),
+    getEvent: (id: string) =>
+      ipcRenderer.invoke('analytics:getEvent', id),
+    createRollup: (params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType: string;
+      timeWindow: string;
+      metricName: string;
+      metricValue: number;
+      sampleSize: number;
+      dimensions?: Record<string, unknown>;
+    }) =>
+      ipcRenderer.invoke('analytics:createRollup', params),
+    listRollups: (filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType?: string;
+      timeWindow?: string;
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number) =>
+      ipcRenderer.invoke('analytics:listRollups', filter, limit),
+    listBottlenecks: (filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      bottleneckType?: string;
+      severity?: string;
+      status?: string;
+    }, limit?: number) =>
+      ipcRenderer.invoke('bottleneck:list', filter, limit),
+    updateBottleneck: (id: string, updates: { status?: string; suggestion?: string }) =>
+      ipcRenderer.invoke('bottleneck:update', id, updates),
+    createForecast: (params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      appType?: string | null;
+      platformTargets?: string[];
+      stackPreferences?: string[];
+      estimatedDurationMs?: number | null;
+      estimatedIterationCount?: number | null;
+      estimatedRiskLevel?: string | null;
+      confidenceScore?: number | null;
+      caveats?: string | null;
+    }) =>
+      ipcRenderer.invoke('forecast:create', params),
+    listForecasts: (filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      resolved?: boolean;
+    }, limit?: number) =>
+      ipcRenderer.invoke('forecast:list', filter, limit),
+    resolveForecast: (id: string, actuals: {
+      actualDurationMs: number;
+      actualIterationCount: number;
+      actualOutcome: 'success' | 'failure' | 'cancelled' | null;
+    }) =>
+      ipcRenderer.invoke('forecast:resolve', id, actuals),
+    listRecommendations: (filter?: {
+      projectId?: string | null;
+      recommendationType?: string;
+      targetEntityType?: string;
+      targetEntityId?: string | null;
+      status?: string;
+    }, limit?: number) =>
+      ipcRenderer.invoke('recommendation:list', filter, limit),
+    updateRecommendation: (id: string, updates: {
+      status?: string;
+      outcome?: string | null;
+      outcomeNotes?: string | null;
+      deferredUntil?: number | null;
+    }) =>
+      ipcRenderer.invoke('recommendation:update', id, updates),
+  },
+  report: {
+    generate: (filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }) =>
+      ipcRenderer.invoke('report:generate', filters),
+    exportJson: (filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }) =>
+      ipcRenderer.invoke('report:exportJson', filters),
+    exportMarkdown: (filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }) =>
+      ipcRenderer.invoke('report:exportMarkdown', filters),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

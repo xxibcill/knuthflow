@@ -480,3 +480,118 @@ export const DEFAULT_POLICY_RULES: Omit<PolicyRule, 'id' | 'projectId' | 'create
     inheritable: true,
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 31: Analytics Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AnalyticsCategory = 'performance' | 'quality' | 'engagement' | 'business';
+
+export interface AnalyticsEvent {
+  id: string;
+  projectId: string | null;
+  runId: string | null;
+  sessionId: string | null;
+  eventType: string;
+  category: AnalyticsCategory;
+  metricName: string;
+  metricValue: number;
+  dimensions: Record<string, unknown>;
+  createdAt: number;
+}
+
+export interface AnalyticsRollup {
+  id: string;
+  projectId: string | null;
+  blueprintId: string | null;
+  portfolioId: string | null;
+  rollupType: string;
+  timeWindow: string;
+  metricName: string;
+  metricValue: number;
+  sampleSize: number;
+  dimensions: Record<string, unknown>;
+  computedAt: number;
+}
+
+export type BottleneckType =
+  | 'slow_validation_gate'
+  | 'repeated_build_failure'
+  | 'frequent_policy_override'
+  | 'repeated_operator_intervention'
+  | 'failed_packaging_step';
+
+export type BottleneckSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface BottleneckDetection {
+  id: string;
+  projectId: string | null;
+  blueprintId: string | null;
+  bottleneckType: BottleneckType;
+  description: string;
+  severity: BottleneckSeverity;
+  frequency: number;
+  impactScore: number;
+  exampleRunIds: string[];
+  suggestion: string;
+  status: 'detected' | 'addressed' | 'dismissed';
+  dismissedAt: number | null;
+  addressedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Forecast {
+  id: string;
+  projectId: string | null;
+  blueprintId: string | null;
+  appType: string | null;
+  platformTargets: string[];
+  stackPreferences: string[];
+  estimatedDurationMs: number | null;
+  estimatedIterationCount: number | null;
+  estimatedRiskLevel: 'low' | 'medium' | 'high' | 'very_high' | null;
+  confidenceScore: number | null;
+  caveats: string | null;
+  actualDurationMs: number | null;
+  actualIterationCount: number | null;
+  actualOutcome: 'success' | 'failure' | 'cancelled' | null;
+  createdAt: number;
+  resolvedAt: number | null;
+}
+
+export type RecommendationType =
+  | 'blueprint_update'
+  | 'validation_gate_adjustment'
+  | 'policy_change'
+  | 'scaffold_improvement';
+
+export type RecommendationEntityType = 'blueprint' | 'policy_rule' | 'validation_gate' | 'scaffold';
+
+export type RecommendationStatus =
+  | 'pending'
+  | 'approved'
+  | 'dismissed'
+  | 'deferred'
+  | 'applied'
+  | 'superseded';
+
+export interface RecommendationRecord {
+  id: string;
+  projectId: string | null;
+  recommendationType: RecommendationType;
+  targetEntityType: RecommendationEntityType;
+  targetEntityId: string | null;
+  title: string;
+  description: string;
+  actionableSteps: string;
+  status: RecommendationStatus;
+  approvedAt: number | null;
+  dismissedAt: number | null;
+  deferredUntil: number | null;
+  outcome: string | null;
+  outcomeNotes: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+

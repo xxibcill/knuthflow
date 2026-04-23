@@ -13,6 +13,11 @@ import type {
   PolicyOverride,
   PolicyAuditEntry,
   EffectivePolicy,
+  AnalyticsEvent,
+  AnalyticsRollup,
+  BottleneckDetection,
+  Forecast,
+  RecommendationRecord,
 } from '../shared/ralphTypes';
 import { DEFAULT_POLICY_RULES } from '../shared/ralphTypes';
 export type {
@@ -4503,6 +4508,655 @@ class SessionDatabase {
       healthyCount: healthyRow.healthy,
       recentDeliveries: recentRow.recent,
       aggregateSuccessRate: successRow.total > 0 ? successRow.successes / successRow.total : 0,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Analytics Event Operations (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createAnalyticsEvent(params: {
+    projectId?: string | null;
+    runId?: string | null;
+    sessionId?: string | null;
+    eventType: string;
+    category: AnalyticsEvent['category'];
+    metricName: string;
+    metricValue: number;
+    dimensions?: Record<string, unknown>;
+  }): AnalyticsEvent {
+    const id = `ae-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO analytics_events (id, project_id, run_id, session_id, event_type, category, metric_name, metric_value, dimensions, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId ?? null,
+      params.runId ?? null,
+      params.sessionId ?? null,
+      params.eventType,
+      params.category,
+      params.metricName,
+      params.metricValue,
+      JSON.stringify(params.dimensions ?? {}),
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId ?? null,
+      runId: params.runId ?? null,
+      sessionId: params.sessionId ?? null,
+      eventType: params.eventType,
+      category: params.category,
+      metricName: params.metricName,
+      metricValue: params.metricValue,
+      dimensions: params.dimensions ?? {},
+      createdAt: now,
+    };
+  }
+
+  listAnalyticsEvents(filter?: {
+    projectId?: string | null;
+    runId?: string | null;
+    eventType?: string;
+    category?: AnalyticsEvent['category'];
+    metricName?: string;
+    startTime?: number;
+    endTime?: number;
+  }, limit = 1000): AnalyticsEvent[] {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (filter?.projectId !== undefined) {
+      conditions.push('project_id = ?');
+      values.push(filter.projectId);
+    }
+    if (filter?.runId !== undefined) {
+      conditions.push('run_id = ?');
+      values.push(filter.runId);
+    }
+    if (filter?.eventType) {
+      conditions.push('event_type = ?');
+      values.push(filter.eventType);
+    }
+    if (filter?.category) {
+      conditions.push('category = ?');
+      values.push(filter.category);
+    }
+    if (filter?.metricName) {
+      conditions.push('metric_name = ?');
+      values.push(filter.metricName);
+    }
+    if (filter?.startTime) {
+      conditions.push('created_at >= ?');
+      values.push(filter.startTime);
+    }
+    if (filter?.endTime) {
+      conditions.push('created_at <= ?');
+      values.push(filter.endTime);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM analytics_events ${where} ORDER BY created_at DESC LIMIT ?`;
+    const rows = this.db.prepare(query).all(...values, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToAnalyticsEvent(row));
+  }
+
+  getAnalyticsEvent(id: string): AnalyticsEvent | null {
+    const row = this.db.prepare('SELECT * FROM analytics_events WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToAnalyticsEvent(row);
+  }
+
+  private rowToAnalyticsEvent(row: Record<string, unknown>): AnalyticsEvent {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string | null,
+      runId: row.run_id as string | null,
+      sessionId: row.session_id as string | null,
+      eventType: row.event_type as string,
+      category: row.category as AnalyticsEvent['category'],
+      metricName: row.metric_name as string,
+      metricValue: row.metric_value as number,
+      dimensions: JSON.parse(row.dimensions as string || '{}'),
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Analytics Rollup Operations (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createAnalyticsRollup(params: {
+    projectId?: string | null;
+    blueprintId?: string | null;
+    portfolioId?: string | null;
+    rollupType: string;
+    timeWindow: string;
+    metricName: string;
+    metricValue: number;
+    sampleSize: number;
+    dimensions?: Record<string, unknown>;
+  }): AnalyticsRollup {
+    const id = `ar-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO analytics_rollups (id, project_id, blueprint_id, portfolio_id, rollup_type, time_window, metric_name, metric_value, sample_size, dimensions, computed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId ?? null,
+      params.blueprintId ?? null,
+      params.portfolioId ?? null,
+      params.rollupType,
+      params.timeWindow,
+      params.metricName,
+      params.metricValue,
+      params.sampleSize,
+      JSON.stringify(params.dimensions ?? {}),
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId ?? null,
+      blueprintId: params.blueprintId ?? null,
+      portfolioId: params.portfolioId ?? null,
+      rollupType: params.rollupType,
+      timeWindow: params.timeWindow,
+      metricName: params.metricName,
+      metricValue: params.metricValue,
+      sampleSize: params.sampleSize,
+      dimensions: params.dimensions ?? {},
+      computedAt: now,
+    };
+  }
+
+  listAnalyticsRollups(filter?: {
+    projectId?: string | null;
+    blueprintId?: string | null;
+    portfolioId?: string | null;
+    rollupType?: string;
+    timeWindow?: string;
+    metricName?: string;
+    startTime?: number;
+    endTime?: number;
+  }, limit = 100): AnalyticsRollup[] {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (filter?.projectId !== undefined) {
+      conditions.push('project_id = ?');
+      values.push(filter.projectId);
+    }
+    if (filter?.blueprintId !== undefined) {
+      conditions.push('blueprint_id = ?');
+      values.push(filter.blueprintId);
+    }
+    if (filter?.portfolioId !== undefined) {
+      conditions.push('portfolio_id = ?');
+      values.push(filter.portfolioId);
+    }
+    if (filter?.rollupType) {
+      conditions.push('rollup_type = ?');
+      values.push(filter.rollupType);
+    }
+    if (filter?.timeWindow) {
+      conditions.push('time_window = ?');
+      values.push(filter.timeWindow);
+    }
+    if (filter?.metricName) {
+      conditions.push('metric_name = ?');
+      values.push(filter.metricName);
+    }
+    if (filter?.startTime) {
+      conditions.push('computed_at >= ?');
+      values.push(filter.startTime);
+    }
+    if (filter?.endTime) {
+      conditions.push('computed_at <= ?');
+      values.push(filter.endTime);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM analytics_rollups ${where} ORDER BY computed_at DESC LIMIT ?`;
+    const rows = this.db.prepare(query).all(...values, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToAnalyticsRollup(row));
+  }
+
+  private rowToAnalyticsRollup(row: Record<string, unknown>): AnalyticsRollup {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string | null,
+      blueprintId: row.blueprint_id as string | null,
+      portfolioId: row.portfolio_id as string | null,
+      rollupType: row.rollup_type as string,
+      timeWindow: row.time_window as string,
+      metricName: row.metric_name as string,
+      metricValue: row.metric_value as number,
+      sampleSize: row.sample_size as number,
+      dimensions: JSON.parse(row.dimensions as string || '{}'),
+      computedAt: row.computed_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Bottleneck Detection Operations (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createBottleneckDetection(params: {
+    projectId?: string | null;
+    blueprintId?: string | null;
+    bottleneckType: BottleneckDetection['bottleneckType'];
+    description: string;
+    severity: BottleneckDetection['severity'];
+    frequency: number;
+    impactScore: number;
+    exampleRunIds?: string[];
+    suggestion: string;
+    status?: BottleneckDetection['status'];
+  }): BottleneckDetection {
+    const id = `bn-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO bottleneck_detections (id, project_id, blueprint_id, bottleneck_type, description, severity, frequency, impact_score, example_run_ids, suggestion, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId ?? null,
+      params.blueprintId ?? null,
+      params.bottleneckType,
+      params.description,
+      params.severity,
+      params.frequency,
+      params.impactScore,
+      JSON.stringify(params.exampleRunIds ?? []),
+      params.suggestion,
+      params.status ?? 'detected',
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId ?? null,
+      blueprintId: params.blueprintId ?? null,
+      bottleneckType: params.bottleneckType,
+      description: params.description,
+      severity: params.severity,
+      frequency: params.frequency,
+      impactScore: params.impactScore,
+      exampleRunIds: params.exampleRunIds ?? [],
+      suggestion: params.suggestion,
+      status: params.status ?? 'detected',
+      dismissedAt: null,
+      addressedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  listBottleneckDetections(filter?: {
+    projectId?: string | null;
+    blueprintId?: string | null;
+    bottleneckType?: BottleneckDetection['bottleneckType'];
+    severity?: BottleneckDetection['severity'];
+    status?: BottleneckDetection['status'];
+  }, limit = 100): BottleneckDetection[] {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (filter?.projectId !== undefined) {
+      conditions.push('project_id = ?');
+      values.push(filter.projectId);
+    }
+    if (filter?.blueprintId !== undefined) {
+      conditions.push('blueprint_id = ?');
+      values.push(filter.blueprintId);
+    }
+    if (filter?.bottleneckType) {
+      conditions.push('bottleneck_type = ?');
+      values.push(filter.bottleneckType);
+    }
+    if (filter?.severity) {
+      conditions.push('severity = ?');
+      values.push(filter.severity);
+    }
+    if (filter?.status) {
+      conditions.push('status = ?');
+      values.push(filter.status);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM bottleneck_detections ${where} ORDER BY frequency DESC, impact_score DESC LIMIT ?`;
+    const rows = this.db.prepare(query).all(...values, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToBottleneckDetection(row));
+  }
+
+  updateBottleneckDetection(id: string, updates: Partial<{
+    status: BottleneckDetection['status'];
+    suggestion: string;
+  }>): BottleneckDetection | null {
+    const existing = this.listBottleneckDetections({ status: undefined as unknown as undefined }, 1).find(b => b.id === id);
+    if (!existing) {
+      const row = this.db.prepare('SELECT * FROM bottleneck_detections WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+      if (!row) return null;
+    }
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+      if (updates.status === 'dismissed') {
+        setClauses.push('dismissed_at = ?');
+        values.push(now);
+      } else if (updates.status === 'addressed') {
+        setClauses.push('addressed_at = ?');
+        values.push(now);
+      }
+    }
+    if (updates.suggestion !== undefined) {
+      setClauses.push('suggestion = ?');
+      values.push(updates.suggestion);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE bottleneck_detections SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    const row = this.db.prepare('SELECT * FROM bottleneck_detections WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToBottleneckDetection(row);
+  }
+
+  private rowToBottleneckDetection(row: Record<string, unknown>): BottleneckDetection {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string | null,
+      blueprintId: row.blueprint_id as string | null,
+      bottleneckType: row.bottleneck_type as BottleneckDetection['bottleneckType'],
+      description: row.description as string,
+      severity: row.severity as BottleneckDetection['severity'],
+      frequency: row.frequency as number,
+      impactScore: row.impact_score as number,
+      exampleRunIds: JSON.parse(row.example_run_ids as string || '[]'),
+      suggestion: row.suggestion as string,
+      status: row.status as BottleneckDetection['status'],
+      dismissedAt: row.dismissed_at as number | null,
+      addressedAt: row.addressed_at as number | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Forecast Operations (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createForecast(params: {
+    projectId?: string | null;
+    blueprintId?: string | null;
+    appType?: string | null;
+    platformTargets?: string[];
+    stackPreferences?: string[];
+    estimatedDurationMs?: number | null;
+    estimatedIterationCount?: number | null;
+    estimatedRiskLevel?: Forecast['estimatedRiskLevel'];
+    confidenceScore?: number | null;
+    caveats?: string | null;
+  }): Forecast {
+    const id = `fc-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO forecasts (id, project_id, blueprint_id, app_type, platform_targets, stack_preferences, estimated_duration_ms, estimated_iteration_count, estimated_risk_level, confidence_score, caveats, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId ?? null,
+      params.blueprintId ?? null,
+      params.appType ?? null,
+      JSON.stringify(params.platformTargets ?? []),
+      JSON.stringify(params.stackPreferences ?? []),
+      params.estimatedDurationMs ?? null,
+      params.estimatedIterationCount ?? null,
+      params.estimatedRiskLevel ?? null,
+      params.confidenceScore ?? null,
+      params.caveats ?? null,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId ?? null,
+      blueprintId: params.blueprintId ?? null,
+      appType: params.appType ?? null,
+      platformTargets: params.platformTargets ?? [],
+      stackPreferences: params.stackPreferences ?? [],
+      estimatedDurationMs: params.estimatedDurationMs ?? null,
+      estimatedIterationCount: params.estimatedIterationCount ?? null,
+      estimatedRiskLevel: params.estimatedRiskLevel ?? null,
+      confidenceScore: params.confidenceScore ?? null,
+      caveats: params.caveats ?? null,
+      actualDurationMs: null,
+      actualIterationCount: null,
+      actualOutcome: null,
+      createdAt: now,
+      resolvedAt: null,
+    };
+  }
+
+  listForecasts(filter?: {
+    projectId?: string | null;
+    blueprintId?: string | null;
+    resolved?: boolean;
+  }, limit = 100): Forecast[] {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (filter?.projectId !== undefined) {
+      conditions.push('project_id = ?');
+      values.push(filter.projectId);
+    }
+    if (filter?.blueprintId !== undefined) {
+      conditions.push('blueprint_id = ?');
+      values.push(filter.blueprintId);
+    }
+    if (filter?.resolved === true) {
+      conditions.push('resolved_at IS NOT NULL');
+    } else if (filter?.resolved === false) {
+      conditions.push('resolved_at IS NULL');
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM forecasts ${where} ORDER BY created_at DESC LIMIT ?`;
+    const rows = this.db.prepare(query).all(...values, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToForecast(row));
+  }
+
+  resolveForecast(id: string, actuals: {
+    actualDurationMs: number;
+    actualIterationCount: number;
+    actualOutcome: Forecast['actualOutcome'];
+  }): Forecast | null {
+    const now = Date.now();
+    this.db.prepare(`
+      UPDATE forecasts SET actual_duration_ms = ?, actual_iteration_count = ?, actual_outcome = ?, resolved_at = ? WHERE id = ?
+    `).run(actuals.actualDurationMs, actuals.actualIterationCount, actuals.actualOutcome, now, id);
+
+    const row = this.db.prepare('SELECT * FROM forecasts WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToForecast(row);
+  }
+
+  private rowToForecast(row: Record<string, unknown>): Forecast {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string | null,
+      blueprintId: row.blueprint_id as string | null,
+      appType: row.app_type as string | null,
+      platformTargets: JSON.parse(row.platform_targets as string || '[]'),
+      stackPreferences: JSON.parse(row.stack_preferences as string || '[]'),
+      estimatedDurationMs: row.estimated_duration_ms as number | null,
+      estimatedIterationCount: row.estimated_iteration_count as number | null,
+      estimatedRiskLevel: row.estimated_risk_level as Forecast['estimatedRiskLevel'],
+      confidenceScore: row.confidence_score as number | null,
+      caveats: row.caveats as string | null,
+      actualDurationMs: row.actual_duration_ms as number | null,
+      actualIterationCount: row.actual_iteration_count as number | null,
+      actualOutcome: row.actual_outcome as Forecast['actualOutcome'],
+      createdAt: row.created_at as number,
+      resolvedAt: row.resolved_at as number | null,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Recommendation Record Operations (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  createRecommendationRecord(params: {
+    projectId?: string | null;
+    recommendationType: RecommendationRecord['recommendationType'];
+    targetEntityType: RecommendationRecord['targetEntityType'];
+    targetEntityId?: string | null;
+    title: string;
+    description: string;
+    actionableSteps: string;
+    status?: RecommendationRecord['status'];
+  }): RecommendationRecord {
+    const id = `rec-${crypto.randomUUID()}`;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO recommendation_records (id, project_id, recommendation_type, target_entity_type, target_entity_id, title, description, actionable_steps, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.projectId ?? null,
+      params.recommendationType,
+      params.targetEntityType,
+      params.targetEntityId ?? null,
+      params.title,
+      params.description,
+      JSON.stringify(params.actionableSteps),
+      params.status ?? 'pending',
+      now,
+      now
+    );
+    return {
+      id,
+      projectId: params.projectId ?? null,
+      recommendationType: params.recommendationType,
+      targetEntityType: params.targetEntityType,
+      targetEntityId: params.targetEntityId ?? null,
+      title: params.title,
+      description: params.description,
+      actionableSteps: typeof params.actionableSteps === 'string' ? params.actionableSteps : JSON.stringify(params.actionableSteps),
+      status: params.status ?? 'pending',
+      approvedAt: null,
+      dismissedAt: null,
+      deferredUntil: null,
+      outcome: null,
+      outcomeNotes: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  listRecommendationRecords(filter?: {
+    projectId?: string | null;
+    recommendationType?: RecommendationRecord['recommendationType'];
+    targetEntityType?: RecommendationRecord['targetEntityType'];
+    targetEntityId?: string | null;
+    status?: RecommendationRecord['status'];
+  }, limit = 100): RecommendationRecord[] {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (filter?.projectId !== undefined) {
+      conditions.push('project_id = ?');
+      values.push(filter.projectId);
+    }
+    if (filter?.recommendationType) {
+      conditions.push('recommendation_type = ?');
+      values.push(filter.recommendationType);
+    }
+    if (filter?.targetEntityType) {
+      conditions.push('target_entity_type = ?');
+      values.push(filter.targetEntityType);
+    }
+    if (filter?.targetEntityId !== undefined) {
+      conditions.push('target_entity_id = ?');
+      values.push(filter.targetEntityId);
+    }
+    if (filter?.status) {
+      conditions.push('status = ?');
+      values.push(filter.status);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM recommendation_records ${where} ORDER BY created_at DESC LIMIT ?`;
+    const rows = this.db.prepare(query).all(...values, limit) as Record<string, unknown>[];
+    return rows.map(row => this.rowToRecommendationRecord(row));
+  }
+
+  updateRecommendationRecord(id: string, updates: Partial<{
+    status: RecommendationRecord['status'];
+    outcome: string | null;
+    outcomeNotes: string | null;
+    deferredUntil: number | null;
+  }>): RecommendationRecord | null {
+    const now = Date.now();
+    const setClauses: string[] = ['updated_at = ?'];
+    const values: unknown[] = [now];
+
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?');
+      values.push(updates.status);
+      if (updates.status === 'approved') {
+        setClauses.push('approved_at = ?');
+        values.push(now);
+      } else if (updates.status === 'dismissed') {
+        setClauses.push('dismissed_at = ?');
+        values.push(now);
+      }
+    }
+    if (updates.outcome !== undefined) {
+      setClauses.push('outcome = ?');
+      values.push(updates.outcome);
+    }
+    if (updates.outcomeNotes !== undefined) {
+      setClauses.push('outcome_notes = ?');
+      values.push(updates.outcomeNotes);
+    }
+    if (updates.deferredUntil !== undefined) {
+      setClauses.push('deferred_until = ?');
+      values.push(updates.deferredUntil);
+    }
+
+    values.push(id);
+    this.db.prepare(`UPDATE recommendation_records SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+
+    const row = this.db.prepare('SELECT * FROM recommendation_records WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToRecommendationRecord(row);
+  }
+
+  private rowToRecommendationRecord(row: Record<string, unknown>): RecommendationRecord {
+    return {
+      id: row.id as string,
+      projectId: row.project_id as string | null,
+      recommendationType: row.recommendation_type as RecommendationRecord['recommendationType'],
+      targetEntityType: row.target_entity_type as RecommendationRecord['targetEntityType'],
+      targetEntityId: row.target_entity_id as string | null,
+      title: row.title as string,
+      description: row.description as string,
+      actionableSteps: JSON.parse(row.actionable_steps as string || '[]'),
+      status: row.status as RecommendationRecord['status'],
+      approvedAt: row.approved_at as number | null,
+      dismissedAt: row.dismissed_at as number | null,
+      deferredUntil: row.deferred_until as number | null,
+      outcome: row.outcome as string | null,
+      outcomeNotes: row.outcome_notes as string | null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
     };
   }
 
