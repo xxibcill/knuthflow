@@ -2186,6 +2186,10 @@ export interface KnuthflowAPI {
       targetScope?: string;
       resourceId?: string;
       params?: Record<string, unknown>;
+      projectId?: string;
+      runId?: string;
+      iteration?: number;
+      itemId?: string | null;
     }): Promise<{ success: boolean; result?: unknown; error?: { code: ConnectorErrorCode; message: string; retryable: boolean } }>;
     redactedConfig(configId: string): Promise<{ success: boolean; configValues: Record<string, string> }>;
   };

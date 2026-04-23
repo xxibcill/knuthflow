@@ -126,6 +126,9 @@ export function registerConnectorHandlers(): void {
     resourceId?: string;
     params?: Record<string, unknown>;
     projectId?: string;
+    runId?: string;
+    iteration?: number;
+    itemId?: string | null;
   }) => {
     try {
       // First check policy if projectId is provided
@@ -161,6 +164,10 @@ export function registerConnectorHandlers(): void {
         targetScope: params.targetScope,
         resourceId: params.resourceId,
         params: params.params,
+        projectId: params.projectId,
+        runId: params.runId,
+        iteration: params.iteration,
+        itemId: params.itemId,
       });
 
       return result;

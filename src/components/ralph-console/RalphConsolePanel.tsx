@@ -1232,6 +1232,9 @@ export function RalphConsolePanel({
                     workspacePath={selectedRun?.workspacePath ?? workspace?.path ?? null}
                     onOpenFile={onOpenFile}
                     onRefresh={() => void loadSelectedRunDetails(selectedRun!)}
+                    projectId={selectedRun.projectId}
+                    runId={selectedRun.runId}
+                    iteration={selectedRun.iterationCount}
                   />
                 )}
 

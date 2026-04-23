@@ -1071,6 +1071,9 @@ const api: KnuthflowAPI = {
       resourceId?: string;
       params?: Record<string, unknown>;
       projectId?: string;
+      runId?: string;
+      iteration?: number;
+      itemId?: string | null;
     }) =>
       ipcRenderer.invoke('connector:call', params),
     redactedConfig: (configId: string) =>
