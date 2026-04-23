@@ -46,7 +46,7 @@ export class PreviewProcessManager {
     this.defaultOptions = {
       startupTimeoutMs: 60000,
       readinessCheckIntervalMs: 500,
-      maxRetries: 3,
+      maxRetries: 120,
       ...defaultOptions,
     };
   }
@@ -78,10 +78,11 @@ export class PreviewProcessManager {
 
     this.processes.set(processId, previewProcess);
 
-    // Start the process asynchronously
-    this.startProcess(previewProcess, opts).catch((err) => {
+    // Start the process asynchronously and expose the real readiness promise.
+    previewProcess.readyPromise = this.startProcess(previewProcess, opts).catch((err) => {
       previewProcess.status = 'failed';
       previewProcess.error = err.message;
+      throw err;
     });
 
     return previewProcess;
@@ -93,7 +94,7 @@ export class PreviewProcessManager {
   private async startProcess(
     previewProcess: PreviewProcess,
     options: PreviewProcessOptions
-  ): Promise<void> {
+  ): Promise<string> {
     const { command, port } = previewProcess;
     const startTime = Date.now();
 
@@ -143,8 +144,7 @@ export class PreviewProcessManager {
         .then((url) => {
           previewProcess.status = 'ready';
           previewProcess.startupTimeMs = Date.now() - startTime;
-          previewProcess.readyPromise = Promise.resolve(url);
-          resolve();
+          resolve(url);
         })
         .catch((err) => {
           previewProcess.status = 'failed';
