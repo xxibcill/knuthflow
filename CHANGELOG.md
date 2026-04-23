@@ -4,6 +4,56 @@ All notable changes to Ralph (formerly Knuthflow) are documented here.
 
 ## [Unreleased]
 
+#### Phase 26: Post-Release Stability and Iteration Foundation
+- Health event tracking system (create, list) with timestamp and metadata
+- Operator feedback panel with full CRUD for run comments and ratings
+- Delivered apps panel with health tracking and follow-up management
+- Iteration backlog panel for tracking follow-up work with status management
+- Run pattern recording and summary retrieval for improvement insights
+- Autonomous maintenance scheduler with health-check-triggered maintenance runs
+- Portfolio visibility seeding on delivery confirmation
+- Post-release validation E2E tests
+
+#### Phase 27: Operator Onboarding and Guided First Run
+- Onboarding state persistence with first launch detection
+- Dependency checklist checking Claude Code, Git, npm, and workspace permissions
+- Sample brief picker with templates for Web App, Desktop Utility, and API Service
+- Recovery copy and retry/recheck behavior for failed dependencies
+- "Replay Onboarding" button in Settings > About
+- E2E tests for first launch, dependency checks, and onboarding replay
+
+#### Phase 28: Preview Evidence and Visual Validation
+- Preview script detection from package.json and framework metadata
+- Preview lifecycle management with port allocation, timeout, and cleanup
+- Screenshot capture via Playwright for visual evidence
+- Visual smoke checks: blank screen detection, console error checks, content verification
+- Enhanced artifact viewer with visual evidence display
+- Delivery panel with visual approval gates and override workflow
+
+#### Phase 29: Policy, Permissions, and Change Governance
+- Policy rules, overrides, and audit log database tables
+- Policy settings UI with Rules/Overrides/Audit Log tabs and full CRUD
+- Policy enforcement engine with enforcement points for commands, file writes, dependency updates, connector calls, packaging, and delivery
+- Policy injection into loop prompt building
+- Override workflow with approve/reject, auto-expiry, and audit records
+- Policy violation tests
+
+#### Phase 30: Tool Connector Hub
+- Connector manifest registry with capability interface
+- Connector settings UI with setup, health checks, and scope configuration
+- Secure storage for connector secrets
+- Built-in stubs for repository, issues, design, registry, and monitoring connectors
+- Connector permission checks via policy enforcement
+- Artifact capture for connector inputs, outputs, and failures
+
+#### Phase 31: Run Analytics and Forecasting
+- Analytics event schemas, rollups, bottlenecks, forecasts, and recommendations (schema v19)
+- Analytics dashboard with project/portfolio views, trends, KPIs, filters, and tabbed interface
+- Forecasting engine for effort, risk, and validation estimates
+- Bottleneck detection with actionable suggestions
+- Exportable JSON and Markdown analytics reports
+- Recommendation hooks into blueprint and policy workflows
+
 ## [2.0.0] - 2026-04-22 - Ralph Refocus Release
 
 ### Changed

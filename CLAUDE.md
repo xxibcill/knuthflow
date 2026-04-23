@@ -4,67 +4,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Knuthflow is a desktop wrapper for Claude Code CLI built with Electron. It provides a native desktop shell with PTY-backed terminal sessions, workspace/session management, persistent SQLite storage, and Ralph autonomous loop support.
+Ralph is a desktop operator console built with Electron Forge that controls the local Claude Code CLI to build apps autonomously one milestone at a time with explicit operator approval gates and reviewable evidence. The primary workflow is: **Brief → Blueprint → Bootstrap → Run → Evidence → Delivery → Maintenance**.
 
-## Available Scripts
+## Commands
 
 ```bash
-npm run start        # start Electron app in development
-npm run package      # package app for current platform
-npm run make         # build distributable installers
-npm run lint         # run ESLint
-npm run test:e2e     # package app, then run Playwright e2e tests
-npm run test:e2e:headed  # run e2e with visible browser
-npm run test:e2e:ci  # run Playwright in CI mode (no packaging)
+npm run start         # Start Electron app in development
+npm run lint          # Run ESLint
+npm run package       # Package app for current platform
+npm run make          # Build distributable installers
+npm run test:e2e      # Package app then run Playwright e2e tests
+npm run test:e2e:headed   # Run e2e tests with visible browser
+npm run test:e2e:ci    # Run Playwright tests in CI mode (no packaging)
 ```
 
 ## Architecture
 
-### Process Model
+### Electron Process Split
+- **Main process** (`src/main/`): PTY management, Ralph runtime, scheduler, safety, database, supervisor, secure storage, logs
+- **Preload** (`src/preload.ts`): Secure IPC bridge exposed as `window.knuthflow`
+- **Renderer** (`src/components/`): React UI — RalphConsole, terminal, workspace selector, settings, history, editor, diff views
+- **Shared** (`src/shared/`): Ralph and domain types used across processes
 
-- **Main process** (`src/main/`): PTY management, database, Ralph runtime, supervisor, secure storage. Runs Node.js.
-- **Preload** (`src/preload.ts`): Secure IPC bridge exposing `window.knuthflow` API to renderer.
-- **Renderer** (`src/`): React 19 UI with Tailwind CSS.
+### Key Services (main process)
+- `ptyManager.ts` — PTY-backed terminal for Claude Code execution via `node-pty`
+- `ralphRuntime.ts` — Core loop execution state machine (idle → planning → executing → validating → paused/completed/failed)
+- `ralphScheduler.ts` — Item scheduling with priority queue and dependency resolution
+- `ralphExecution.ts` — Claude Code execution adapter
+- `ralphSafety.ts` — Circuit breaker, rate limiting, stop reason tracking
+- `database.ts` — SQLite via `better-sqlite3` for Ralph state, workspaces, sessions
+- `ralphBootstrap.ts` — Workspace initialization and readiness validation
 
-### IPC Organization
+### Ralph Loop State Machine
+States: `idle | starting | planning | executing | validating | paused | failed | cancelled | completed`
 
-All IPC handlers are registered in `src/main/ipc/index.ts`. Each domain has its own handler file:
-- `processHandlers.ts` - Child process spawning
-- `ptyHandlers.ts` - PTY session management via node-pty
-- `claudeHandlers.ts` - Claude Code CLI detection and launch
-- `workspaceHandlers.ts` / `sessionHandlers.ts` - Workspace/session CRUD
-- `ralphHandlers.ts` - Ralph project/loop management
-- `ralphRuntimeHandlers.ts` - Active Ralph loop execution
-- `milestoneValidationHandlers.ts` - Build/test/lint validation
-- `deliveryHandlers.ts` - Packaging and release handoff
+### Ralph Control Files (workspace bootstrap)
+- `PROMPT.md` — Loop instruction prompt
+- `AGENT.md` — Agent configuration (build/run/test instructions)
+- `fix_plan.md` — Repair plan template
+- `specs/` — Feature specifications directory
+- `.ralph/` — Ralph project metadata directory
 
-### Key Services
-
-| Service | File | Purpose |
-|---------|------|---------|
-| PtyManager | `main/ptyManager.ts` | Spawns/manages PTY sessions |
-| RalphRuntime | `main/ralphRuntime.ts` | Orchestrates autonomous Ralph loops |
-| RalphScheduler | `main/ralphScheduler.ts` | Schedules loop iterations |
-| RalphSafety | `main/ralphSafety.ts` | Safety monitoring for Ralph operations (max iterations, auto-stop, resource limits) |
-| Supervisor | `main/supervisor.ts` | Detects crashes, cleans orphans |
-| Database | `main/database.ts` | SQLite via better-sqlite3 |
-
-### Ralph Bootstrap Files
-
-When a workspace is bootstrapped for Ralph, these files are created:
-- `PROMPT.md` - Loop instruction prompt
-- `AGENT.md` - Agent configuration (build/run/test instructions)
-- `fix_plan.md` - Repair plan template
-- `specs/` - Feature specifications directory
-- `.ralph/` - Ralph project metadata directory
-
-## Data Storage
-
-- **SQLite DB**: `knuthflow.db` in Electron userData - workspaces, sessions, settings, profiles, Ralph state
-- **Logs**: `logs/` directory under userData
-- **Secrets**: macOS Keychain when available; encrypted file fallback in `secrets/`
-- **Environment Variable**: `RALPH_USER_DATA_DIR` (preferred) or `KNUTHFLOW_USER_DATA_DIR` (legacy) to override userData path for testing
+### Local Storage
+- App data lives under Electron's `userData` directory
+- `knuthflow.db` — workspaces, sessions, settings, profiles, Ralph state, delivery manifests
+- `logs/` — rotating application logs
+- `secrets/` — fallback encrypted secret storage when platform keychain unavailable
+- Override with `RALPH_USER_DATA_DIR` or `KNUTHFLOW_USER_DATA_DIR` env vars
 
 ## Tech Stack
 
-Electron Forge, React 19, TypeScript, Webpack, Tailwind CSS, node-pty, xterm.js, Monaco Editor, better-sqlite3, Playwright
+- Electron Forge + Webpack
+- React 19 + TypeScript
+- Tailwind CSS
+- `node-pty` — PTY-backed terminal
+- `xterm.js` — terminal rendering
+- Monaco Editor — artifact inspection
+- `better-sqlite3` — local persistence
+- Playwright — e2e testing
+
+## PRD
+
+`PRD.md` is the evergreen product requirements document — the source of truth for product intent, requirements, and decisions. `roadmap/` contains the phased delivery plan (Phases 01–20 are foundation, Phase 21+ covers Ralph product work). `QA.md` has the release checklist.
