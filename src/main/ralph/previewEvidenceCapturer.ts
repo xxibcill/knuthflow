@@ -1,6 +1,8 @@
-import { chromium, Browser, Page, BrowserContext } from '@playwright/test';
-
 import type { ValidationError, ValidationWarning } from './ralphArtifact';
+
+type PlaywrightBrowser = import('playwright').Browser;
+type PlaywrightBrowserContext = import('playwright').BrowserContext;
+type PlaywrightPage = import('playwright').Page;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -81,8 +83,8 @@ export interface PreviewEvidenceResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class PreviewEvidenceCapturer {
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
+  private browser: PlaywrightBrowser | null = null;
+  private context: PlaywrightBrowserContext | null = null;
 
   /**
    * Capture screenshots and browser evidence for a running preview server
@@ -154,7 +156,7 @@ export class PreviewEvidenceCapturer {
    */
   private async isPlaywrightAvailable(): Promise<boolean> {
     try {
-      // Try to launch a minimal browser to check if Playwright works
+      const { chromium } = await import('playwright');
       const testBrowser = await chromium.launch({ headless: true });
       await testBrowser.close();
       return true;
@@ -171,6 +173,7 @@ export class PreviewEvidenceCapturer {
       return;
     }
 
+    const { chromium } = await import('playwright');
     this.browser = await chromium.launch({
       headless: true,
       args: [
