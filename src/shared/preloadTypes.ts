@@ -22,6 +22,22 @@ export type {
 import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
 import type { Blueprint, BlueprintVersion } from './blueprintTypes';
 import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
+import type {
+  ConnectorManifest,
+  ConnectorConfig,
+  ConnectorHealth,
+  ConnectorCapability,
+  ConnectorCallContext,
+  ConnectorErrorCode,
+} from './connectorTypes';
+export type {
+  ConnectorManifest,
+  ConnectorConfig,
+  ConnectorHealth,
+  ConnectorCapability,
+  ConnectorCallContext,
+  ConnectorErrorCode,
+} from './connectorTypes';
 export type { ArtifactType };
 export type { Blueprint, BlueprintVersion } from './blueprintTypes';
 
@@ -2128,6 +2144,40 @@ export interface KnuthflowAPI {
     approveOverride(id: string, approver: string): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
     rejectOverride(id: string, approver: string): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
     listAuditEntries(projectId: string, limit?: number): Promise<{ success: boolean; entries: PolicyAuditEntry[] }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Connector Types (Phase 30)
+  // ─────────────────────────────────────────────────────────────────────────────
+  connector: {
+    listManifests(): Promise<{ success: boolean; connectors: ConnectorManifest[] }>;
+    listConfigs(projectId?: string | null): Promise<{ success: boolean; configs: Array<ConnectorConfig & { health?: ConnectorHealth }> }>;
+    getConfig(id: string): Promise<{ success: boolean; config: (ConnectorConfig & { health?: ConnectorHealth; manifest?: ConnectorManifest }) | null; error?: string }>;
+    saveConfig(params: {
+      connectorId: string;
+      projectId?: string | null;
+      scope?: 'global' | 'project';
+      enabled?: boolean;
+      configValues: Record<string, string>;
+    }): Promise<{ success: boolean; config?: ConnectorConfig; error?: string }>;
+    deleteConfig(id: string): Promise<{ success: boolean; error?: string }>;
+    testConnection(id: string): Promise<{
+      success: boolean;
+      result?: {
+        status: 'healthy' | 'degraded' | 'error' | 'needs_auth';
+        message: string;
+        latencyMs?: number;
+      };
+      error?: string;
+    }>;
+    call(params: {
+      connectorId: string;
+      capability: ConnectorCapability;
+      operation: 'read' | 'write' | 'delete' | 'publish' | 'deploy';
+      targetScope?: string;
+      resourceId?: string;
+      params?: Record<string, unknown>;
+    }): Promise<{ success: boolean; result?: unknown; error?: { code: ConnectorErrorCode; message: string; retryable: boolean } }>;
+    redactedConfig(configId: string): Promise<{ success: boolean; configValues: Record<string, string> }>;
   };
 }
 

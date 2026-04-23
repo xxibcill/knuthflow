@@ -21,6 +21,10 @@ const artifactTypeLabels: Record<ArtifactType, string> = {
   preview_screenshot: 'Preview Screenshot',
   visual_smoke_check: 'Visual Smoke Check',
   console_evidence: 'Console Evidence',
+  connector_input: 'Connector Input',
+  connector_output: 'Connector Output',
+  connector_failure: 'Connector Failure',
+  connector_health: 'Connector Health',
 };
 
 function getSeverityTone(severity: RalphArtifact['severity']) {

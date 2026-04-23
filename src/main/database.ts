@@ -39,6 +39,9 @@ export {
 import type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
 export type { PlatformCategory, PlatformTarget } from '../shared/deliveryTypes';
 
+import type { ConnectorConfig, ConnectorHealth } from '../shared/connectorTypes';
+export type { ConnectorConfig, ConnectorHealth } from '../shared/connectorTypes';
+
 export type OnboardingState = 'not_started' | 'in_progress' | 'completed' | 'dismissed';
 
 import { runMigrations, SCHEMA_VERSION } from './databaseMigrations';
@@ -205,7 +208,11 @@ export type ArtifactType =
   | 'loop_summary'
   | 'preview_screenshot'
   | 'visual_smoke_check'
-  | 'console_evidence';
+  | 'console_evidence'
+  | 'connector_input'
+  | 'connector_output'
+  | 'connector_failure'
+  | 'connector_health';
 
 export type ArtifactSeverity = 'error' | 'warning' | 'info';
 
@@ -1256,6 +1263,92 @@ class SessionDatabase {
       summary: row.summary as string,
       metadata: row.metadata as string,
       createdAt: row.created_at as number,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Connector Config Operations (Phase 30)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  saveConnectorConfig(config: {
+    id: string;
+    connectorId: string;
+    projectId: string | null;
+    enabled: boolean;
+    scope: 'global' | 'project';
+    configValues: Record<string, string>;
+    createdAt: number;
+    updatedAt: number;
+  }): ConnectorConfig & { connectorId: string } {
+    const now = Date.now();
+    const existing = this.getConnectorConfig(config.id);
+
+    if (existing) {
+      this.db.prepare(`
+        UPDATE connector_configs
+        SET connector_id = ?, project_id = ?, enabled = ?, scope = ?, config_values = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        config.connectorId,
+        config.projectId,
+        config.enabled ? 1 : 0,
+        config.scope,
+        JSON.stringify(config.configValues),
+        now,
+        config.id
+      );
+    } else {
+      this.db.prepare(`
+        INSERT INTO connector_configs (id, connector_id, project_id, enabled, scope, config_values, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        config.id,
+        config.connectorId,
+        config.projectId,
+        config.enabled ? 1 : 0,
+        config.scope,
+        JSON.stringify(config.configValues),
+        config.createdAt,
+        now
+      );
+    }
+
+    return this.getConnectorConfig(config.id)!;
+  }
+
+  getConnectorConfig(id: string): (ConnectorConfig & { connectorId: string }) | null {
+    const row = this.db.prepare('SELECT * FROM connector_configs WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToConnectorConfig(row);
+  }
+
+  listConnectorConfigs(projectId?: string | null): Array<ConnectorConfig & { connectorId: string }> {
+    let rows: Record<string, unknown>[];
+    if (projectId === undefined) {
+      rows = this.db.prepare('SELECT * FROM connector_configs ORDER BY created_at DESC').all() as Record<string, unknown>[];
+    } else if (projectId === null) {
+      rows = this.db.prepare('SELECT * FROM connector_configs WHERE project_id IS NULL ORDER BY created_at DESC').all() as Record<string, unknown>[];
+    } else {
+      rows = this.db.prepare('SELECT * FROM connector_configs WHERE project_id = ? OR project_id IS NULL ORDER BY created_at DESC').all(projectId) as Record<string, unknown>[];
+    }
+    return rows.map(row => this.rowToConnectorConfig(row));
+  }
+
+  deleteConnectorConfig(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM connector_configs WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  private rowToConnectorConfig(row: Record<string, unknown>): ConnectorConfig & { connectorId: string } {
+    return {
+      id: row.id as string,
+      connectorId: row.connector_id as string,
+      projectId: row.project_id as string | null,
+      enabled: (row.enabled as number) === 1,
+      scope: row.scope as 'global' | 'project',
+      configValues: JSON.parse(row.config_values as string || '{}'),
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
     };
   }
 

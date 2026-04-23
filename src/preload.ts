@@ -1041,6 +1041,41 @@ const api: KnuthflowAPI = {
     listAuditEntries: (projectId: string, limit?: number) =>
       ipcRenderer.invoke('policy:listAuditEntries', projectId, limit),
   },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Connector Types (Phase 30)
+  // ─────────────────────────────────────────────────────────────────────────────
+  connector: {
+    listManifests: () =>
+      ipcRenderer.invoke('connector:listManifests'),
+    listConfigs: (projectId?: string | null) =>
+      ipcRenderer.invoke('connector:listConfigs', projectId),
+    getConfig: (id: string) =>
+      ipcRenderer.invoke('connector:getConfig', id),
+    saveConfig: (params: {
+      connectorId: string;
+      projectId?: string | null;
+      scope?: 'global' | 'project';
+      enabled?: boolean;
+      configValues: Record<string, string>;
+    }) =>
+      ipcRenderer.invoke('connector:saveConfig', params),
+    deleteConfig: (id: string) =>
+      ipcRenderer.invoke('connector:deleteConfig', id),
+    testConnection: (id: string) =>
+      ipcRenderer.invoke('connector:testConnection', id),
+    call: (params: {
+      connectorId: string;
+      capability: string;
+      operation: 'read' | 'write' | 'delete' | 'publish' | 'deploy';
+      targetScope?: string;
+      resourceId?: string;
+      params?: Record<string, unknown>;
+      projectId?: string;
+    }) =>
+      ipcRenderer.invoke('connector:call', params),
+    redactedConfig: (configId: string) =>
+      ipcRenderer.invoke('connector:redactedConfig', configId),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

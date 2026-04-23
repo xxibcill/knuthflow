@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -90,6 +90,11 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
     migrateToV17(db);
   }
 
+  // Migrate from version 17 to 18 (add Phase 30 connector tables)
+  if (currentVersion < 18) {
+    migrateToV18(db);
+  }
+
   // Update schema version
   db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
 }
@@ -158,6 +163,29 @@ function migrateToV17(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_policy_audit_project_id ON policy_audit(project_id);
     CREATE INDEX IF NOT EXISTS idx_policy_audit_event_type ON policy_audit(event_type);
     CREATE INDEX IF NOT EXISTS idx_policy_audit_created_at ON policy_audit(created_at);
+  `);
+}
+
+function migrateToV18(db: Database.Database): void {
+  // Create connector_configs table (Phase 30)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS connector_configs (
+      id TEXT PRIMARY KEY,
+      connector_id TEXT NOT NULL,
+      project_id TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      scope TEXT NOT NULL DEFAULT 'global',
+      config_values TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create indexes for connector config queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_connector_configs_connector_id ON connector_configs(connector_id);
+    CREATE INDEX IF NOT EXISTS idx_connector_configs_project_id ON connector_configs(project_id);
+    CREATE INDEX IF NOT EXISTS idx_connector_configs_scope ON connector_configs(scope);
   `);
 }
 

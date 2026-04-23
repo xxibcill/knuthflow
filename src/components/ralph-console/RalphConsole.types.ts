@@ -60,7 +60,11 @@ export type ArtifactType =
   | 'agent_output'
   | 'preview_screenshot'
   | 'visual_smoke_check'
-  | 'console_evidence';
+  | 'console_evidence'
+  | 'connector_input'
+  | 'connector_output'
+  | 'connector_failure'
+  | 'connector_health';
 
 export type ArtifactSeverity = 'error' | 'warning' | 'info';
 
