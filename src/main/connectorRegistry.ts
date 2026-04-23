@@ -13,6 +13,12 @@ import { captureConnectorInput, captureConnectorOutput, captureConnectorFailure 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Connector Registry Service
+//
+// NOTE: Built-in connector implementations (executeRepositoryConnector,
+// executeIssuesConnector, executeDesignConnector, executeRegistryConnector,
+// executeMonitoringConnector) are STUB IMPLEMENTATIONS that return mock data.
+// These are suitable only for local-only Ralph use without external service
+// integrations. Real connector implementations should replace these stubs.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ConnectorOperationContext {

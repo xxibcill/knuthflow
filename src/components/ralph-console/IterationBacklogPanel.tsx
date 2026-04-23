@@ -2,7 +2,42 @@
 // IterationBacklogPanel - Iteration Backlog Management (Phase 26)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Component, ReactNode } from 'react';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class IterationBacklogErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 border border-red-200 rounded-lg bg-red-50">
+          <h3 className="text-red-700 font-medium">Iteration Backlog Error</h3>
+          <p className="text-red-600 text-sm mt-1">{this.state.error?.message}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 px-3 py-1.5 text-sm border border-red-300 rounded hover:bg-red-100"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export interface BacklogItem {
   id: string;
@@ -349,4 +384,12 @@ export function IterationBacklogPanel({ className = '' }: IterationBacklogPanelP
   );
 }
 
-export default IterationBacklogPanel;
+export function IterationBacklogPanelWithErrorBoundary(props: IterationBacklogPanelProps) {
+  return (
+    <IterationBacklogErrorBoundary>
+      <IterationBacklogPanel {...props} />
+    </IterationBacklogErrorBoundary>
+  );
+}
+
+export default IterationBacklogPanelWithErrorBoundary;

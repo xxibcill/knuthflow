@@ -1,5 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Component, ReactNode } from 'react';
 import type { PolicyRule, PolicyOverride, PolicyAuditEntry, EffectivePolicy } from '../../shared/preloadTypes';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class PolicySettingsErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 border border-red-200 rounded-lg bg-red-50">
+          <h3 className="text-red-700 font-medium">Policy Settings Error</h3>
+          <p className="text-red-600 text-sm mt-1">{this.state.error?.message}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 px-3 py-1.5 text-sm border border-red-300 rounded hover:bg-red-100"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface PolicySettingsProps {
   projectId: string;
@@ -465,3 +500,13 @@ export function PolicySettings({ projectId, projectName }: PolicySettingsProps) 
     </div>
   );
 }
+
+export function PolicySettingsWithErrorBoundary(props: PolicySettingsProps) {
+  return (
+    <PolicySettingsErrorBoundary>
+      <PolicySettings {...props} />
+    </PolicySettingsErrorBoundary>
+  );
+}
+
+export default PolicySettingsWithErrorBoundary;

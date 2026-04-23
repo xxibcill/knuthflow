@@ -1,5 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Component, ReactNode } from 'react';
 import type { AnalyticsEvent, AnalyticsRollup, BottleneckDetection, Forecast, RecommendationRecord } from '../../shared/ralphTypes';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 border border-red-200 rounded-lg bg-red-50">
+          <h3 className="text-red-700 font-medium">Analytics Error</h3>
+          <p className="text-red-600 text-sm mt-1">{this.state.error?.message}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 px-3 py-1.5 text-sm border border-red-300 rounded hover:bg-red-100"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface AnalyticsDashboardProps {
   projectId?: string | null;
@@ -46,51 +81,46 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ projectI
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const { knuthflow } = window;
+      const ralph = window.ralph ?? window.knuthflow;
 
-      // Load events
-      const eventsResult = await knuthflow.analytics.listEvents({
-        projectId: projectId || undefined,
-        startTime: selectedDateRange.startTime,
-        category: selectedCategory !== 'all' ? selectedCategory as 'performance' | 'quality' | 'engagement' | 'business' : undefined,
-      });
+      // Load all data in parallel
+      const [eventsResult, rollupsResult, bottlenecksResult, forecastsResult, recsResult] = await Promise.all([
+        ralph.analytics.listEvents({
+          projectId: projectId || undefined,
+          startTime: selectedDateRange.startTime,
+          category: selectedCategory !== 'all' ? selectedCategory as 'performance' | 'quality' | 'engagement' | 'business' : undefined,
+        }),
+        ralph.analytics.listRollups({
+          projectId: projectId || undefined,
+          portfolioId: portfolioId || undefined,
+          startTime: selectedDateRange.startTime,
+        }),
+        ralph.analytics.listBottlenecks({
+          projectId: projectId || undefined,
+          status: 'detected',
+        }),
+        ralph.analytics.listForecasts({
+          projectId: projectId || undefined,
+          resolved: false,
+        }),
+        ralph.analytics.listRecommendations({
+          projectId: projectId || undefined,
+          status: 'pending',
+        }),
+      ]);
+
       if (eventsResult && 'events' in eventsResult) {
         setEvents(eventsResult.events);
       }
-
-      // Load rollups
-      const rollupsResult = await knuthflow.analytics.listRollups({
-        projectId: projectId || undefined,
-        portfolioId: portfolioId || undefined,
-        startTime: selectedDateRange.startTime,
-      });
       if (rollupsResult && 'rollups' in rollupsResult) {
         setRollups(rollupsResult.rollups);
       }
-
-      // Load bottlenecks
-      const bottlenecksResult = await knuthflow.analytics.listBottlenecks({
-        projectId: projectId || undefined,
-        status: 'detected',
-      });
       if (bottlenecksResult && 'bottlenecks' in bottlenecksResult) {
         setBottlenecks(bottlenecksResult.bottlenecks);
       }
-
-      // Load forecasts
-      const forecastsResult = await knuthflow.analytics.listForecasts({
-        projectId: projectId || undefined,
-        resolved: false,
-      });
       if (forecastsResult && 'forecasts' in forecastsResult) {
         setForecasts(forecastsResult.forecasts);
       }
-
-      // Load recommendations
-      const recsResult = await knuthflow.analytics.listRecommendations({
-        projectId: projectId || undefined,
-        status: 'pending',
-      });
       if (recsResult && 'recommendations' in recsResult) {
         setRecommendations(recsResult.recommendations);
       }
@@ -107,8 +137,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ projectI
 
   const handleDismissBottleneck = async (id: string) => {
     try {
-      const { knuthflow } = window;
-      await knuthflow.analytics.updateBottleneck(id, { status: 'dismissed' });
+      const ralph = window.ralph ?? window.knuthflow;
+      await ralph.analytics.updateBottleneck(id, { status: 'dismissed' });
       loadData();
     } catch (error) {
       console.error('Failed to dismiss bottleneck:', error);
@@ -117,8 +147,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ projectI
 
   const handleAddressBottleneck = async (id: string) => {
     try {
-      const { knuthflow } = window;
-      await knuthflow.analytics.updateBottleneck(id, { status: 'addressed' });
+      const ralph = window.ralph ?? window.knuthflow;
+      await ralph.analytics.updateBottleneck(id, { status: 'addressed' });
       loadData();
     } catch (error) {
       console.error('Failed to address bottleneck:', error);
@@ -127,8 +157,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ projectI
 
   const handleDismissRecommendation = async (id: string) => {
     try {
-      const { knuthflow } = window;
-      await knuthflow.analytics.updateRecommendation(id, { status: 'dismissed' });
+      const ralph = window.ralph ?? window.knuthflow;
+      await ralph.analytics.updateRecommendation(id, { status: 'dismissed' });
       loadData();
     } catch (error) {
       console.error('Failed to dismiss recommendation:', error);
@@ -488,6 +518,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ projectI
       )}
     </div>
   );
-};
+}
 
-export default AnalyticsDashboard;
+// Wrap with error boundary for export
+export const AnalyticsDashboardWithErrorBoundary: React.FC<AnalyticsDashboardProps> = (props) => (
+  <AnalyticsErrorBoundary>
+    <AnalyticsDashboard {...props} />
+  </AnalyticsErrorBoundary>
+);
+
+export default AnalyticsDashboardWithErrorBoundary;

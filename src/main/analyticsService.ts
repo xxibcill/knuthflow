@@ -15,6 +15,10 @@ export function getAnalyticsService(): AnalyticsService {
   return instance;
 }
 
+export function resetAnalyticsService(): void {
+  instance = null;
+}
+
 export class AnalyticsService {
   private db = () => getDatabase();
 
