@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AppBlueprint } from '../../shared/preloadTypes';
 
-type BlueprintSection = 'intake' | 'specs' | 'milestones' | 'criteria';
+type BlueprintSection = 'intake' | 'specs' | 'milestones' | 'criteria' | 'fixplan';
 
 export interface BlueprintReviewProps {
   blueprint: AppBlueprint;
@@ -100,6 +100,32 @@ export function BlueprintReview({
                 </div>
               </div>
             )}
+
+            {blueprint.intake.forbiddenPatterns.length > 0 && (
+              <div className="info-item">
+                <label>Forbidden Patterns</label>
+                <div className="flex flex-wrap gap-2">
+                  {blueprint.intake.forbiddenPatterns.map((pattern, i) => (
+                    <span key={i} className="badge badge-warning">{pattern}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="info-grid">
+              <div className="info-item">
+                <label>Max Build Time</label>
+                <p>{blueprint.intake.maxBuildTime} minutes</p>
+              </div>
+              <div className="info-item">
+                <label>Supported Browsers</label>
+                <div className="flex flex-wrap gap-2">
+                  {blueprint.intake.supportedBrowsers.map((browser, i) => (
+                    <span key={i} className="badge badge-neutral">{browser}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -219,6 +245,32 @@ export function BlueprintReview({
           </div>
         )}
       </div>
+
+      {/* Fix Plan Preview Section */}
+      {blueprint.fixPlan && (
+        <div className="blueprint-section">
+          <div
+            className="blueprint-section-header"
+            onClick={() => toggleSection('fixplan')}
+          >
+            <div>
+              <h3>Fix Plan Preview</h3>
+              <p className="text-sm text-muted">Task plan that will be written to fix_plan.md</p>
+            </div>
+            <span className={`badge ${expandedSection === 'fixplan' ? 'badge-info' : 'badge-neutral'}`}>
+              {expandedSection === 'fixplan' ? 'Expanded' : 'View'}
+            </span>
+          </div>
+
+          {expandedSection === 'fixplan' && (
+            <div className="blueprint-section-content">
+              <div className="surface-panel-inset p-4">
+                <pre className="text-sm text-mono whitespace-pre-wrap">{blueprint.fixPlan}</pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Approval Actions */}
       <div className="blueprint-actions">

@@ -1,102 +1,124 @@
 # Ralph Mode Release Checklist
 
-Use this checklist to validate autonomous mode is ready for release.
+Use this checklist to validate Ralph-focused release is ready for shipping.
 
 ---
 
 ## Pre-Release Validation
 
-### 1. Functional Completeness
+### 1. Ralph Branding and Identity
 
-- [ ] Ralph can execute a full loop from start to completion
-- [ ] Task selection from fix_plan.md works correctly
-- [ ] Acceptance gates execute and pass/fail appropriately
-- [ ] Validation failures trigger replan correctly
-- [ ] Checkpoint workflow creates commits without unrelated changes
-- [ ] Recovery from interrupted runs works
+- [ ] App title displays "Ralph" (not "Knuthflow")
+- [ ] About screen shows Ralph branding and version
+- [ ] Navigation shows Ralph as primary product name
+- [ ] Package metadata uses Ralph branding
+- [ ] Installer names match Ralph brand policy
 
-### 2. Safety Systems
+### 2. Claude Code Dependency Messaging
 
-- [ ] Rate limiting prevents API cost overruns
-- [ ] Circuit breaker activates after threshold failures
-- [ ] No-progress detection stops stuck loops
-- [ ] Permission denial detection works for git/npm
-- [ ] Timeout handling for iterations and idle states
-- [ ] Safety stop recording for debugging
+- [ ] Missing Claude Code shows Ralph-styled messaging
+- [ ] Claude Code detection uses Ralph-branded dialogs
+- [ ] Installation guidance refers to Ralph workflow
+- [ ] Error states use consistent Ralph styling
 
-### 3. State Management
+### 3. Primary Ralph Workflow Validation
 
-- [ ] Loop state transitions are valid (no invalid transitions)
-- [ ] Active runs are tracked in memory
-- [ ] Run status persists in database
-- [ ] Stale run detection works on startup
-- [ ] Recovery report is generated for stale runs
+- [ ] App launches directly into Ralph-first shell (not generic terminal)
+- [ ] First screen shows Ralph Console or workspace selector
+- [ ] New App button opens intake form for Ralph workflow
+- [ ] Blueprint generation works for Ralph app-building
+- [ ] Bootstrap Ralph creates correct control files (PROMPT.md, AGENT.md, fix_plan.md)
+- [ ] Readiness validation correctly identifies workspace state
+- [ ] Start Loop button activates Ralph runtime
+- [ ] Run dashboard shows iteration count, phase, and artifacts
+- [ ] Delivery panel is reachable from completed runs
 
-### 4. Checkpoint System
+### 4. Existing-Project Path
 
-- [ ] Whitelisted git commands only (status, diff, stage, commit, tag, log)
-- [ ] Preflight check excludes unrelated changes
-- [ ] Checkpoint commits include only Ralph control files
-- [ ] Commit message format is consistent
-- [ ] Checkpoint metadata is stored in database
+- [ ] Opening workspace with Ralph files loads directly into Ralph project context
+- [ ] Repair Files action force-regenerates control files with backup
+- [ ] Resume detects and recovers stale runs
+- [ ] User-authored files are preserved during repair
 
-### 5. Dry-Run Harness
+### 5. Data Compatibility
 
-- [ ] Happy-path scenario passes
-- [ ] Permission-denial scenario fails correctly
-- [ ] No-progress scenario fails after threshold
-- [ ] Timeout recovery scenario continues correctly
-- [ ] QA matrix covers all major paths
+- [ ] Existing workspaces load after upgrade without data loss
+- [ ] Existing sessions and settings persist
+- [ ] `RALPH_USER_DATA_DIR` override works
+- [ ] `KNUTHFLOW_USER_DATA_DIR` legacy override still works
+- [ ] Database filename `knuthflow.db` remains accessible
 
----
+### 6. API Compatibility
 
-## Operator Documentation Review
+- [ ] `window.ralph` is the preferred API and works correctly
+- [ ] `window.knuthflow` retained as deprecated alias
+- [ ] All `window.ralph` calls return expected data
+- [ ] All `window.knuthflow` calls return expected data
+- [ ] Both APIs return identical data for same calls
 
-### 6. Documentation
+### 7. Safety Systems
 
-- [ ] Operator guide is complete and accurate
-- [ ] All configuration parameters are documented
-- [ ] Known limitations are explicitly documented
-- [ ] Recovery procedures are clear
-- [ ] Example templates are provided and functional
+- [ ] Approval gates display before destructive actions
+- [ ] Stop confirmation dialog appears
+- [ ] Pause/Resume controls work correctly
+- [ ] Circuit breaker state is displayed in safety alerts
+- [ ] Stale run detection triggers recovery messaging
+- [ ] Failed validation does not appear as successful completion
 
-### 7. Decision Log
+### 8. Recovery States
 
-- [ ] Unsupported workflows are listed
-- [ ] Risk boundaries are documented
-- [ ] Common issues and resolutions are provided
+- [ ] Missing Claude Code shows actionable error (not crash)
+- [ ] Failed bootstrap shows repair guidance
+- [ ] Corrupted files trigger repair workflow
+- [ ] Stale run recovery offers resume or cleanup options
+- [ ] Recovery actions do not silently overwrite files
+
+### 9. Package Identity Follow-Through
+
+- [ ] Packaged app launches successfully
+- [ ] App title matches Ralph branding
+- [ ] Bundle ID follows brand policy
+- [ ] Installer metadata reflects Ralph product name
 
 ---
 
 ## Integration Testing
 
-### 8. End-to-End Tests
+### 10. End-to-End Tests
 
 Run these scenarios and verify behavior:
 
 ```
-Scenario: HP-1 (Happy Path)
-Expected: Loop completes successfully
+Scenario: Ralph Happy Path
+Expected: Launch -> New App -> Blueprint -> Bootstrap -> Start Loop -> Dashboard
 Result: [PASS/FAIL] _____
 
-Scenario: NP-1 (No Progress)
-Expected: Loop fails after threshold
+Scenario: Existing Project Open
+Expected: Open workspace with .ralph directory loads Ralph context
 Result: [PASS/FAIL] _____
 
-Scenario: PD-1 (Permission Denied)
-Expected: Loop fails with permission_denied
+Scenario: Repair Workflow
+Expected: Damaged control files are repaired with user file preservation
 Result: [PASS/FAIL] _____
 
-Scenario: TO-1 (Timeout Recovery)
-Expected: Loop resumes after timeout
+Scenario: Stale Run Recovery
+Expected: Stale run detected and recovery offered
 Result: [PASS/FAIL] _____
 
-Scenario: VF-1 (Validation Failure)
-Expected: Loop replans and continues
+Scenario: API Compatibility
+Expected: window.ralph and window.knuthflow both work
+Result: [PASS/FAIL] _____
+
+Scenario: Safety Stop
+Expected: Stop button shows confirmation and stops run
+Result: [PASS/FAIL] _____
+
+Scenario: Pause/Resume
+Expected: Pause suspends run, Resume continues
 Result: [PASS/FAIL] _____
 ```
 
-### 9. Error Handling
+### 11. Error Handling
 
 - [ ] Graceful handling of missing Claude Code
 - [ ] Graceful handling of git not available
@@ -106,26 +128,22 @@ Result: [PASS/FAIL] _____
 
 ---
 
-## Performance Verification
+## Documentation Review
 
-### 10. Performance
+### 12. Operator Guide
 
-- [ ] Loop state transitions are < 100ms
-- [ ] Checkpoint creation is < 2s
-- [ ] Safety state persistence doesn't block execution
-- [ ] Memory usage is bounded (active runs limit enforced)
+- [ ] Operator guide describes Ralph-first workflow
+- [ ] No references to generic terminal as default path
+- [ ] Recovery procedures are practical and preserve user files
+- [ ] Old product name references removed or marked historical
 
----
+### 13. Release Notes
 
-## Security Review
-
-### 11. Security
-
-- [ ] Git commands are whitelist-limited
-- [ ] No shell injection vulnerabilities in git commands
-- [ ] Workspace path validation prevents traversal
-- [ ] Session IDs are properly generated
-- [ ] No credentials logged or persisted
+- [ ] Release notes describe Ralph refocus
+- [ ] User-visible changes to branding and navigation documented
+- [ ] Compatibility policy for API aliases is explicit
+- [ ] Data migration behavior is documented
+- [ ] Known limitations are honest and actionable
 
 ---
 
@@ -139,9 +157,9 @@ Result: [PASS/FAIL] _____
 | QA Lead | | | |
 | Product Owner | | | |
 
-### Notes
+### Known Limitations
 
-_[Add any outstanding issues or caveats before release]_
+_[Document any known issues that do not block release]_
 
 ---
 

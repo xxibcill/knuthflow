@@ -1,24 +1,20 @@
-# Knuthflow
+# Ralph
 
-Knuthflow is a terminal-first desktop wrapper for Claude Code CLI built with Electron, React, TypeScript, `node-pty`, and `xterm.js`.
+Ralph is a desktop operator console for app intake, autonomous build loops, validation evidence, delivery artifacts, and maintenance. It controls the local Claude Code CLI to build apps one milestone at a time with explicit operator approval gates and reviewable evidence.
 
-It gives Claude Code a native desktop shell with PTY-backed terminal sessions, workspace and session management, persistent local settings, diagnostics, optional editor and diff views, and the foundations for Ralph autonomous project loops.
+## Primary Workflow
 
-## Current Scope
+**Brief → Blueprint → Bootstrap → Run → Evidence → Delivery → Maintenance**
 
-Knuthflow is currently biased toward a reliable desktop runtime first:
+1. **Brief** — Describe the app you want to build
+2. **Blueprint** — Review the generated plan with milestones and expected artifacts
+3. **Bootstrap** — Initialize the workspace with Ralph control files and readiness validation
+4. **Run** — Supervise Ralph as it executes one milestone at a time
+5. **Evidence** — Inspect validation results, artifact manifests, and milestone summaries
+6. **Delivery** — Approve the handoff bundle with release notes and packaged artifacts
+7. **Maintenance** — Track delivered apps and surface follow-up work (future phases)
 
-- Detect Claude Code CLI and report install/version state
-- Launch Claude Code inside real PTY-backed terminal tabs
-- Manage workspaces and persist session history in SQLite
-- Restore active sessions on startup
-- Supervise sessions, detect crashes, and clean orphaned state
-- Store settings, launch profiles, diagnostics, and secure secrets locally
-- Check GitHub releases for app updates
-- Expose Monaco-based editor and diff panes in the desktop UI
-- Bootstrap a workspace for Ralph with control files and readiness validation
-
-The longer-term roadmap extends this into a safer operator console for autonomous one-item-at-a-time Ralph runs. See [roadmap/README.md](/Users/jjae/Documents/guthib/knuthflow/roadmap/README.md) and [PRD.md](/Users/jjae/Documents/guthib/knuthflow/PRD.md).
+Ralph runs one item at a time, surfaces its current plan and milestone state in real time, and stops cleanly when you pause, stop, or when a run goes stale. Recovery guidance is provided so no workspace is permanently abandoned.
 
 ## Tech Stack
 
@@ -27,11 +23,11 @@ The longer-term roadmap extends this into a safer operator console for autonomou
 - TypeScript
 - Webpack
 - Tailwind CSS
-- `node-pty`
-- `xterm.js`
-- Monaco Editor
-- `better-sqlite3`
-- Playwright
+- `node-pty` — PTY-backed terminal for Claude Code execution
+- `xterm.js` — terminal rendering
+- Monaco Editor — artifact inspection (operator support tool, not primary editing surface)
+- `better-sqlite3` — local persistence for Ralph state, workspaces, sessions, and delivery records
+- Playwright — end-to-end testing
 
 ## Prerequisites
 
@@ -39,7 +35,7 @@ The longer-term roadmap extends this into a safer operator console for autonomou
 - npm 9+
 - Claude Code CLI installed and available on `PATH`, or a configured CLI path inside the app
 
-Target platforms documented in the repo:
+Target platforms:
 
 - macOS 12+ (`x64`, `arm64`)
 - Windows 10+ (`x64`)
@@ -52,7 +48,7 @@ npm install
 npm run start
 ```
 
-On first launch, Knuthflow checks whether Claude Code CLI is available. If it is installed, you can open a workspace and start a PTY-backed session from the desktop UI.
+On first launch, Ralph checks whether Claude Code CLI is available. If it is installed, you can open a workspace, bootstrap it as a Ralph project, and start a supervised run from the desktop UI.
 
 ## Available Scripts
 
@@ -69,43 +65,46 @@ npm run test:e2e:ci
 
 ## Ralph Bootstrap
 
-Knuthflow includes the first layer of Ralph project support.
-
 When a workspace is bootstrapped for Ralph, the app creates and validates:
 
-- `PROMPT.md`
-- `AGENT.md`
-- `fix_plan.md`
-- `specs/`
-- `.ralph`
+- `PROMPT.md` — Loop instruction prompt
+- `AGENT.md` — Agent configuration (build/run/test instructions)
+- `fix_plan.md` — Repair plan template
+- `specs/` — Feature specifications directory
+- `.ralph/` — Ralph project metadata directory
 
 Ralph project metadata and loop run state are stored in the local app database. Readiness validation detects missing files, malformed metadata, and stale run state before a run starts or resumes.
 
 ## Architecture
 
-Knuthflow follows a standard secure Electron split:
+Ralph follows a standard secure Electron split:
 
-- `src/main/`: Electron main-process services such as PTY management, supervision, database access, updates, secure storage, logs, and Ralph bootstrap/validation
+- `src/main/`: Electron main-process services — PTY management, Ralph runtime, Ralph scheduler, Ralph safety, supervisor, database, updates, secure storage, logs
 - `src/preload.ts`: secure IPC bridge exposed as `window.knuthflow`
-- `src/components/`: renderer UI components including terminal, workspaces, settings, history, editor, and diff views
-- `src/shared/`: shared types used across processes
+- `src/components/`: renderer UI — operator console, terminal, workspaces, settings, history, editor, diff views
+- `src/shared/`: shared Ralph and domain types
 - `tests/e2e/`: Playwright coverage for packaged app flows
 
-Key runtime decisions already reflected in the codebase:
+Key architectural decisions:
 
-- PTY-backed terminal execution is the primary workflow
-- Main and renderer processes are separated through preload IPC
-- Workspace/session state is stored locally in SQLite
+- PTY-backed terminal execution is the primary runtime Ralph controls for Claude Code sessions
+- Main and renderer processes are separated through preload IPC with context isolation
+- Ralph loop state, workspace metadata, and session data are stored locally in SQLite
 - Logs are written under the Electron `userData` directory
 - Secrets use macOS Keychain when available, with an encrypted file fallback on other platforms
+- Ralph control files and artifacts live in the workspace under `.ralph/`
 
 ## Local Data
 
-Knuthflow stores its local application data under Electron's `userData` directory, including:
+Ralph stores its local application data under Electron's `userData` directory, including:
 
-- `knuthflow.db` for workspaces, sessions, settings, profiles, and Ralph state
+- `knuthflow.db` for workspaces, sessions, settings, profiles, Ralph state, and delivery manifests
 - `logs/` for rotating application logs
 - `secrets/` for fallback encrypted secret storage when platform keychain support is unavailable
+
+**Environment Variables:**
+- `RALPH_USER_DATA_DIR` - Override userData path (for testing)
+- `KNUTHFLOW_USER_DATA_DIR` - Legacy alias (still supported for backward compatibility)
 
 ## Repository Layout
 
@@ -142,17 +141,15 @@ Current documented artifact targets include:
 
 ## Roadmap
 
-The roadmap is phase-based. The near-term sequence is:
+Ralph's roadmap is phase-based. The primary sequence from Phase 21 onward is:
 
-1. Reliable Electron shell and secure IPC
-2. Stable PTY-backed Claude Code runtime
-3. Workspace/session ergonomics and persistence
-4. Settings, logs, and secure local state
-5. Packaging, updates, and recovery
-6. Optional editor/diff expansion
-7. Ralph bootstrap, validation, scheduling, evidence gathering, and operator tooling
+1. **Phase 21** — Ralph product source of truth (PRD, glossary, requirements)
+2. **Phase 22** — Ralph brand and shell (visible product name, navigation, first screen)
+3. **Phase 23** — Ralph-first project flow (brief → blueprint → bootstrap → run → delivery without generic terminal fallback)
+4. **Phase 24** — Ralph API compatibility and data (Ralph-named APIs alongside existing Knuthflow identifiers)
+5. **Phase 25** — Ralph release readiness (docs, packaging, QA, release notes, regression checks)
 
-See [roadmap/README.md](/Users/jjae/Documents/guthib/knuthflow/roadmap/README.md) for the full phase breakdown.
+Foundation phases (01–20) cover the Electron shell, PTY runtime, workspace/session management, settings, packaging, and Ralph bootstrap. See [roadmap/README.md](/Users/jjae/Documents/guthib/knuthflow/roadmap/README.md) for the full phase breakdown.
 
 ## License
 

@@ -1,14 +1,19 @@
 # Ralph Mode Operator Guide
 
-Ralph is Knuthflow's autonomous mode that uses an agent to execute tasks from a `fix_plan.md` file with minimal operator intervention.
+Ralph is Ralph's autonomous desktop mode that uses Claude Code to execute tasks from a `fix_plan.md` file with minimal operator intervention. Ralph replaces the previous Knuthflow branding as the primary product name.
 
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
-2. [Understanding Loop States](#understanding-loop-states)
-3. [Monitoring Ralph Runs](#monitoring-ralph-runs)
-4. [Recovery and Troubleshooting](#recovery-and-troubleshooting)
-5. [Configuration Reference](#configuration-reference)
+2. [Creating a New Ralph Project](#creating-a-new-ralph-project)
+3. [Opening Existing Projects](#opening-existing-projects)
+4. [Understanding Loop States](#understanding-loop-states)
+5. [Monitoring Ralph Runs](#monitoring-ralph-runs)
+6. [Intervening in Runs](#intervening-in-runs)
+7. [Reviewing Artifacts and Plans](#reviewing-artifacts-and-plans)
+8. [Delivery and Packaging](#delivery-and-packaging)
+9. [Recovery and Troubleshooting](#recovery-and-troubleshooting)
+10. [Configuration Reference](#configuration-reference)
 
 ---
 
@@ -17,30 +22,108 @@ Ralph is Knuthflow's autonomous mode that uses an agent to execute tasks from a 
 ### Prerequisites
 
 - Claude Code installed and accessible in PATH
-- A workspace with `PROMPT.md`, `AGENT.md`, and `fix_plan.md` files
+- A workspace with `PROMPT.md`, `AGENT.md`, and `fix_plan.md` files (created during bootstrap)
 - Node.js and npm (for project-specific dependencies)
 
-### Bootstrap a Ralph Project
+### Ralph Console
 
-1. Open Knuthflow and navigate to your workspace
-2. Run the bootstrap command from the Ralph menu or CLI
-3. Review the generated control files:
-   - `PROMPT.md` - Context and instructions for Claude
-   - `AGENT.md` - Agent behavior configuration
-   - `fix_plan.md` - Task list to execute
-   - `specs/` - (Optional) Additional specification files
+When you launch Ralph, you see the **Ralph Console** — the primary interface for managing projects and runs. The Console shows:
 
-### Running Ralph
+- **Workspace selector**: Choose which workspace to work with
+- **Readiness badge**: Shows if the workspace is ready for Ralph runs
+- **Run list**: All Ralph runs across your projects
+- **Action buttons**: New App, Bootstrap Ralph, Repair Files, Edit Control Files
 
-```
-# From CLI
-knuthflow ralph start --workspace /path/to/workspace
+### Ralph Control Files
 
-# From UI
-1. Open workspace in Knuthflow
-2. Select Ralph > Start Loop
-3. Monitor progress in the Ralph dashboard
-```
+When a workspace is bootstrapped for Ralph, these files are created:
+
+| File | Purpose |
+|------|---------|
+| `PROMPT.md` | Context and instructions for Claude Code |
+| `AGENT.md` | Agent behavior configuration (build/run/test instructions) |
+| `fix_plan.md` | Task list to execute |
+| `specs/` | (Optional) Additional specification files |
+| `.ralph/` | Ralph project metadata directory |
+
+---
+
+## Creating a New Ralph Project
+
+### Step 1: Launch Ralph and Create New App
+
+1. Open Ralph and navigate to the **Ralph Console**
+2. Click **New App** to start the intake flow
+3. Fill in the app brief describing what you want to build
+4. Select target platform (Web, Node.js, etc.)
+5. Choose delivery format
+
+### Step 2: Review the Blueprint
+
+Ralph generates a **blueprint** based on your intake:
+
+- App specification with features and architecture
+- Initial task breakdown for `fix_plan.md`
+- Scaffold template selection
+- Build and test commands
+
+Review the blueprint and approve it to proceed.
+
+### Step 3: Bootstrap the Workspace
+
+After blueprint approval:
+
+1. Ralph creates the project structure
+2. **Bootstrap Ralph** action is highlighted
+3. Click **Bootstrap Ralph** to create the control files
+4. Review the generated `PROMPT.md`, `AGENT.md`, and `fix_plan.md`
+
+### Step 4: Verify Readiness
+
+Before starting a run, Ralph validates:
+
+- All control files exist and are properly formatted
+- No stale runs from previous sessions
+- Claude Code is installed and accessible
+
+The **Readiness** section shows a summary with any validation issues. Resolve issues before starting.
+
+### Step 5: Start the Loop
+
+1. With a ready workspace, click **Start Loop**
+2. Ralph creates a new run and begins executing tasks
+3. Monitor progress in the **Run Dashboard** tab
+
+---
+
+## Opening Existing Projects
+
+### Opening a Ralph-Enabled Workspace
+
+1. Click **Open Workspace** or use File > Open
+2. Select a folder that contains a `.ralph/` directory
+3. Ralph automatically detects the Ralph project and loads it
+4. The Console updates to show the workspace context and readiness state
+
+### Partially Bootstrapped Projects
+
+If a workspace has some but not all control files:
+
+1. Ralph shows a **Needs Repair** readiness state
+2. Click **Repair Files** to regenerate missing control files
+3. Backups are created before any changes
+4. User-authored files in the workspace are preserved
+
+### Stale Run Recovery
+
+If Ralph detects a stale active run:
+
+1. A recovery dialog appears with options:
+   - **Resume**: Continue from the last checkpoint (if possible)
+   - **Cleanup**: Mark the run as failed and clean up state
+   - **Inspect**: View run details before deciding
+
+2. Choose the appropriate action based on the situation
 
 ---
 
@@ -58,6 +141,7 @@ Ralph transitions through these states during execution:
 | `paused` | Waiting for operator input |
 | `failed` | Unrecoverable error or safety stop |
 | `completed` | All tasks done or operator stopped |
+| `cancelled` | Operator stopped the run |
 
 ### State Transition Diagram
 
@@ -69,77 +153,218 @@ idle → starting → planning → executing → validating
                                    planning    [checkpoint]
                                         ↓            ↓
                                     failed    completed
+                                         ↓
+                                    cancelled
 ```
 
 ---
 
 ## Monitoring Ralph Runs
 
-### Ralph Dashboard
+### Run Dashboard
 
-The Ralph dashboard (accessible from the main UI) shows:
+The Run Dashboard shows:
 
-- **Current State**: Active loop state and iteration count
-- **Selected Item**: Current task being worked on
-- **Progress**: Completed vs pending tasks
-- **Safety Indicators**: Rate limit usage, circuit breaker status
-- **Recent Output**: Last few lines of Claude output
+| Metric | Description |
+|--------|-------------|
+| Run ID | Unique identifier for the run |
+| Status | Current loop state |
+| Phase | What Ralph is currently doing |
+| Iteration | Current iteration / max iterations |
+| Elapsed | Time since run started |
 
-### Key Metrics
+### Timeline Tab
 
-| Metric | Description | Warning Threshold |
-|--------|-------------|-------------------|
-| Iteration Count | Current iteration / max iterations | > 80% of max |
-| No Progress Count | Consecutive iterations without advancement | > 2 |
-| Rate Limit Usage | API calls remaining in current window | < 20% |
-| Circuit Breaker | Failure/denial tracking | Open state |
+The Timeline shows a chronological view of:
+
+- Each iteration with its outcome
+- Phase transitions
+- Artifact counts
+- Error events (if any)
+
+### Safety Indicators
+
+Watch these safety metrics:
+
+| Metric | Warning Threshold |
+|--------|-------------------|
+| Iteration Count | > 80% of max |
+| No Progress Count | > 2 consecutive |
+| Rate Limit Usage | < 20% remaining |
+| Circuit Breaker | Open state |
+
+### Operator Controls
+
+Use the **Controls** tab to:
+
+- **Pause**: Suspend the run (can be resumed)
+- **Resume**: Continue a paused run
+- **Stop**: End the run (requires confirmation)
+
+---
+
+## Intervening in Runs
+
+### Pausing a Run
+
+1. Click **Pause** in the Controls tab
+2. The run enters `paused` state
+3. You can inspect artifacts and plan while paused
+4. Click **Resume** to continue
+
+### Stopping a Run
+
+1. Click **Stop** in the Controls tab
+2. A confirmation dialog appears
+3. Confirm to end the run
+4. The run transitions to `cancelled` state
+
+**Note**: Stopped runs cannot be resumed. A new run must be started.
+
+### Inspecting Mid-Run
+
+While a run is active:
+
+1. Navigate to the **Timeline** or **Artifacts** tab
+2. View current progress and outputs
+3. Check the **Fix Plan** tab to see which task is active
+4. **Do not** manually edit control files while a run is active
+
+---
+
+## Reviewing Artifacts and Plans
+
+### Artifacts Tab
+
+Artifacts are outputs captured during the run:
+
+| Type | Description |
+|------|-------------|
+| `compiler_output` | Build/lint output |
+| `test_log` | Test results |
+| `diff` | Changes made |
+| `generated_file` | Files created by Ralph |
+| `validation_result` | Gate pass/fail evidence |
+| `loop_summary` | Iteration summary |
+
+### Fix Plan Tab
+
+The Fix Plan shows:
+
+- All tasks with checkboxes
+- Current active task highlighted
+- Completed tasks marked with `[x]`
+- Pending tasks marked with `[ ]`
+
+**Note**: Editing `fix_plan.md` while a run is active is not recommended as it may cause unexpected behavior.
+
+### History Tab
+
+View past iterations:
+
+- Loop summaries with prompt/response excerpts
+- Plan snapshots before and after changes
+- Use **Compare with previous** to see how plans evolve
+
+---
+
+## Delivery and Packaging
+
+### When a Run Completes
+
+When all tasks are done or the run reaches a terminal state:
+
+1. Navigate to the **Delivery** section
+2. Review the delivery manifest
+3. Check artifact summary
+4. Verify all gates passed
+
+### Running Packaging
+
+1. Click **Package** in the Delivery section
+2. Select the delivery format
+3. Ralph runs the build and validation gates
+4. A delivery manifest is created
+
+### Confirming Release
+
+1. Review the handoff bundle
+2. Click **Confirm Release** to mark delivery complete
+3. The run transitions to `delivered` state
 
 ---
 
 ## Recovery and Troubleshooting
 
-### Interrupted Runs
+### Missing Claude Code
 
-When Knuthflow restarts or a PTY session dies:
+**Symptom**: Ralph shows "Claude Code not found" error
 
-1. **Automatic Recovery**: Ralph detects stale runs on startup
-2. **Recovery Options**:
-   - **Resume**: If session can be restored, continues from last checkpoint
-   - **Cleanup**: If unrecoverable, marks run as failed and cleans state
-   - **Manual Intervention**: Operator can inspect and decide
+**Resolution**:
+1. Install Claude Code on your system
+2. Ensure it's in your PATH
+3. Click **Recheck** in the readiness section
 
-### Stale State Cleanup
+### Failed Bootstrap
 
-Ralph periodically cleans up stale state:
+**Symptom**: Bootstrap fails to create control files
 
-- Runs inactive for > 30 minutes are considered stale
-- Stale runs are either resumed (if possible) or cleaned up
-- Artifacts from unrecoverable runs are orphaned and can be purged
+**Resolution**:
+1. Check workspace permissions
+2. Ensure the workspace path exists
+3. Click **Repair Files** to retry with force regeneration
 
-### Common Issues
+### Corrupted Control Files
 
-| Issue | Cause | Resolution |
-|-------|-------|------------|
-| "No progress for N iterations" | Task stuck in loop | Check fix_plan.md; may need to skip or adjust task |
-| "Circuit breaker open" | Too many failures | Wait for cooldown (15 min) or reset manually |
-| "Permission denied" | Git/npm access issue | Operator must resolve permissions externally |
-| "Session expired" | PTY session died | Auto-recovery creates new session |
-| "Rate limit reached" | Too many API calls | Wait for window to reset |
+**Symptom**: Readiness shows "malformed" errors for control files
+
+**Resolution**:
+1. Click **Repair Files**
+2. Backups are created automatically
+3. Control files are regenerated
+4. User files in the workspace are preserved
+
+### Stale Run Detection
+
+**Symptom**: "Stale run detected" appears on startup
+
+**Resolution**:
+1. Choose **Resume** if the run should continue
+2. Choose **Cleanup** if the run should be marked failed
+3. Choose **Inspect** to review before deciding
+
+### No Progress Loop
+
+**Symptom**: Run appears stuck with no output
+
+**Resolution**:
+1. Check the Fix Plan for oversized tasks
+2. Consider editing the task to be smaller
+3. Use **Stop** and start a new run with adjusted tasks
+
+### Permission Denied
+
+**Symptom**: Circuit breaker opens with "permission_denied"
+
+**Resolution**:
+1. Check git/npm permissions for the workspace
+2. Resolve permissions externally
+3. Use **Reset Safety** to clear circuit breaker state
 
 ### Recovery Commands
 
 ```bash
 # View active runs
-knuthflow ralph status --project <project-id>
+ralph status --project <project-id>
 
 # Reset safety state
-knuthflow ralph reset-safety --project <project-id>
+ralph reset-safety --project <project-id>
 
 # Force cleanup stale runs
-knuthflow ralph cleanup --project <project-id>
+ralph cleanup --project <project-id>
 
 # View checkpoint history
-knuthflow ralph checkpoints --run <run-id>
+ralph checkpoints --run <run-id>
 ```
 
 ---
@@ -171,8 +396,6 @@ knuthflow ralph checkpoints --run <run-id>
 | `manual` | Operator decides | Debugging or exploratory tasks |
 
 ### Checkpoint Configuration
-
-Checkpoints are created after validated iterations:
 
 | Setting | Description |
 |---------|-------------|
@@ -212,7 +435,7 @@ When a safety stop occurs, the loop:
 
 ---
 
-## Decision Log: Known Limitations
+## Known Limitations
 
 ### Unsupported Workflows
 

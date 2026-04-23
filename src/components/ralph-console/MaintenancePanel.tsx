@@ -36,8 +36,8 @@ export function MaintenancePanel({ appId, workspacePath }: MaintenancePanelProps
 
     try {
       const [runsResult, activeResult] = await Promise.all([
-        window.knuthflow.maintenance.list(appId, 20),
-        window.knuthflow.maintenance.listActive(),
+        window.ralph.maintenance.list(appId, 20),
+        window.ralph.maintenance.listActive(),
       ]);
 
       setMaintenanceRuns(runsResult || []);
@@ -60,7 +60,7 @@ export function MaintenancePanel({ appId, workspacePath }: MaintenancePanelProps
     setError(null);
 
     try {
-      await window.knuthflow.maintenance.create({
+      await window.ralph.maintenance.create({
         appId,
         triggerType: 'manual',
         triggerReason: 'Manually triggered by operator',
@@ -80,7 +80,7 @@ export function MaintenancePanel({ appId, workspacePath }: MaintenancePanelProps
     setError(null);
 
     try {
-      await window.knuthflow.monitoring.forceCheck(appId);
+      await window.ralph.monitoring.forceCheck(appId);
       await loadMaintenanceRuns();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to run health check');

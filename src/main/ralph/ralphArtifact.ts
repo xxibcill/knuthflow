@@ -249,6 +249,236 @@ export function captureValidationResult(params: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Connector Artifact Creation (Phase 30)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Redact sensitive fields from connector data before storing as artifact.
+ */
+function redactConnectorData(data: Record<string, unknown>): Record<string, unknown> {
+  const redacted = { ...data };
+  const sensitiveKeys = ['secret', 'token', 'password', 'key', 'auth', 'credential', 'api_key', 'apikey'];
+  for (const key of Object.keys(redacted)) {
+    const lowerKey = key.toLowerCase();
+    if (sensitiveKeys.some(sk => lowerKey.includes(sk))) {
+      redacted[key] = '[REDACTED]';
+    }
+  }
+  return redacted;
+}
+
+/**
+ * Create a connector input artifact.
+ */
+export function captureConnectorInput(params: {
+  projectId: string;
+  runId: string;
+  iteration: number;
+  itemId: string | null;
+  connectorId: string;
+  capability: string;
+  operation: string;
+  targetScope?: string;
+  resourceId?: string;
+  inputParams: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}): RalphArtifact {
+  return createArtifact({
+    projectId: params.projectId,
+    runId: params.runId,
+    iteration: params.iteration,
+    itemId: params.itemId,
+    type: 'connector_input',
+    content: JSON.stringify({
+      connectorId: params.connectorId,
+      capability: params.capability,
+      operation: params.operation,
+      targetScope: params.targetScope,
+      resourceId: params.resourceId,
+      inputParams: redactConnectorData(params.inputParams),
+    }),
+    exitCode: null,
+    durationMs: null,
+    severity: 'info',
+    metadata: {
+      connectorId: params.connectorId,
+      capability: params.capability,
+      operation: params.operation,
+      ...(params.metadata ?? {}),
+    },
+  });
+}
+
+/**
+ * Create a connector output artifact.
+ */
+export function captureConnectorOutput(params: {
+  projectId: string;
+  runId: string;
+  iteration: number;
+  itemId: string | null;
+  connectorId: string;
+  capability: string;
+  operation: string;
+  success: boolean;
+  outputData?: unknown;
+  metadata?: Record<string, unknown>;
+}): RalphArtifact {
+  const severity: ArtifactSeverity = params.success ? 'info' : 'error';
+
+  return createArtifact({
+    projectId: params.projectId,
+    runId: params.runId,
+    iteration: params.iteration,
+    itemId: params.itemId,
+    type: 'connector_output',
+    content: JSON.stringify({
+      connectorId: params.connectorId,
+      capability: params.capability,
+      operation: params.operation,
+      success: params.success,
+      outputData: params.outputData ? redactConnectorData(params.outputData as Record<string, unknown>) : undefined,
+    }),
+    exitCode: params.success ? 0 : 1,
+    durationMs: null,
+    severity,
+    metadata: {
+      connectorId: params.connectorId,
+      capability: params.capability,
+      operation: params.operation,
+      success: params.success,
+      ...(params.metadata ?? {}),
+    },
+  });
+}
+
+/**
+ * Create a connector failure artifact.
+ */
+export function captureConnectorFailure(params: {
+  projectId: string;
+  runId: string;
+  iteration: number;
+  itemId: string | null;
+  connectorId: string;
+  capability: string;
+  operation: string;
+  errorCode: string;
+  errorMessage: string;
+  retryable: boolean;
+  metadata?: Record<string, unknown>;
+}): RalphArtifact {
+  return createArtifact({
+    projectId: params.projectId,
+    runId: params.runId,
+    iteration: params.iteration,
+    itemId: params.itemId,
+    type: 'connector_failure',
+    content: JSON.stringify({
+      connectorId: params.connectorId,
+      capability: params.capability,
+      operation: params.operation,
+      errorCode: params.errorCode,
+      errorMessage: params.errorMessage,
+      retryable: params.retryable,
+      recoveryHint: getConnectorErrorRecovery(params.errorCode),
+    }),
+    exitCode: 1,
+    durationMs: null,
+    severity: 'error',
+    metadata: {
+      connectorId: params.connectorId,
+      capability: params.capability,
+      operation: params.operation,
+      errorCode: params.errorCode,
+      retryable: params.retryable,
+      ...(params.metadata ?? {}),
+    },
+  });
+}
+
+/**
+ * Create a connector health artifact.
+ */
+export function captureConnectorHealth(params: {
+  projectId: string;
+  runId: string;
+  iteration: number;
+  itemId: string | null;
+  connectorId: string;
+  configId: string;
+  status: string;
+  message: string;
+  latencyMs?: number;
+  metadata?: Record<string, unknown>;
+}): RalphArtifact {
+  const severity: ArtifactSeverity = params.status === 'healthy' ? 'info' :
+    (params.status === 'degraded' ? 'warning' : 'error');
+
+  return createArtifact({
+    projectId: params.projectId,
+    runId: params.runId,
+    iteration: params.iteration,
+    itemId: params.itemId,
+    type: 'connector_health',
+    content: JSON.stringify({
+      connectorId: params.connectorId,
+      configId: params.configId,
+      status: params.status,
+      message: params.message,
+      latencyMs: params.latencyMs,
+    }),
+    exitCode: null,
+    durationMs: params.latencyMs ?? null,
+    severity,
+    metadata: {
+      connectorId: params.connectorId,
+      configId: params.configId,
+      status: params.status,
+      ...(params.metadata ?? {}),
+    },
+  });
+}
+
+/**
+ * Get error recovery hint for connector error codes.
+ */
+function getConnectorErrorRecovery(errorCode: string): string {
+  switch (errorCode) {
+    case 'auth_failure':
+      return 'Check your credentials in connector settings and re-authenticate if needed.';
+    case 'permission_denied':
+      return 'Verify that your account has the required permissions for this operation.';
+    case 'rate_limit':
+      return 'Wait a moment and retry, or reduce the frequency of connector operations.';
+    case 'network_failure':
+      return 'Check your network connection and ensure the service is reachable.';
+    case 'unsupported_capability':
+      return 'This connector does not support the requested operation.';
+    case 'not_found':
+      return 'Verify the resource identifier and try again.';
+    case 'configuration_error':
+      return 'Review the connector configuration in settings.';
+    default:
+      return 'Retry the operation or check connector settings.';
+  }
+}
+
+/**
+ * Get connector artifacts for a run.
+ */
+export function getConnectorArtifactsForRun(runId: string): RalphArtifact[] {
+  const db = getDatabase();
+  const artifacts = db.listArtifacts({ runId });
+  return artifacts.filter(a =>
+    a.type === 'connector_input' ||
+    a.type === 'connector_output' ||
+    a.type === 'connector_failure' ||
+    a.type === 'connector_health'
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Artifact Retrieval
 // ─────────────────────────────────────────────────────────────────────────────
 

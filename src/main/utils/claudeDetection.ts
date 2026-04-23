@@ -61,6 +61,6 @@ export function detectClaudeCode(): ClaudeCodeStatus {
     installed: false,
     executablePath: null,
     version: null,
-    error: 'Claude Code CLI not found. Please install Claude Code to use Knuthflow.',
+    error: 'Claude Code CLI not found. Please install Claude Code to use Ralph.',
   };
 }

@@ -18,6 +18,13 @@ const artifactTypeLabels: Record<ArtifactType, string> = {
   loop_summary: 'Loop Summary',
   prompt: 'Prompt',
   agent_output: 'Agent Output',
+  preview_screenshot: 'Preview Screenshot',
+  visual_smoke_check: 'Visual Smoke Check',
+  console_evidence: 'Console Evidence',
+  connector_input: 'Connector Input',
+  connector_output: 'Connector Output',
+  connector_failure: 'Connector Failure',
+  connector_health: 'Connector Health',
 };
 
 function getSeverityTone(severity: RalphArtifact['severity']) {
@@ -51,6 +58,130 @@ export function RalphArtifactViewer({
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
+  };
+
+  const isPreviewScreenshot = (type: ArtifactType) => type === 'preview_screenshot';
+  const isVisualSmokeCheck = (type: ArtifactType) => type === 'visual_smoke_check';
+  const isConsoleEvidence = (type: ArtifactType) => type === 'console_evidence';
+
+  const renderArtifactContent = (artifact: RalphArtifact, isExpanded: boolean) => {
+    const isScreenshot = isPreviewScreenshot(artifact.type);
+    const isSmokeCheck = isVisualSmokeCheck(artifact.type);
+    const isConsole = isConsoleEvidence(artifact.type);
+
+    if (isScreenshot && artifact.content) {
+      // Render screenshot as image
+      const imgSrc = `data:image/png;base64,${artifact.content}`;
+      return (
+        <div className="mt-2">
+          <img
+            src={imgSrc}
+            alt={`Screenshot for ${artifact.metadata.route as string ?? 'preview'}`}
+            className="max-w-full rounded border border-[var(--border-subtle)]"
+            style={{ maxHeight: isExpanded ? '600px' : '200px' }}
+          />
+          {typeof artifact.metadata.route === 'string' && (
+            <p className="mt-1 text-xs text-muted">
+              Route: {artifact.metadata.route as string} | Viewport: {artifact.metadata.viewport as string}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    if (isSmokeCheck) {
+      // Parse and display smoke check results
+      try {
+        const result = JSON.parse(artifact.content);
+        return (
+          <div className="code-surface p-3 mt-2">
+            <div className="mb-2">
+              <span className={`badge ${result.passed ? 'badge-success' : 'badge-danger'}`}>
+                {result.passed ? 'PASSED' : 'FAILED'}
+              </span>
+              <span className="ml-2 text-sm">{result.summary}</span>
+            </div>
+            {result.checks && (
+              <div className="mt-2 space-y-1">
+                {result.checks.map((check: { name: string; passed: boolean; severity: string; description: string }, idx: number) => (
+                  <div key={idx} className="flex items-start gap-2 text-xs">
+                    <span className={check.passed ? 'text-green-400' : 'text-red-400'}>
+                      {check.passed ? '✓' : '✗'}
+                    </span>
+                    <span>{check.description}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {result.errors && result.errors.length > 0 && (
+              <div className="mt-2">
+                <p className="text-red-400 text-xs font-semibold">Errors:</p>
+                {result.errors.map((err: { code: string; message: string }, idx: number) => (
+                  <p key={idx} className="text-xs text-red-300">{err.code}: {err.message}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      } catch {
+        return <pre className="m-0 whitespace-pre-wrap break-words text-xs text-mono">{artifact.content}</pre>;
+      }
+    }
+
+    if (isConsole) {
+      // Parse and display console evidence
+      try {
+        const evidence = JSON.parse(artifact.content);
+        const totalErrors = evidence.reduce((sum: number, e: { consoleErrors: string[]; pageErrors: string[] }) =>
+          sum + (e.consoleErrors?.length ?? 0) + (e.pageErrors?.length ?? 0), 0);
+        const totalFailedRequests = evidence.reduce((sum: number, e: { failedRequests: unknown[] }) =>
+          sum + (e.failedRequests?.length ?? 0), 0);
+
+        return (
+          <div className="code-surface p-3 mt-2">
+            <div className="mb-2 flex flex-wrap gap-2">
+              <span className={`badge ${totalErrors > 0 ? 'badge-danger' : 'badge-success'}`}>
+                {totalErrors} errors
+              </span>
+              <span className={`badge ${totalFailedRequests > 0 ? 'badge-warning' : 'badge-success'}`}>
+                {totalFailedRequests} failed requests
+              </span>
+            </div>
+            {evidence.map((ev: { route: string; viewport: string; consoleErrors: string[]; pageErrors: string[] }, idx: number) => (
+              <div key={idx} className="mt-2 border-t border-[var(--border-subtle)] pt-2">
+                <p className="text-xs font-semibold">{ev.route} ({ev.viewport})</p>
+                {ev.consoleErrors?.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-xs text-red-400">Console Errors:</p>
+                    {ev.consoleErrors.slice(0, 3).map((err: string, i: number) => (
+                      <p key={i} className="text-xs text-red-300 truncate">{err}</p>
+                    ))}
+                  </div>
+                )}
+                {ev.pageErrors?.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-xs text-red-400">Page Errors:</p>
+                    {ev.pageErrors.slice(0, 3).map((err: string, i: number) => (
+                      <p key={i} className="text-xs text-red-300 truncate">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      } catch {
+        return <pre className="m-0 whitespace-pre-wrap break-words text-xs text-mono">{artifact.content}</pre>;
+      }
+    }
+
+    // Default text content
+    const content = isExpanded ? artifact.content : `${artifact.content.slice(0, 280)}${artifact.content.length > 280 ? '…' : ''}`;
+    return (
+      <pre className={`m-0 whitespace-pre-wrap break-words text-xs text-mono ${artifact.severity === 'error' ? 'text-red-300' : ''}`}>
+        {content}
+      </pre>
+    );
   };
 
   if (filteredArtifacts.length === 0) {
@@ -117,12 +248,13 @@ export function RalphArtifactViewer({
                     <span>{formatTimestamp(artifact.createdAt)}</span>
                     <span>{formatDuration(artifact.durationMs)}</span>
                     {artifact.itemId && <span>Item {artifact.itemId}</span>}
+                    {typeof artifact.metadata.route === 'string' && (
+                      <span>{artifact.metadata.route as string}</span>
+                    )}
                   </div>
 
                   <div className="code-surface p-3">
-                    <pre className={`m-0 whitespace-pre-wrap break-words text-xs text-mono ${artifact.severity === 'error' ? 'text-red-300' : ''}`}>
-                      {content}
-                    </pre>
+                    {renderArtifactContent(artifact, isExpanded)}
                   </div>
 
                   {artifact.content.length > 280 && (

@@ -20,8 +20,13 @@ export const mainConfig: Configuration = {
   /**
    * Mark node-pty as external so webpack doesn't try to bundle the native module.
    * The native module will be loaded from node_modules at runtime.
+   *
+   * Mark playwright as external too - it has complex native dependencies
+   * (chromium-bidi, etc.) that cannot be bundled reliably.
    */
   externals: {
     'node-pty': 'commonjs node-pty',
+    'playwright': 'commonjs playwright',
+    'playwright-core': 'commonjs playwright-core',
   },
 };

@@ -36,7 +36,7 @@ export function BlueprintBrowser({
   const loadBlueprints = useCallback(async () => {
     setIsLoading(true);
     try {
-      const listResult = await window.knuthflow.blueprint.list({
+      const listResult = await window.ralph.blueprint.list({
         category: selectedCategory || undefined,
         isPublished: showPublished || undefined,
         limit: 100,
@@ -45,7 +45,7 @@ export function BlueprintBrowser({
 
       for (const bp of listResult) {
         try {
-          const latestVersion = await window.knuthflow.blueprint.getLatestVersion(bp.id);
+          const latestVersion = await window.ralph.blueprint.getLatestVersion(bp.id);
           blueprintsWithVersions.push({
             ...bp,
             latestVersion: latestVersion || undefined,
@@ -58,7 +58,7 @@ export function BlueprintBrowser({
       }
 
       setBlueprints(blueprintsWithVersions);
-      const cats = await window.knuthflow.blueprint.listCategories();
+      const cats = await window.ralph.blueprint.listCategories();
       setCategories(cats);
     } catch (error) {
       console.error('Failed to load blueprints:', error);

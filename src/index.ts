@@ -27,6 +27,21 @@ import {
   registerPortfolioRuntimeHandlers,
   registerMonitoringHandlers,
   registerBlueprintHandlers,
+  registerHealthHandlers,
+  registerFeedbackHandlers,
+  registerDeliveredAppsHandlers,
+  registerIterationBacklogHandlers,
+  registerRunPatternsHandlers,
+  registerPortfolioSummaryHandlers,
+  registerPreviewHandlers,
+  registerPolicyHandlers,
+  registerConnectorHandlers,
+  registerAnalyticsEventHandlers,
+  registerAnalyticsRollupHandlers,
+  registerBottleneckHandlers,
+  registerForecastHandlers,
+  registerRecommendationHandlers,
+  registerReportHandlers,
   cleanupProcesses,
   ptyManager,
 } from './main/ipc';
@@ -56,7 +71,8 @@ if (require('electron-squirrel-startup')) {
 let mainWindow: BrowserWindow | null = null;
 
 // Test isolation: allow overriding user data path via environment variable
-const testUserDataPath = process.env.KNUTHFLOW_USER_DATA_DIR;
+// Supports both KNUTHFLOW_USER_DATA_DIR (legacy) and RALPH_USER_DATA_DIR (preferred)
+const testUserDataPath = process.env.RALPH_USER_DATA_DIR ?? process.env.KNUTHFLOW_USER_DATA_DIR;
 if (testUserDataPath) {
   fs.mkdirSync(testUserDataPath, { recursive: true });
   app.setPath('userData', testUserDataPath);
@@ -179,6 +195,9 @@ function registerIpcHandlers(): void {
   // Milestone validation handlers
   registerMilestoneValidationHandlers();
 
+  // Preview handlers (Phase 28 - Visual Validation)
+  registerPreviewHandlers();
+
   // Portfolio handlers
   registerPortfolioHandlers();
 
@@ -190,6 +209,28 @@ function registerIpcHandlers(): void {
 
   // Blueprint handlers (Phase 20)
   registerBlueprintHandlers();
+
+  // Phase 26 handlers (health, feedback, delivered apps, iteration backlog, run patterns)
+  registerHealthHandlers();
+  registerFeedbackHandlers();
+  registerDeliveredAppsHandlers();
+  registerIterationBacklogHandlers();
+  registerRunPatternsHandlers();
+  registerPortfolioSummaryHandlers();
+
+  // Policy handlers (Phase 29)
+  registerPolicyHandlers();
+
+  // Connector handlers (Phase 30)
+  registerConnectorHandlers();
+
+  // Analytics and reporting handlers (Phase 31)
+  registerAnalyticsEventHandlers();
+  registerAnalyticsRollupHandlers();
+  registerBottleneckHandlers();
+  registerForecastHandlers();
+  registerRecommendationHandlers();
+  registerReportHandlers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

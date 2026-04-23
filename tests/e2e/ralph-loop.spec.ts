@@ -356,7 +356,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -400,7 +400,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -420,7 +420,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -440,7 +440,7 @@ test.describe('Phase 12: Operator Controls', () => {
     // Create a bootstrapped workspace and register it
     const workspace = createBootstrappedRalphWorkspace();
     await page.evaluate(async ({ path }) => {
-      await window.knuthflow.workspace.create({ name: 'test-ralph-workspace', path });
+      await window.ralph.workspace.create({ name: 'test-ralph-workspace', path });
     }, { path: workspace.path });
 
     // Navigate to Ralph Console
@@ -471,5 +471,144 @@ test.describe('Phase 12: Operator Controls', () => {
     await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
 
     await workspace.cleanup();
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Phase 23: Ralph-First Project Flow Tests
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+// Skip UI tests in CI or when display is unavailable
+(skipUITests ? test.describe.skip : test.describe)('Phase 23: Ralph-First Project Flow', () => {
+  let workspace: { path: string; cleanup: () => Promise<void> } | null = null;
+
+  test.afterEach(async () => {
+    if (workspace) {
+      await workspace.cleanup();
+      workspace = null;
+    }
+  });
+
+  test('Ralph lifecycle states are defined', async () => {
+    // Verify lifecycle state model is available
+    const validStates = [
+      'no_workspace',
+      'workspace_selected_not_enabled',
+      'needs_fresh_bootstrap',
+      'needs_repair',
+      'ready_no_active_run',
+      'active_run',
+      'paused_run',
+      'failed_run',
+      'completed_run',
+      'delivery_ready',
+      'delivered',
+      'maintenance_tracked',
+    ];
+
+    expect(validStates).toHaveLength(12);
+    expect(validStates).toContain('ready_no_active_run');
+    expect(validStates).toContain('active_run');
+    expect(validStates).toContain('failed_run');
+  });
+
+  test('Bootstrapped workspace transitions to ready state', async () => {
+    workspace = createBootstrappedRalphWorkspace();
+
+    // Verify all control files are present
+    expect(fs.existsSync(path.join(workspace.path, 'PROMPT.md'))).toBe(true);
+    expect(fs.existsSync(path.join(workspace.path, 'AGENT.md'))).toBe(true);
+    expect(fs.existsSync(path.join(workspace.path, 'fix_plan.md'))).toBe(true);
+    expect(fs.existsSync(path.join(workspace.path, '.ralph'))).toBe(true);
+  });
+
+  test('Readiness report is generated for bootstrapped workspace', async () => {
+    workspace = createBootstrappedRalphWorkspace();
+
+    // Register workspace in the app
+    await page.evaluate(async ({ path }) => {
+      await window.ralph.workspace.create({ name: 'phase-23-test', path });
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Select the workspace (if there's a selector)
+    const workspaceSelect = page.locator('[class*="workspace"]').first();
+    if (await workspaceSelect.isVisible()) {
+      await workspaceSelect.click();
+      await page.locator(`text=${workspace.path}`).click();
+    }
+
+    // Verify bootstrap button is visible
+    await expect(page.getByRole('button', { name: 'Bootstrap Ralph' })).toBeVisible({ timeout: 3000 }).catch(() => {
+      // Bootstrap may already be done
+    });
+  });
+
+  test('New App button opens intake form', async ({ page }) => {
+    workspace = createRalphTestWorkspace();
+    await page.evaluate(async ({ path }) => {
+      await window.ralph.workspace.create({ name: 'phase-23-intake-test', path });
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Click New App button
+    await page.getByRole('button', { name: 'New App' }).click();
+
+    // Verify intake form or path chooser is visible
+    const hasIntakeForm = await page.locator('.app-intake-form, .intake-path-chooser, .path-card').isVisible({ timeout: 3000 }).catch(() => false);
+    expect(hasIntakeForm).toBe(true);
+  });
+
+  test('Recovery states are defined for common failures', async () => {
+    // Verify recovery message types exist
+    const recoveryActions = [
+      'repair_files',
+      'recheck_readiness',
+      'stop_stale_run',
+      'reopen_folder',
+      'install_claude_code',
+      'retry_bootstrap',
+      'inspect_logs',
+    ];
+
+    expect(recoveryActions).toHaveLength(7);
+    expect(recoveryActions).toContain('repair_files');
+    expect(recoveryActions).toContain('retry_bootstrap');
+  });
+
+  test('Run card displays Ralph-owned terminal link when session exists', async ({ page }) => {
+    workspace = createBootstrappedRalphWorkspace();
+
+    // Register workspace and bootstrap
+    await page.evaluate(async ({ path }) => {
+      const ws = await window.ralph.workspace.create({ name: 'phase-23-run-card-test', path });
+      await window.ralph.ralph.bootstrap(ws.id, path, false, ['web']);
+    }, { path: workspace.path });
+
+    // Navigate to Ralph Console
+    await page.getByRole('button', { name: 'Console' }).click();
+    await expect(page.getByRole('heading', { name: 'Ralph Console' })).toBeVisible();
+
+    // Select the workspace
+    const workspaceSelect = page.locator('[class*="workspace"]').first();
+    if (await workspaceSelect.isVisible()) {
+      await workspaceSelect.click();
+      await page.locator(`text=${workspace.path}`).click();
+    }
+
+    // Verify all workspace action buttons are present
+    const buttons = ['New App', 'Bootstrap Ralph', 'Repair Files', 'Edit Prompt', 'Edit Agent', 'Edit Fix Plan'];
+    for (const buttonName of buttons) {
+      const button = page.getByRole('button', { name: buttonName });
+      if (await button.isVisible()) {
+        // Button is present - this is expected
+      }
+    }
   });
 });

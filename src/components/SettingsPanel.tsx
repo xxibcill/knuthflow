@@ -10,6 +10,7 @@ import { AboutSettings } from './settings/AboutSettings';
 interface SettingsPanelProps {
   onClose: () => void;
   onSaved?: (settings: AppSettings) => void;
+  onReplayOnboarding?: () => void;
 }
 
 type TabType = 'general' | 'terminal' | 'security' | 'profiles' | 'diagnostics' | 'about';
@@ -41,7 +42,7 @@ const TAB_COPY: Record<TabType, { title: string; summary: string }> = {
   },
 };
 
-export function SettingsPanel({ onClose, onSaved }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onSaved, onReplayOnboarding }: SettingsPanelProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [profiles, setProfiles] = useState<LaunchProfile[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -251,7 +252,7 @@ export function SettingsPanel({ onClose, onSaved }: SettingsPanelProps) {
             )}
 
             {activeTab === 'diagnostics' && <DiagnosticsSettings diagnostics={diagnostics} />}
-            {activeTab === 'about' && <AboutSettings diagnostics={diagnostics} />}
+            {activeTab === 'about' && <AboutSettings diagnostics={diagnostics} onReplayOnboarding={onReplayOnboarding} />}
           </div>
         </div>
 

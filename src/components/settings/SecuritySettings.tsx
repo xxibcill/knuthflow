@@ -45,7 +45,7 @@ export function SecuritySettings() {
             <div>
               <p className="m-0 text-sm font-semibold">No extra action required</p>
               <p className="mt-1 text-sm text-muted">
-                The storage backend is selected automatically based on the platform Knuthflow is running on.
+                The storage backend is selected automatically based on the platform Ralph is running on.
               </p>
             </div>
           </div>

@@ -10,6 +10,7 @@ import { RalphConsolePanel } from './components/ralph-console/RalphConsolePanel'
 import { NotificationToast } from './components/NotificationToast'
 import { PortfolioDashboard } from './components/portfolio/PortfolioDashboard'
 import { BlueprintManager } from './components/blueprint'
+import { OnboardingPanel } from './components/onboarding/OnboardingPanel'
 import type {
   ClaudeCodeStatus,
   ClaudeRunState,
@@ -21,7 +22,7 @@ import type {
 } from './preload'
 import type { AppSettings } from './shared/preloadTypes'
 
-type ViewMode = 'terminal' | 'workspaces' | 'history' | 'editor' | 'console' | 'portfolio' | 'blueprints'
+type ViewMode = 'ralph' | 'terminal' | 'workspaces' | 'history' | 'editor' | 'portfolio' | 'blueprints'
 
 interface ActiveRun {
   runId: string
@@ -66,11 +67,11 @@ interface LaunchSessionResult {
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = {
+  ralph: 'Ralph',
   terminal: 'Terminal',
-  workspaces: 'Workspaces',
+  workspaces: 'Projects',
   history: 'History',
   editor: 'Editor',
-  console: 'Console',
   portfolio: 'Portfolio',
   blueprints: 'Blueprints',
 }
@@ -90,6 +91,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   showTabBar: true,
   showStatusBar: true,
   theme: 'dark',
+  onboardingState: 'not_started',
+  onboardingCompletedAt: null,
+  firstWorkspaceId: null,
 }
 
 function resolveTheme(theme: AppSettings['theme'], systemTheme: 'light' | 'dark') {
@@ -97,25 +101,25 @@ function resolveTheme(theme: AppSettings['theme'], systemTheme: 'light' | 'dark'
 }
 
 function getRunSummary(activeRun: ActiveRun | null) {
-  if (!activeRun) return 'Ready'
+  if (!activeRun) return 'Ready for Ralph'
 
   if (activeRun.state === 'running') {
-    return `Run ${activeRun.runId.slice(0, 8)} active`
+    return `Ralph run ${activeRun.runId.slice(0, 8)} active`
   }
 
   if (activeRun.state === 'starting') {
-    return 'Session booting'
+    return 'Ralph initializing'
   }
 
   if (activeRun.state === 'exited') {
-    return `Exited with code ${activeRun.exitCode ?? 0}`
+    return `Run ended with code ${activeRun.exitCode ?? 0}`
   }
 
   if (activeRun.state === 'failed') {
-    return `Failed: ${activeRun.error || activeRun.exitCode || 'Unknown error'}`
+    return `Run failed: ${activeRun.error || activeRun.exitCode || 'Unknown error'}`
   }
 
-  return 'Ready'
+  return 'Ready for Ralph'
 }
 
 function getRunBadge(activeRun: ActiveRun | null): { label: string; className: string } {
@@ -143,7 +147,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [activeRun, setActiveRun] = useState<ActiveRun | null>(null)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('workspaces')
+  const [viewMode, setViewMode] = useState<ViewMode>('ralph')
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -151,6 +155,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>('dark')
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
   const [diffFiles, setDiffFiles] = useState<DiffFile[]>([])
@@ -196,6 +201,11 @@ export default function App() {
 
         setStatus(claudeStatus)
         setSettings(appSettings)
+
+        // Check if onboarding should be shown
+        if (appSettings.onboardingState !== 'completed') {
+          setShowOnboarding(true)
+        }
 
         if (update.available) {
           setUpdateInfo(update)
@@ -353,7 +363,7 @@ export default function App() {
 
       const newTab: Tab = {
         id: savedSession.id,
-        name,
+        name: workspace ? `${workspace.name} / ${name}` : name,
         sessionId: result.sessionId,
         runId: result.runId,
         workspaceId: workspace?.id || null,
@@ -451,6 +461,48 @@ export default function App() {
     setDiffFiles([])
   }, [])
 
+  const handleOnboardingComplete = useCallback(
+    async (firstWorkspaceId: string) => {
+      try {
+        await window.knuthflow.settings.set('onboardingState', 'completed')
+        await window.knuthflow.settings.set('onboardingCompletedAt', Date.now())
+        await window.knuthflow.settings.set('firstWorkspaceId', firstWorkspaceId)
+        setSettings((prev) => ({
+          ...prev,
+          onboardingState: 'completed',
+          onboardingCompletedAt: Date.now(),
+          firstWorkspaceId,
+        }))
+        setShowOnboarding(false)
+      } catch (err) {
+        console.error('Failed to save onboarding completion:', err)
+        setShowOnboarding(false)
+      }
+    },
+    [],
+  )
+
+  const handleOnboardingDismiss = useCallback(async () => {
+    try {
+      await window.knuthflow.settings.set('onboardingState', 'dismissed')
+      setSettings((prev) => ({ ...prev, onboardingState: 'dismissed' }))
+      setShowOnboarding(false)
+    } catch (err) {
+      console.error('Failed to save onboarding dismissal:', err)
+      setShowOnboarding(false)
+    }
+  }, [])
+
+  const handleOnboardingReplay = useCallback(async () => {
+    try {
+      await window.knuthflow.settings.set('onboardingState', 'in_progress')
+      setSettings((prev) => ({ ...prev, onboardingState: 'in_progress' }))
+      setShowOnboarding(true)
+    } catch (err) {
+      console.error('Failed to replay onboarding:', err)
+    }
+  }, [])
+
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
   const activeSessionId = activeTab?.sessionId || activeRun?.sessionId || null
   const resolvedTheme = resolveTheme(settings.theme, systemTheme)
@@ -470,11 +522,35 @@ export default function App() {
     [settings.fontFamily, settings.fontSize],
   )
 
-  const activeWorkspaceLabel = selectedWorkspace ? selectedWorkspace.name : 'No workspace selected'
+  const activeWorkspaceLabel = selectedWorkspace ? `Project: ${selectedWorkspace.name}` : 'No project selected'
 
   return (
     <div className="app-shell" data-theme={resolvedTheme} data-testid="app-shell" style={rootStyle}>
       <div className="app-frame">
+        {showOnboarding && !loading && (
+          <OnboardingPanel
+            settings={settings}
+            onComplete={handleOnboardingComplete}
+            onDismiss={handleOnboardingDismiss}
+            onReplay={handleOnboardingReplay}
+            onOpenWorkspace={(path) => {
+              window.knuthflow.workspace.list().then((workspaces) => {
+                const workspace = workspaces.find((item) => item.path === path)
+                if (workspace) {
+                  setSelectedWorkspace(workspace)
+                }
+              })
+            }}
+            onLaunchClaudeSession={({ name, workspace }) =>
+              launchClaudeSession({
+                name,
+                args: ['--no-input'],
+                workspace,
+                switchToTerminal: false,
+              })
+            }
+          />
+        )}
         <section className="surface-panel shell-nav">
           <div className="shell-nav-main">
             <div className="shell-nav-brand">
@@ -483,7 +559,7 @@ export default function App() {
                 <div className="toolbar-inline shell-nav-meta">
                   <span className={`badge ${statusBadge.className}`}>{statusBadge.label}</span>
                   {!status?.installed && !loading && (
-                    <span className="badge badge-danger">Install Claude Code</span>
+                    <span className="badge badge-danger">Claude Code missing</span>
                   )}
                 </div>
               </div>
@@ -563,11 +639,12 @@ export default function App() {
                     Stop Session
                   </button>
                 ) : (
-                  <button onClick={handleStartClaude} className="btn btn-primary">
+                  <button onClick={handleStartClaude} className="btn btn-ghost">
                     New Session
                   </button>
                 ))}
-            </div>
+
+                          </div>
           </div>
         </section>
 
@@ -615,7 +692,7 @@ export default function App() {
                 <section className="surface-panel-muted workspace-hero">
                   <div className="workspace-hero-main">
                     <div className="stack-sm">
-                      <h2 className="brand-title">Operator Workspace</h2>
+                      <h2 className="brand-title">Ralph Projects</h2>
                       <p className="nav-subtitle">{claudeStatusLabel}</p>
                     </div>
                   </div>
@@ -656,10 +733,10 @@ export default function App() {
                   <footer className="status-bar">
                     <span className="text-mono">
                       {selectedWorkspace
-                        ? `Workspace ${selectedWorkspace.path}`
+                        ? `Project ${selectedWorkspace.path}`
                         : status?.installed
                           ? `Claude Code ${status.executablePath}`
-                          : 'Claude Code not detected'}
+                          : 'Claude Code not available — install to enable Ralph runs'}
                     </span>
                     <span>{getRunSummary(activeRun)}</span>
                     {activeTab?.crashed && activeTab.crashMessage && (
@@ -713,7 +790,7 @@ export default function App() {
                 </SplitPane>
               ))}
 
-            {viewMode === 'console' && (
+            {viewMode === 'ralph' && (
               <RalphConsolePanel
                 workspace={selectedWorkspace}
                 onOpenWorkspace={(path) => {
@@ -737,6 +814,14 @@ export default function App() {
                     switchToTerminal: false,
                   })
                 }
+                onOpenTerminal={(run) => {
+                  // Find the tab associated with this run's session
+                  const tab = tabs.find(t => t.sessionId === run.sessionId)
+                  if (tab) {
+                    setActiveTabId(tab.id)
+                  }
+                  setViewMode('terminal')
+                }}
               />
             )}
 
@@ -754,6 +839,7 @@ export default function App() {
               setSettings(nextSettings)
               setShowSettings(false)
             }}
+            onReplayOnboarding={handleOnboardingReplay}
           />
         )}
       </div>

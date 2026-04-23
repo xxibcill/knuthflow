@@ -8,10 +8,46 @@ import type {
   BootstrapResult,
   RalphControlFiles,
   LoopState,
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
+  AnalyticsEvent,
+  AnalyticsRollup,
+  BottleneckDetection,
+  Forecast,
+  RecommendationRecord,
+} from './ralphTypes';
+export type {
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
+  AnalyticsEvent,
+  AnalyticsRollup,
+  BottleneckDetection,
+  Forecast,
+  RecommendationRecord,
 } from './ralphTypes';
 import type { PlatformCategory, PlatformTarget, PlatformTargetConfig } from './deliveryTypes';
 import type { Blueprint, BlueprintVersion } from './blueprintTypes';
 import type { ArtifactType } from '../components/ralph-console/RalphConsole.types';
+import type {
+  ConnectorManifest,
+  ConnectorConfig,
+  ConnectorHealth,
+  ConnectorCapability,
+  ConnectorCallContext,
+  ConnectorErrorCode,
+} from './connectorTypes';
+export type {
+  ConnectorManifest,
+  ConnectorConfig,
+  ConnectorHealth,
+  ConnectorCapability,
+  ConnectorCallContext,
+  ConnectorErrorCode,
+} from './connectorTypes';
 export type { ArtifactType };
 export type { Blueprint, BlueprintVersion } from './blueprintTypes';
 
@@ -267,6 +303,8 @@ export interface PortfolioProject {
 // Settings Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type OnboardingState = 'not_started' | 'in_progress' | 'completed' | 'dismissed';
+
 export interface AppSettings {
   cliPath: string | null;
   defaultArgs: string[];
@@ -282,6 +320,9 @@ export interface AppSettings {
   showTabBar: boolean;
   showStatusBar: boolean;
   theme: 'dark' | 'light' | 'system';
+  onboardingState: OnboardingState;
+  onboardingCompletedAt: number | null;
+  firstWorkspaceId: string | null;
 }
 
 export interface LaunchProfile {
@@ -316,7 +357,8 @@ export type {
 } from './ralphTypes';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KnuthflowAPI Interface
+// RalphAPI / KnuthflowAPI Interface
+// KnuthflowAPI is the canonical interface name; RalphDesktopAPI is an alias for new code.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface KnuthflowAPI {
@@ -1639,4 +1681,644 @@ export interface KnuthflowAPI {
       error?: string;
     }>;
   };
+  health: {
+    createEvent(params: {
+      eventType: string;
+      appId?: string;
+      workspaceId?: string;
+      runId?: string;
+      status: string;
+      message?: string;
+      details?: string;
+      triggeredAt: number;
+    }): Promise<{
+      id: string;
+      eventType: string;
+      appId: string | null;
+      workspaceId: string | null;
+      runId: string | null;
+      status: string;
+      message: string | null;
+      details: string | null;
+      triggeredAt: number;
+      createdAt: number;
+    }>;
+    listEvents(limit?: number): Promise<Array<{
+      id: string;
+      eventType: string;
+      appId: string | null;
+      workspaceId: string | null;
+      runId: string | null;
+      status: string;
+      message: string | null;
+      details: string | null;
+      triggeredAt: number;
+      createdAt: number;
+    }>>;
+  };
+  feedback: {
+    create(params: {
+      appId?: string;
+      runId?: string;
+      type: string;
+      content: string;
+      rating?: number;
+      source?: string;
+      linkedBacklogId?: string;
+    }): Promise<{
+      id: string;
+      appId: string | null;
+      runId: string | null;
+      type: string;
+      content: string;
+      rating: number | null;
+      source: string | null;
+      linkedBacklogId: string | null;
+      createdAt: number;
+    }>;
+    list(limit?: number): Promise<Array<{
+      id: string;
+      appId: string | null;
+      runId: string | null;
+      type: string;
+      content: string;
+      rating: number | null;
+      source: string | null;
+      linkedBacklogId: string | null;
+      createdAt: number;
+    }>>;
+    getByRunId(runId: string): Promise<Array<{
+      id: string;
+      appId: string | null;
+      runId: string | null;
+      type: string;
+      content: string;
+      rating: number | null;
+      source: string | null;
+      linkedBacklogId: string | null;
+      createdAt: number;
+    }>>;
+    linkToBacklog(feedbackId: string, backlogId: string): Promise<{ success: boolean; error?: string }>;
+  };
+  deliveredApps: {
+    create(params: {
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      bundlePath?: string;
+      runId?: string;
+      metadata?: Record<string, unknown>;
+    }): Promise<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    getByAppId(appId: string): Promise<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    } | null>;
+    list(limit?: number): Promise<Array<{
+      id: string;
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      healthStatus: string;
+      bundlePath: string | null;
+      runId: string | null;
+      metadata: Record<string, unknown>;
+      deliveredAt: number;
+      lastSeenAt: number | null;
+      followUpSignal: string | null;
+      followUpNotes: string | null;
+      createdAt: number;
+      updatedAt: number;
+    }>>;
+    updateHealth(id: string, healthStatus: string): Promise<{ success: boolean; error?: string }>;
+    updateFollowUp(id: string, followUpSignal: string, followUpNotes?: string): Promise<{ success: boolean; error?: string }>;
+    updateLastSeen(id: string): Promise<{ success: boolean; error?: string }>;
+  };
+  iterationBacklog: {
+    create(params: {
+      title: string;
+      description: string;
+      source: string;
+      priority?: 'high' | 'medium' | 'low';
+      linkedFeedbackId?: string;
+    }): Promise<{
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      priority: string;
+      status: string;
+      createdAt: number;
+      updatedAt: number;
+      startedAt: number | null;
+      completedAt: number | null;
+      linkedFeedbackId: string | null;
+    }>;
+    get(id: string): Promise<{
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      priority: string;
+      status: string;
+      createdAt: number;
+      updatedAt: number;
+      startedAt: number | null;
+      completedAt: number | null;
+      linkedFeedbackId: string | null;
+    } | null>;
+    list(options?: { status?: string; priority?: string; limit?: number }): Promise<Array<{
+      id: string;
+      title: string;
+      description: string;
+      source: string;
+      priority: string;
+      status: string;
+      createdAt: number;
+      updatedAt: number;
+      startedAt: number | null;
+      completedAt: number | null;
+      linkedFeedbackId: string | null;
+    }>>;
+    update(id: string, updates: { status?: string; priority?: string }): Promise<{ success: boolean; error?: string }>;
+  };
+  runPatterns: {
+    create(params: {
+      projectId: string;
+      runId?: string;
+      goalType?: string;
+      blueprintId?: string;
+      blueprintVersion?: string;
+      milestoneCount?: number;
+      validationResult?: string;
+      deliveryStatus?: string;
+      patternTags?: string[];
+    }): Promise<{
+      id: string;
+      projectId: string;
+      runId: string | null;
+      goalType: string | null;
+      blueprintId: string | null;
+      blueprintVersion: string | null;
+      milestoneCount: number;
+      validationResult: string | null;
+      deliveryStatus: string | null;
+      patternTags: string[];
+      createdAt: number;
+    }>;
+    list(projectId: string, limit?: number): Promise<Array<{
+      id: string;
+      projectId: string;
+      runId: string | null;
+      goalType: string | null;
+      blueprintId: string | null;
+      blueprintVersion: string | null;
+      milestoneCount: number;
+      validationResult: string | null;
+      deliveryStatus: string | null;
+      patternTags: string[];
+      createdAt: number;
+    }>>;
+    getSummary(): Promise<Array<{
+      goalType: string;
+      count: number;
+      successCount: number;
+      avgMilestones: number;
+    }>>;
+  };
+  portfolioSummary: {
+    get(): Promise<{
+      totalApps: number;
+      healthyCount: number;
+      recentDeliveries: number;
+      aggregateSuccessRate: number;
+    }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Preview & Visual Validation (Phase 28)
+  // ─────────────────────────────────────────────────────────────────────────────
+  preview: {
+    detectCommand(
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ): Promise<{
+      success: boolean;
+      result?: {
+        found: boolean;
+        preview: {
+          command: string;
+          cwd: string;
+          host: string;
+          port: number;
+          startupUrl: string;
+          routes: string[];
+          source: string;
+          framework: string | null;
+        } | null;
+        reason: string;
+        suggestion?: string;
+      };
+      error?: string;
+    }>;
+    startPreview(
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ): Promise<{
+      success: boolean;
+      result?: {
+        processId: string;
+        url: string;
+        port: number;
+        command: string;
+        logs: string;
+      };
+      error?: string;
+      suggestion?: string;
+    }>;
+    stopPreview(processId: string): Promise<{ success: boolean; error?: string }>;
+    getProcessStatus(processId: string): Promise<{
+      success: boolean;
+      result?: {
+        id: string;
+        status: string;
+        port: number;
+        pid: number | null;
+        startupTimeMs: number | null;
+        url: string | null;
+        error: string | null;
+        logs: string;
+      };
+      error?: string;
+    }>;
+    stopAllPreviews(): Promise<{ success: boolean; error?: string }>;
+    captureEvidence(
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ): Promise<{
+      success: boolean;
+      result?: {
+        screenshots: Array<{
+          route: string;
+          viewport: string;
+          screenshotPath: string | null;
+          errors: Array<{ code: string; message: string }>;
+          warnings: Array<{ code: string; message: string }>;
+          durationMs: number;
+          timestamp: number;
+        }>;
+        consoleEvidence: Array<{
+          route: string;
+          viewport: string;
+          consoleErrors: string[];
+          consoleWarnings: string[];
+          pageErrors: string[];
+          failedRequests: Array<{ url: string; status: number; failureReason: string }>;
+          timestamp: number;
+        }>;
+        routes: string[];
+        viewports: string[];
+        skipped: boolean;
+        skipReason: string | null;
+      };
+      skipped?: boolean;
+      skipReason?: string;
+      error?: string;
+    }>;
+    captureAndStoreEvidence(
+      projectId: string,
+      runId: string,
+      iteration: number,
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ): Promise<{
+      success: boolean;
+      result?: {
+        screenshots: Array<{
+          id: string;
+          route: string;
+          viewport: string;
+          timestamp: number;
+          passed: boolean;
+        }>;
+        smokeCheck: {
+          passed: boolean;
+          checks: number;
+          errors: number;
+          warnings: number;
+        };
+        consoleEvidence: {
+          artifactId: string;
+          totalErrors: number;
+        };
+        skipped: boolean;
+        skipReason: string | null;
+      };
+      error?: string;
+    }>;
+    runVisualSmokeChecks(
+      screenshots: Array<{
+        route: string;
+        viewport: string;
+        screenshotBase64: string | null;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      }>,
+      consoleEvidence: Array<{
+        route: string;
+        viewport: string;
+        consoleErrors: string[];
+        consoleWarnings: string[];
+        pageErrors: string[];
+        failedRequests: Array<{ url: string; status: number; failureReason: string }>;
+      }>,
+      options?: { checkOverflow?: boolean; allowedConsoleErrors?: string[] }
+    ): Promise<{
+      success: boolean;
+      result?: {
+        passed: boolean;
+        checks: Array<{
+          name: string;
+          passed: boolean;
+          severity: string;
+          description: string;
+          details?: string;
+        }>;
+        summary: string;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+        durationMs: number;
+        timestamp: number;
+      };
+      error?: string;
+    }>;
+  };
+  policy: {
+    getEffective(projectId: string): Promise<{
+      success: boolean;
+      policy: EffectivePolicy | null;
+    }>;
+    listRules(projectId: string): Promise<{ success: boolean; rules: PolicyRule[] }>;
+    createRule(params: {
+      projectId: string;
+      type: PolicyRule['type'];
+      label: string;
+      description: string;
+      pattern: string;
+      enabled?: boolean;
+      scope?: string | null;
+      severity?: 'error' | 'warning';
+      inheritable?: boolean;
+    }): Promise<{ success: boolean; rule?: PolicyRule; error?: string }>;
+    updateRule(id: string, updates: Partial<PolicyRule>): Promise<{ success: boolean; rule?: PolicyRule; error?: string }>;
+    deleteRule(id: string): Promise<{ success: boolean; error?: string }>;
+    check(projectId: string, enforcementPoint: string, action: string, context?: { filePath?: string; command?: string }): Promise<{
+      success: boolean;
+      allowed: boolean;
+      violations: Array<{
+        ruleId: string;
+        ruleLabel: string;
+        ruleType: PolicyRule['type'];
+        severity: 'error' | 'warning';
+        message: string;
+        enforcementPoint: string;
+        action: string;
+        overrideableBy: string | null;
+        recovery: string;
+      }>;
+    }>;
+    getSummary(projectId: string): Promise<{ success: boolean; summary: { ruleCount: number; enabledCount: number; activeOverrideCount: number } | null }>;
+    createOverride(params: {
+      projectId: string;
+      ruleId: string;
+      action: string;
+      reason: string;
+      scope: PolicyOverride['scope'];
+      expiresAt?: number | null;
+    }): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
+    listOverrides(projectId: string): Promise<{ success: boolean; overrides: PolicyOverride[] }>;
+    pendingOverrides(projectId: string): Promise<{ success: boolean; overrides: PolicyOverride[] }>;
+    approveOverride(id: string, approver: string): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
+    rejectOverride(id: string, approver: string): Promise<{ success: boolean; override?: PolicyOverride; error?: string }>;
+    listAuditEntries(projectId: string, limit?: number): Promise<{ success: boolean; entries: PolicyAuditEntry[] }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Connector Types (Phase 30)
+  // ─────────────────────────────────────────────────────────────────────────────
+  connector: {
+    listManifests(): Promise<{ success: boolean; connectors: ConnectorManifest[] }>;
+    listConfigs(projectId?: string | null): Promise<{ success: boolean; configs: Array<ConnectorConfig & { health?: ConnectorHealth }> }>;
+    getConfig(id: string): Promise<{ success: boolean; config: (ConnectorConfig & { health?: ConnectorHealth; manifest?: ConnectorManifest }) | null; error?: string }>;
+    saveConfig(params: {
+      connectorId: string;
+      projectId?: string | null;
+      scope?: 'global' | 'project';
+      enabled?: boolean;
+      configValues: Record<string, string>;
+    }): Promise<{ success: boolean; config?: ConnectorConfig; error?: string }>;
+    deleteConfig(id: string): Promise<{ success: boolean; error?: string }>;
+    testConnection(id: string): Promise<{
+      success: boolean;
+      result?: {
+        status: 'healthy' | 'degraded' | 'error' | 'needs_auth';
+        message: string;
+        latencyMs?: number;
+      };
+      error?: string;
+    }>;
+    call(params: {
+      connectorId: string;
+      capability: ConnectorCapability;
+      operation: 'read' | 'write' | 'delete' | 'publish' | 'deploy';
+      targetScope?: string;
+      resourceId?: string;
+      params?: Record<string, unknown>;
+      projectId?: string;
+      runId?: string;
+      iteration?: number;
+      itemId?: string | null;
+    }): Promise<{ success: boolean; result?: unknown; error?: { code: ConnectorErrorCode; message: string; retryable: boolean } }>;
+    redactedConfig(configId: string): Promise<{ success: boolean; configValues: Record<string, string> }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Analytics Types (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+  analytics: {
+    createEvent(params: {
+      projectId?: string | null;
+      runId?: string | null;
+      sessionId?: string | null;
+      eventType: string;
+      category: AnalyticsEvent['category'];
+      metricName: string;
+      metricValue: number;
+      dimensions?: Record<string, unknown>;
+    }): Promise<{ success: boolean; event?: AnalyticsEvent; error?: string }>;
+    listEvents(filter?: {
+      projectId?: string | null;
+      runId?: string | null;
+      eventType?: string;
+      category?: AnalyticsEvent['category'];
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number): Promise<{ success: boolean; events: AnalyticsEvent[] }>;
+    getEvent(id: string): Promise<{ success: boolean; event?: AnalyticsEvent; error?: string }>;
+    createRollup(params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType: string;
+      timeWindow: string;
+      metricName: string;
+      metricValue: number;
+      sampleSize: number;
+      dimensions?: Record<string, unknown>;
+    }): Promise<{ success: boolean; rollup?: AnalyticsRollup; error?: string }>;
+    listRollups(filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType?: string;
+      timeWindow?: string;
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number): Promise<{ success: boolean; rollups: AnalyticsRollup[] }>;
+    listBottlenecks(filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      bottleneckType?: BottleneckDetection['bottleneckType'];
+      severity?: BottleneckDetection['severity'];
+      status?: BottleneckDetection['status'];
+    }, limit?: number): Promise<{ success: boolean; bottlenecks: BottleneckDetection[] }>;
+    updateBottleneck(id: string, updates: { status?: BottleneckDetection['status']; suggestion?: string }): Promise<{ success: boolean; bottleneck?: BottleneckDetection; error?: string }>;
+    createForecast(params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      appType?: string | null;
+      platformTargets?: string[];
+      stackPreferences?: string[];
+      estimatedDurationMs?: number | null;
+      estimatedIterationCount?: number | null;
+      estimatedRiskLevel?: Forecast['estimatedRiskLevel'];
+      confidenceScore?: number | null;
+      caveats?: string | null;
+    }): Promise<{ success: boolean; forecast?: Forecast; error?: string }>;
+    listForecasts(filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      resolved?: boolean;
+    }, limit?: number): Promise<{ success: boolean; forecasts: Forecast[] }>;
+    resolveForecast(id: string, actuals: {
+      actualDurationMs: number;
+      actualIterationCount: number;
+      actualOutcome: Forecast['actualOutcome'];
+    }): Promise<{ success: boolean; forecast?: Forecast; error?: string }>;
+    listRecommendations(filter?: {
+      projectId?: string | null;
+      recommendationType?: RecommendationRecord['recommendationType'];
+      targetEntityType?: RecommendationRecord['targetEntityType'];
+      targetEntityId?: string | null;
+      status?: RecommendationRecord['status'];
+    }, limit?: number): Promise<{ success: boolean; recommendations: RecommendationRecord[] }>;
+    updateRecommendation(id: string, updates: {
+      status?: RecommendationRecord['status'];
+      outcome?: string | null;
+      outcomeNotes?: string | null;
+      deferredUntil?: number | null;
+    }): Promise<{ success: boolean; recommendation?: RecommendationRecord; error?: string }>;
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Report Types (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+  report: {
+    generate(filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }): Promise<{ success: boolean; report?: unknown; error?: string }>;
+    exportJson(filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }): Promise<{ success: boolean; content?: string; error?: string }>;
+    exportMarkdown(filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }): Promise<{ success: boolean; content?: string; error?: string }>;
+  };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ralph API Alias (Phase 24 - API Compatibility)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ralph API type alias for the preload API.
+ * This is the preferred API name for new development.
+ */
+export type RalphDesktopAPI = KnuthflowAPI;

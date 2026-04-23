@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import type { AppSettings } from './database';
 
 // Schema version for migrations
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 19;
 
 export function runMigrations(db: Database.Database, currentVersion: number, DEFAULT_SETTINGS: AppSettings): void {
   // Migrate from version 0 to 1
@@ -80,8 +80,247 @@ export function runMigrations(db: Database.Database, currentVersion: number, DEF
     migrateToV15(db);
   }
 
+  // Migrate from version 15 to 16 (add Phase 26 tables: health_events, feedback, delivered_apps, iteration_backlog, run_patterns)
+  if (currentVersion < 16) {
+    migrateToV16(db);
+  }
+
+  // Migrate from version 16 to 17 (add Phase 29 policy tables)
+  if (currentVersion < 17) {
+    migrateToV17(db);
+  }
+
+  // Migrate from version 17 to 18 (add Phase 30 connector tables)
+  if (currentVersion < 18) {
+    migrateToV18(db);
+  }
+
+  // Migrate from version 18 to 19 (add Phase 31 analytics tables)
+  if (currentVersion < 19) {
+    migrateToV19(db);
+  }
+
   // Update schema version
   db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
+}
+
+function migrateToV17(db: Database.Database): void {
+  // Create policy_rules table (Phase 29)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS policy_rules (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      label TEXT NOT NULL,
+      description TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      scope TEXT,
+      severity TEXT NOT NULL DEFAULT 'error',
+      inheritable INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create policy_overrides table (Phase 29)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS policy_overrides (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      rule_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'command',
+      expires_at INTEGER,
+      approver TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (rule_id) REFERENCES policy_rules(id)
+    )
+  `);
+
+  // Create policy_audit table (Phase 29)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS policy_audit (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      entity_id TEXT,
+      summary TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create indexes for policy queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_policy_rules_project_id ON policy_rules(project_id);
+    CREATE INDEX IF NOT EXISTS idx_policy_rules_type ON policy_rules(type);
+    CREATE INDEX IF NOT EXISTS idx_policy_rules_enabled ON policy_rules(enabled);
+    CREATE INDEX IF NOT EXISTS idx_policy_overrides_project_id ON policy_overrides(project_id);
+    CREATE INDEX IF NOT EXISTS idx_policy_overrides_status ON policy_overrides(status);
+    CREATE INDEX IF NOT EXISTS idx_policy_overrides_expires_at ON policy_overrides(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_policy_audit_project_id ON policy_audit(project_id);
+    CREATE INDEX IF NOT EXISTS idx_policy_audit_event_type ON policy_audit(event_type);
+    CREATE INDEX IF NOT EXISTS idx_policy_audit_created_at ON policy_audit(created_at);
+  `);
+}
+
+function migrateToV18(db: Database.Database): void {
+  // Create connector_configs table (Phase 30)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS connector_configs (
+      id TEXT PRIMARY KEY,
+      connector_id TEXT NOT NULL,
+      project_id TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      scope TEXT NOT NULL DEFAULT 'global',
+      config_values TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create indexes for connector config queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_connector_configs_connector_id ON connector_configs(connector_id);
+    CREATE INDEX IF NOT EXISTS idx_connector_configs_project_id ON connector_configs(project_id);
+    CREATE INDEX IF NOT EXISTS idx_connector_configs_scope ON connector_configs(scope);
+  `);
+}
+
+function migrateToV19(db: Database.Database): void {
+  // Create analytics_events table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      run_id TEXT,
+      session_id TEXT,
+      event_type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      metric_name TEXT NOT NULL,
+      metric_value REAL NOT NULL,
+      dimensions TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create analytics_rollups table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_rollups (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      blueprint_id TEXT,
+      portfolio_id TEXT,
+      rollup_type TEXT NOT NULL,
+      time_window TEXT NOT NULL,
+      metric_name TEXT NOT NULL,
+      metric_value REAL NOT NULL,
+      sample_size INTEGER NOT NULL,
+      dimensions TEXT NOT NULL DEFAULT '{}',
+      computed_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id),
+      FOREIGN KEY (portfolio_id) REFERENCES portfolios(id)
+    )
+  `);
+
+  // Create bottleneck_detections table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bottleneck_detections (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      blueprint_id TEXT,
+      bottleneck_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      frequency INTEGER NOT NULL,
+      impact_score REAL NOT NULL,
+      example_run_ids TEXT NOT NULL DEFAULT '[]',
+      suggestion TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'detected',
+      dismissed_at INTEGER,
+      addressed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id)
+    )
+  `);
+
+  // Create forecasts table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS forecasts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      blueprint_id TEXT,
+      app_type TEXT,
+      platform_targets TEXT NOT NULL DEFAULT '[]',
+      stack_preferences TEXT NOT NULL DEFAULT '[]',
+      estimated_duration_ms INTEGER,
+      estimated_iteration_count INTEGER,
+      estimated_risk_level TEXT,
+      confidence_score REAL,
+      caveats TEXT,
+      actual_duration_ms INTEGER,
+      actual_iteration_count INTEGER,
+      actual_outcome TEXT,
+      created_at INTEGER NOT NULL,
+      resolved_at INTEGER,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id),
+      FOREIGN KEY (blueprint_id) REFERENCES blueprints(id)
+    )
+  `);
+
+  // Create recommendation_records table (Phase 31)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recommendation_records (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      recommendation_type TEXT NOT NULL,
+      target_entity_type TEXT NOT NULL,
+      target_entity_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      actionable_steps TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      approved_at INTEGER,
+      dismissed_at INTEGER,
+      deferred_until INTEGER,
+      outcome TEXT,
+      outcome_notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES ralph_projects(id)
+    )
+  `);
+
+  // Create indexes for analytics queries
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_project_id ON analytics_events(project_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_run_id ON analytics_events(run_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_category ON analytics_events(category);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_metric_name ON analytics_events(metric_name);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_created_at ON analytics_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_analytics_rollups_project_id ON analytics_rollups(project_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_rollups_blueprint_id ON analytics_rollups(blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_rollups_time_window ON analytics_rollups(time_window);
+    CREATE INDEX IF NOT EXISTS idx_bottleneck_detections_project_id ON bottleneck_detections(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bottleneck_detections_type ON bottleneck_detections(bottleneck_type);
+    CREATE INDEX IF NOT EXISTS idx_bottleneck_detections_status ON bottleneck_detections(status);
+    CREATE INDEX IF NOT EXISTS idx_forecasts_project_id ON forecasts(project_id);
+    CREATE INDEX IF NOT EXISTS idx_forecasts_blueprint_id ON forecasts(blueprint_id);
+    CREATE INDEX IF NOT EXISTS idx_recommendation_records_project_id ON recommendation_records(project_id);
+    CREATE INDEX IF NOT EXISTS idx_recommendation_records_status ON recommendation_records(status);
+  `);
 }
 
 function migrateToV1(db: Database.Database): void {
@@ -852,5 +1091,111 @@ function migrateToV15(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_blueprint_versions_version ON blueprint_versions(version);
     CREATE INDEX IF NOT EXISTS idx_blueprint_usage_stats_blueprint_id ON blueprint_usage_stats(blueprint_id);
     CREATE INDEX IF NOT EXISTS idx_blueprint_usage_stats_app_id ON blueprint_usage_stats(app_id);
+  `);
+}
+
+function migrateToV16(db: Database.Database): void {
+  // Create health_events table for lightweight telemetry (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS health_events (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      app_id TEXT,
+      workspace_id TEXT,
+      run_id TEXT,
+      status TEXT NOT NULL,
+      message TEXT,
+      details TEXT,
+      triggered_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create feedback table for operator feedback (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id TEXT PRIMARY KEY,
+      app_id TEXT,
+      run_id TEXT,
+      type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      rating INTEGER,
+      source TEXT,
+      linked_backlog_id TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create delivered_apps registry table (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS delivered_apps (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      workspace_path TEXT NOT NULL,
+      delivery_format TEXT NOT NULL,
+      health_status TEXT NOT NULL DEFAULT 'unknown',
+      bundle_path TEXT,
+      run_id TEXT,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      delivered_at INTEGER NOT NULL,
+      last_seen_at INTEGER,
+      follow_up_signal TEXT,
+      follow_up_notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create iteration_backlog table for improvement ideas (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS iteration_backlog (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      source TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      started_at INTEGER,
+      completed_at INTEGER,
+      linked_feedback_id TEXT
+    )
+  `);
+
+  // Create run_patterns table for learning feedback loop (Phase 26)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS run_patterns (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      run_id TEXT,
+      goal_type TEXT,
+      blueprint_id TEXT,
+      blueprint_version TEXT,
+      milestone_count INTEGER NOT NULL DEFAULT 0,
+      validation_result TEXT,
+      delivery_status TEXT,
+      pattern_tags TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // Create indexes for Phase 26 tables
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_health_events_event_type ON health_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_health_events_created_at ON health_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_health_events_app_id ON health_events(app_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_app_id ON feedback(app_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_run_id ON feedback(run_id);
+    CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(type);
+    CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at);
+    CREATE INDEX IF NOT EXISTS idx_delivered_apps_app_id ON delivered_apps(app_id);
+    CREATE INDEX IF NOT EXISTS idx_delivered_apps_health_status ON delivered_apps(health_status);
+    CREATE INDEX IF NOT EXISTS idx_delivered_apps_delivered_at ON delivered_apps(delivered_at);
+    CREATE INDEX IF NOT EXISTS idx_iteration_backlog_status ON iteration_backlog(status);
+    CREATE INDEX IF NOT EXISTS idx_iteration_backlog_priority ON iteration_backlog(priority);
+    CREATE INDEX IF NOT EXISTS idx_iteration_backlog_created_at ON iteration_backlog(created_at);
+    CREATE INDEX IF NOT EXISTS idx_run_patterns_project_id ON run_patterns(project_id);
+    CREATE INDEX IF NOT EXISTS idx_run_patterns_created_at ON run_patterns(created_at);
   `);
 }

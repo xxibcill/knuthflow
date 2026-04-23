@@ -50,7 +50,7 @@ export const test = base.extend<ElectronFixtures>({
         artifactsDir: testInfo.outputPath('artifacts'),
         env: {
           ...process.env,
-          KNUTHFLOW_USER_DATA_DIR: userDataDir,
+          RALPH_USER_DATA_DIR: userDataDir,
         },
       });
     } else {
@@ -75,7 +75,7 @@ export const test = base.extend<ElectronFixtures>({
         artifactsDir: testInfo.outputPath('artifacts'),
         env: {
           ...process.env,
-          KNUTHFLOW_USER_DATA_DIR: userDataDir,
+          RALPH_USER_DATA_DIR: userDataDir,
         },
       });
     }

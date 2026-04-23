@@ -69,7 +69,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Portfolio can be created', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test description'),
+      (name) => window.ralph.portfolio.create(name, 'Test description'),
       portfolioName
     );
     expect(portfolio.id).toBeDefined();
@@ -80,11 +80,11 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Portfolio can be retrieved by id', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const created = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test description'),
+      (name) => window.ralph.portfolio.create(name, 'Test description'),
       portfolioName
     );
     const retrieved = await page.evaluate(
-      (id) => window.knuthflow.portfolio.get(id),
+      (id) => window.ralph.portfolio.get(id),
       created.id
     );
     expect(retrieved).not.toBeNull();
@@ -95,21 +95,21 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Portfolio can be listed', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test description'),
+      (name) => window.ralph.portfolio.create(name, 'Test description'),
       portfolioName
     );
-    const portfolios = await page.evaluate(() => window.knuthflow.portfolio.list());
+    const portfolios = await page.evaluate(() => window.ralph.portfolio.list());
     expect(portfolios.length).toBeGreaterThan(0);
   });
 
   test('Portfolio can be updated', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const created = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Original description'),
+      (name) => window.ralph.portfolio.create(name, 'Original description'),
       portfolioName
     );
     const updated = await page.evaluate(
-      ([id, name, desc]) => window.knuthflow.portfolio.update(id, { name, description: desc }),
+      ([id, name, desc]) => window.ralph.portfolio.update(id, { name, description: desc }),
       [created.id, 'Updated Name', 'Updated description']
     );
     expect(updated.name).toBe('Updated Name');
@@ -119,11 +119,11 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Portfolio can be deleted', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const created = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'To be deleted'),
+      (name) => window.ralph.portfolio.create(name, 'To be deleted'),
       portfolioName
     );
-    await page.evaluate((id) => window.knuthflow.portfolio.delete(id), created.id);
-    const retrieved = await page.evaluate((id) => window.knuthflow.portfolio.get(id), created.id);
+    await page.evaluate((id) => window.ralph.portfolio.delete(id), created.id);
+    const retrieved = await page.evaluate((id) => window.ralph.portfolio.get(id), created.id);
     expect(retrieved).toBeNull();
   });
 });
@@ -145,21 +145,21 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Project can be added to portfolio', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
     // Create a workspace and bootstrap Ralph
     workspace = createTestWorkspace();
     const wsResult = await page.evaluate(
-      ([wsName, wsPath]) => window.knuthflow.workspace.create(wsName, wsPath),
+      ([wsName, wsPath]) => window.ralph.workspace.create(wsName, wsPath),
       ['Test Workspace', workspace.path]
     );
     expect(wsResult.success).toBe(true);
     const workspaceId = wsResult.workspace!.id;
 
     const ralphResult = await page.evaluate(
-      ([wsId, wsPath]) => window.knuthflow.ralph.bootstrap(wsId, wsPath, false),
+      ([wsId, wsPath]) => window.ralph.ralph.bootstrap(wsId, wsPath, false),
       [workspaceId, workspace.path]
     );
     expect(ralphResult.success).toBe(true);
@@ -167,7 +167,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 
     // Add project to portfolio
     const added = await page.evaluate(
-      ([portId, projId]) => window.knuthflow.portfolio.addProject(portId, projId),
+      ([portId, projId]) => window.ralph.portfolio.addProject(portId, projId),
       [portfolio.id, ralphProjectId]
     );
     expect(added.portfolioId).toBe(portfolio.id);
@@ -177,21 +177,21 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Projects can be listed for a portfolio', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
     // Create a workspace and bootstrap Ralph
     workspace = createTestWorkspace();
     const wsResult = await page.evaluate(
-      ([wsName, wsPath]) => window.knuthflow.workspace.create(wsName, wsPath),
+      ([wsName, wsPath]) => window.ralph.workspace.create(wsName, wsPath),
       ['Test Workspace', workspace.path]
     );
     expect(wsResult.success).toBe(true);
     const workspaceId = wsResult.workspace!.id;
 
     const ralphResult = await page.evaluate(
-      ([wsId, wsPath]) => window.knuthflow.ralph.bootstrap(wsId, wsPath, false),
+      ([wsId, wsPath]) => window.ralph.ralph.bootstrap(wsId, wsPath, false),
       [workspaceId, workspace.path]
     );
     expect(ralphResult.success).toBe(true);
@@ -199,13 +199,13 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 
     // Add project to portfolio
     await page.evaluate(
-      ([portId, projId]) => window.knuthflow.portfolio.addProject(portId, projId),
+      ([portId, projId]) => window.ralph.portfolio.addProject(portId, projId),
       [portfolio.id, ralphProjectId]
     );
 
     // List projects
     const projects = await page.evaluate(
-      (portId) => window.knuthflow.portfolio.listProjects(portId),
+      (portId) => window.ralph.portfolio.listProjects(portId),
       portfolio.id
     );
     expect(projects.length).toBe(1);
@@ -215,21 +215,21 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Project can be removed from portfolio', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
     // Create a workspace and bootstrap Ralph
     workspace = createTestWorkspace();
     const wsResult = await page.evaluate(
-      ([wsName, wsPath]) => window.knuthflow.workspace.create(wsName, wsPath),
+      ([wsName, wsPath]) => window.ralph.workspace.create(wsName, wsPath),
       ['Test Workspace', workspace.path]
     );
     expect(wsResult.success).toBe(true);
     const workspaceId = wsResult.workspace!.id;
 
     const ralphResult = await page.evaluate(
-      ([wsId, wsPath]) => window.knuthflow.ralph.bootstrap(wsId, wsPath, false),
+      ([wsId, wsPath]) => window.ralph.ralph.bootstrap(wsId, wsPath, false),
       [workspaceId, workspace.path]
     );
     expect(ralphResult.success).toBe(true);
@@ -237,16 +237,16 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 
     // Add project to portfolio
     const added = await page.evaluate(
-      ([portId, projId]) => window.knuthflow.portfolio.addProject(portId, projId),
+      ([portId, projId]) => window.ralph.portfolio.addProject(portId, projId),
       [portfolio.id, ralphProjectId]
     );
 
     // Remove project
-    await page.evaluate((id) => window.knuthflow.portfolio.removeProject(id), added.id);
+    await page.evaluate((id) => window.ralph.portfolio.removeProject(id), added.id);
 
     // Verify removed
     const projects = await page.evaluate(
-      (portId) => window.knuthflow.portfolio.listProjects(portId),
+      (portId) => window.ralph.portfolio.listProjects(portId),
       portfolio.id
     );
     expect(projects.length).toBe(0);
@@ -255,21 +255,21 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Portfolio project can be updated (priority, status)', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
     // Create a workspace and bootstrap Ralph
     workspace = createTestWorkspace();
     const wsResult = await page.evaluate(
-      ([wsName, wsPath]) => window.knuthflow.workspace.create(wsName, wsPath),
+      ([wsName, wsPath]) => window.ralph.workspace.create(wsName, wsPath),
       ['Test Workspace', workspace.path]
     );
     expect(wsResult.success).toBe(true);
     const workspaceId = wsResult.workspace!.id;
 
     const ralphResult = await page.evaluate(
-      ([wsId, wsPath]) => window.knuthflow.ralph.bootstrap(wsId, wsPath, false),
+      ([wsId, wsPath]) => window.ralph.ralph.bootstrap(wsId, wsPath, false),
       [workspaceId, workspace.path]
     );
     expect(ralphResult.success).toBe(true);
@@ -277,13 +277,13 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 
     // Add project to portfolio
     const added = await page.evaluate(
-      ([portId, projId]) => window.knuthflow.portfolio.addProject(portId, projId),
+      ([portId, projId]) => window.ralph.portfolio.addProject(portId, projId),
       [portfolio.id, ralphProjectId]
     );
 
     // Update priority
     const updated = await page.evaluate(
-      ([id, priority, status]) => window.knuthflow.portfolio.updateProject(id, { priority, status }),
+      ([id, priority, status]) => window.ralph.portfolio.updateProject(id, { priority, status }),
       [added.id, 5, 'paused']
     );
 
@@ -300,40 +300,40 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Portfolio runtime can be registered and unregistered', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
     // Register portfolio runtime
-    await page.evaluate((portId) => window.knuthflow.portfolioRuntime.register(portId), portfolio.id);
+    await page.evaluate((portId) => window.ralph.portfolioRuntime.register(portId), portfolio.id);
 
     // Verify it can be retrieved (no error thrown)
     const activeRuns = await page.evaluate(
-      (portId) => window.knuthflow.portfolioRuntime.getPortfolioActiveRuns(portId),
+      (portId) => window.ralph.portfolioRuntime.getPortfolioActiveRuns(portId),
       portfolio.id
     );
     expect(activeRuns).toBeDefined();
 
     // Unregister
-    await page.evaluate((portId) => window.knuthflow.portfolioRuntime.unregister(portId), portfolio.id);
+    await page.evaluate((portId) => window.ralph.portfolioRuntime.unregister(portId), portfolio.id);
   });
 
   test('Max concurrent runs can be set and retrieved', async ({ page }) => {
-    await page.evaluate((max) => window.knuthflow.portfolioRuntime.setMaxConcurrentRuns(max), 5);
-    const max = await page.evaluate(() => window.knuthflow.portfolioRuntime.getMaxConcurrentRuns());
+    await page.evaluate((max) => window.ralph.portfolioRuntime.setMaxConcurrentRuns(max), 5);
+    const max = await page.evaluate(() => window.ralph.portfolioRuntime.getMaxConcurrentRuns());
     expect(max).toBe(5);
   });
 
   test('Queued runs can be cancelled', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
-    await page.evaluate((portId) => window.knuthflow.portfolioRuntime.register(portId), portfolio.id);
+    await page.evaluate((portId) => window.ralph.portfolioRuntime.register(portId), portfolio.id);
 
     const queuedRuns = await page.evaluate(
-      (portId) => window.knuthflow.portfolioRuntime.getQueuedRuns(portId),
+      (portId) => window.ralph.portfolioRuntime.getQueuedRuns(portId),
       portfolio.id
     );
     expect(Array.isArray(queuedRuns)).toBe(true);
@@ -350,7 +350,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
     // In a full E2E test with the full app, we would navigate to the portfolio view
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
     expect(portfolio.id).toBeDefined();
@@ -359,12 +359,12 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Empty portfolio state is handled gracefully', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
     const projects = await page.evaluate(
-      (portId) => window.knuthflow.portfolio.listProjects(portId),
+      (portId) => window.ralph.portfolio.listProjects(portId),
       portfolio.id
     );
     expect(projects.length).toBe(0);
@@ -373,7 +373,7 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
   test('Dependency graph can be stored and retrieved', async ({ page }) => {
     const portfolioName = `Test Portfolio ${Date.now()}`;
     const portfolio = await page.evaluate(
-      (name) => window.knuthflow.portfolio.create(name, 'Test'),
+      (name) => window.ralph.portfolio.create(name, 'Test'),
       portfolioName
     );
 
@@ -383,28 +383,28 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 
     try {
       const wsResult1 = await page.evaluate(
-        ([wsName, wsPath]) => window.knuthflow.workspace.create(wsName, wsPath),
+        ([wsName, wsPath]) => window.ralph.workspace.create(wsName, wsPath),
         ['Workspace 1', ws1.path]
       );
       expect(wsResult1.success).toBe(true);
       const workspaceId1 = wsResult1.workspace!.id;
 
       const wsResult2 = await page.evaluate(
-        ([wsName, wsPath]) => window.knuthflow.workspace.create(wsName, wsPath),
+        ([wsName, wsPath]) => window.ralph.workspace.create(wsName, wsPath),
         ['Workspace 2', ws2.path]
       );
       expect(wsResult2.success).toBe(true);
       const workspaceId2 = wsResult2.workspace!.id;
 
       const ralphResult1 = await page.evaluate(
-        ([wsId, wsPath]) => window.knuthflow.ralph.bootstrap(wsId, wsPath, false),
+        ([wsId, wsPath]) => window.ralph.ralph.bootstrap(wsId, wsPath, false),
         [workspaceId1, ws1.path]
       );
       expect(ralphResult1.success).toBe(true);
       const project1Id = ralphResult1.project!.id;
 
       const ralphResult2 = await page.evaluate(
-        ([wsId, wsPath]) => window.knuthflow.ralph.bootstrap(wsId, wsPath, false),
+        ([wsId, wsPath]) => window.ralph.ralph.bootstrap(wsId, wsPath, false),
         [workspaceId2, ws2.path]
       );
       expect(ralphResult2.success).toBe(true);
@@ -412,23 +412,23 @@ function createTestWorkspace(): { path: string; cleanup: () => Promise<void> } {
 
       // Add both to portfolio
       const pp1 = await page.evaluate(
-        ([portId, projId]) => window.knuthflow.portfolio.addProject(portId, projId),
+        ([portId, projId]) => window.ralph.portfolio.addProject(portId, projId),
         [portfolio.id, project1Id]
       );
       const pp2 = await page.evaluate(
-        ([portId, projId]) => window.knuthflow.portfolio.addProject(portId, projId),
+        ([portId, projId]) => window.ralph.portfolio.addProject(portId, projId),
         [portfolio.id, project2Id]
       );
 
       // Update project 2 to depend on project 1
       await page.evaluate(
-        ([id, graph]) => window.knuthflow.portfolio.updateProject(id, { dependencyGraph: graph }),
+        ([id, graph]) => window.ralph.portfolio.updateProject(id, { dependencyGraph: graph }),
         [pp2.id, { [project2Id]: [project1Id] }]
       );
 
       // Verify dependency was stored
       const updated = await page.evaluate(
-        (id) => window.knuthflow.portfolio.getProject(id),
+        (id) => window.ralph.portfolio.getProject(id),
         pp2.id
       );
       expect(updated.dependencyGraph[project2Id]).toContain(project1Id);

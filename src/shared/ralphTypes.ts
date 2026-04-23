@@ -353,3 +353,245 @@ export interface MilestoneFeedback {
   suggestedAction: string | null;
   createdAt: number;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 29: Policy Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PolicyRuleType = 'protected_path' | 'forbidden_command' | 'dependency_limit' | 'connector_access' | 'delivery_gate' | 'approval_required';
+
+export interface PolicyRule {
+  id: string;
+  projectId: string;
+  type: PolicyRuleType;
+  /** Human-readable label */
+  label: string;
+  /** Detailed explanation shown in UI */
+  description: string;
+  /** Pattern or path this rule applies to (glob-style for paths) */
+  pattern: string;
+  /** Whether this rule is currently active */
+  enabled: boolean;
+  /** Rule applies only within this scope, or globally if null */
+  scope: string | null;
+  /** Severity when violated: error blocks, warning logs */
+  severity: 'error' | 'warning';
+  /** For inherited rules - if true, project can override */
+  inheritable: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PolicyOverride {
+  id: string;
+  projectId: string;
+  ruleId: string;
+  /** What action triggered this override request */
+  action: string;
+  /** Why the override is needed */
+  reason: string;
+  /** Narrow scope: 'command' | 'file' | 'run' | 'delivery' | 'permanent' */
+  scope: 'command' | 'file' | 'run' | 'delivery' | 'permanent';
+  /** Timestamp when override expires */
+  expiresAt: number | null;
+  /** Who approved this override */
+  approver: string | null;
+  /** 'pending' | 'approved' | 'rejected' | 'expired' */
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PolicyAuditEntry {
+  id: string;
+  projectId: string;
+  /** 'policy_edit' | 'blocked_action' | 'override_approved' | 'override_rejected' | 'override_expired' */
+  eventType: 'policy_edit' | 'blocked_action' | 'override_approved' | 'override_rejected' | 'override_expired';
+  /** ID of related entity (rule ID, override ID, etc.) */
+  entityId: string | null;
+  /** Human-readable summary without exposing secrets */
+  summary: string;
+  /** JSON metadata - no secrets */
+  metadata: string;
+  createdAt: number;
+}
+
+/** Resolved effective policy for a project */
+export interface EffectivePolicy {
+  projectId: string;
+  rules: PolicyRule[];
+  overrides: PolicyOverride[];
+  /** Merge of default + project-specific rules */
+  inheritedRuleIds: string[];
+  version: number;
+  updatedAt: number;
+}
+
+/** Default safe policy settings */
+export const DEFAULT_POLICY_RULES: Omit<PolicyRule, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>[] = [
+  {
+    type: 'protected_path',
+    label: 'Protect package.json',
+    description: 'Block modifications to package.json unless through proper dependency management',
+    pattern: 'package.json',
+    enabled: true,
+    scope: null,
+    severity: 'error',
+    inheritable: true,
+  },
+  {
+    type: 'protected_path',
+    label: 'Protect lock files',
+    description: 'Block direct edits to lockfiles (package-lock.json, yarn.lock, pnpm-lock.yaml)',
+    pattern: '*-lock.{json,yaml,yml}',
+    enabled: true,
+    scope: null,
+    severity: 'error',
+    inheritable: true,
+  },
+  {
+    type: 'forbidden_command',
+    label: 'Block destructive commands',
+    description: 'Block rm -rf, git push --force, and other destructive operations',
+    pattern: 'rm +-rf|git push --force|--force-with-lease',
+    enabled: true,
+    scope: null,
+    severity: 'error',
+    inheritable: true,
+  },
+  {
+    type: 'approval_required',
+    label: 'Approval for git push',
+    description: 'Require operator approval before git push',
+    pattern: 'git push',
+    enabled: true,
+    scope: null,
+    severity: 'warning',
+    inheritable: true,
+  },
+  {
+    type: 'delivery_gate',
+    label: 'Delivery requires validation',
+    description: 'Block delivery if build or tests have not passed',
+    pattern: 'delivery',
+    enabled: true,
+    scope: null,
+    severity: 'error',
+    inheritable: true,
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 31: Analytics Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AnalyticsCategory = 'performance' | 'quality' | 'engagement' | 'business';
+
+export interface AnalyticsEvent {
+  id: string;
+  projectId: string | null;
+  runId: string | null;
+  sessionId: string | null;
+  eventType: string;
+  category: AnalyticsCategory;
+  metricName: string;
+  metricValue: number;
+  dimensions: Record<string, unknown>;
+  createdAt: number;
+}
+
+export interface AnalyticsRollup {
+  id: string;
+  projectId: string | null;
+  blueprintId: string | null;
+  portfolioId: string | null;
+  rollupType: string;
+  timeWindow: string;
+  metricName: string;
+  metricValue: number;
+  sampleSize: number;
+  dimensions: Record<string, unknown>;
+  computedAt: number;
+}
+
+export type BottleneckType =
+  | 'slow_validation_gate'
+  | 'repeated_build_failure'
+  | 'frequent_policy_override'
+  | 'repeated_operator_intervention'
+  | 'failed_packaging_step';
+
+export type BottleneckSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface BottleneckDetection {
+  id: string;
+  projectId: string | null;
+  blueprintId: string | null;
+  bottleneckType: BottleneckType;
+  description: string;
+  severity: BottleneckSeverity;
+  frequency: number;
+  impactScore: number;
+  exampleRunIds: string[];
+  suggestion: string;
+  status: 'detected' | 'addressed' | 'dismissed';
+  dismissedAt: number | null;
+  addressedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Forecast {
+  id: string;
+  projectId: string | null;
+  blueprintId: string | null;
+  appType: string | null;
+  platformTargets: string[];
+  stackPreferences: string[];
+  estimatedDurationMs: number | null;
+  estimatedIterationCount: number | null;
+  estimatedRiskLevel: 'low' | 'medium' | 'high' | 'very_high' | null;
+  confidenceScore: number | null;
+  caveats: string | null;
+  actualDurationMs: number | null;
+  actualIterationCount: number | null;
+  actualOutcome: 'success' | 'failure' | 'cancelled' | null;
+  createdAt: number;
+  resolvedAt: number | null;
+}
+
+export type RecommendationType =
+  | 'blueprint_update'
+  | 'validation_gate_adjustment'
+  | 'policy_change'
+  | 'scaffold_improvement';
+
+export type RecommendationEntityType = 'blueprint' | 'policy_rule' | 'validation_gate' | 'scaffold';
+
+export type RecommendationStatus =
+  | 'pending'
+  | 'approved'
+  | 'dismissed'
+  | 'deferred'
+  | 'applied'
+  | 'superseded';
+
+export interface RecommendationRecord {
+  id: string;
+  projectId: string | null;
+  recommendationType: RecommendationType;
+  targetEntityType: RecommendationEntityType;
+  targetEntityId: string | null;
+  title: string;
+  description: string;
+  actionableSteps: string;
+  status: RecommendationStatus;
+  approvedAt: number | null;
+  dismissedAt: number | null;
+  deferredUntil: number | null;
+  outcome: string | null;
+  outcomeNotes: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+

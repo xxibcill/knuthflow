@@ -23,6 +23,7 @@ import type {
   AppSettings,
   LaunchProfile,
   KnuthflowAPI,
+  RalphDesktopAPI,
   LoopRunStatus,
   RalphProject,
   LoopRun,
@@ -39,6 +40,10 @@ import type {
   Portfolio,
   PortfolioProject,
   LoopState,
+  PolicyRule,
+  PolicyOverride,
+  PolicyAuditEntry,
+  EffectivePolicy,
 } from './shared/preloadTypes';
 export type {
   ProcessSpawnResult,
@@ -64,6 +69,7 @@ export type {
   AppSettings,
   LaunchProfile,
   KnuthflowAPI,
+  RalphDesktopAPI,
   LoopRunStatus,
   RalphProject,
   LoopRun,
@@ -698,17 +704,528 @@ const api: KnuthflowAPI = {
     ) =>
       ipcRenderer.invoke('blueprint:extend', parentBlueprintId, name, description, overrides),
   },
+  health: {
+    createEvent: (params: {
+      eventType: string;
+      appId?: string;
+      workspaceId?: string;
+      runId?: string;
+      status: string;
+      message?: string;
+      details?: string;
+      triggeredAt: number;
+    }) =>
+      ipcRenderer.invoke('health:createEvent', params),
+    listEvents: (limit?: number) =>
+      ipcRenderer.invoke('health:listEvents', limit) as Promise<Array<{
+        id: string;
+        eventType: string;
+        appId: string | null;
+        workspaceId: string | null;
+        runId: string | null;
+        status: string;
+        message: string | null;
+        details: string | null;
+        triggeredAt: number;
+        createdAt: number;
+      }>>,
+  },
+  feedback: {
+    create: (params: {
+      appId?: string;
+      runId?: string;
+      type: string;
+      content: string;
+      rating?: number;
+      source?: string;
+      linkedBacklogId?: string;
+    }) =>
+      ipcRenderer.invoke('feedback:create', params),
+    list: (limit?: number) =>
+      ipcRenderer.invoke('feedback:list', limit) as Promise<Array<{
+        id: string;
+        appId: string | null;
+        runId: string | null;
+        type: string;
+        content: string;
+        rating: number | null;
+        source: string | null;
+        linkedBacklogId: string | null;
+        createdAt: number;
+      }>>,
+    getByRunId: (runId: string) =>
+      ipcRenderer.invoke('feedback:getByRunId', runId) as Promise<Array<{
+        id: string;
+        appId: string | null;
+        runId: string | null;
+        type: string;
+        content: string;
+        rating: number | null;
+        source: string | null;
+        linkedBacklogId: string | null;
+        createdAt: number;
+      }>>,
+    linkToBacklog: (feedbackId: string, backlogId: string) =>
+      ipcRenderer.invoke('feedback:linkToBacklog', feedbackId, backlogId),
+  },
+  deliveredApps: {
+    create: (params: {
+      appId: string;
+      workspacePath: string;
+      deliveryFormat: string;
+      bundlePath?: string;
+      runId?: string;
+      metadata?: Record<string, unknown>;
+    }) =>
+      ipcRenderer.invoke('deliveredApps:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('deliveredApps:get', id) as Promise<{
+        id: string;
+        appId: string;
+        workspacePath: string;
+        deliveryFormat: string;
+        healthStatus: string;
+        bundlePath: string | null;
+        runId: string | null;
+        metadata: Record<string, unknown>;
+        deliveredAt: number;
+        lastSeenAt: number | null;
+        followUpSignal: string | null;
+        followUpNotes: string | null;
+        createdAt: number;
+        updatedAt: number;
+      } | null>,
+    getByAppId: (appId: string) =>
+      ipcRenderer.invoke('deliveredApps:getByAppId', appId) as Promise<{
+        id: string;
+        appId: string;
+        workspacePath: string;
+        deliveryFormat: string;
+        healthStatus: string;
+        bundlePath: string | null;
+        runId: string | null;
+        metadata: Record<string, unknown>;
+        deliveredAt: number;
+        lastSeenAt: number | null;
+        followUpSignal: string | null;
+        followUpNotes: string | null;
+        createdAt: number;
+        updatedAt: number;
+      } | null>,
+    list: (limit?: number) =>
+      ipcRenderer.invoke('deliveredApps:list', limit) as Promise<Array<{
+        id: string;
+        appId: string;
+        workspacePath: string;
+        deliveryFormat: string;
+        healthStatus: string;
+        bundlePath: string | null;
+        runId: string | null;
+        metadata: Record<string, unknown>;
+        deliveredAt: number;
+        lastSeenAt: number | null;
+        followUpSignal: string | null;
+        followUpNotes: string | null;
+        createdAt: number;
+        updatedAt: number;
+      }>>,
+    updateHealth: (id: string, healthStatus: string) =>
+      ipcRenderer.invoke('deliveredApps:updateHealth', id, healthStatus),
+    updateFollowUp: (id: string, followUpSignal: string, followUpNotes?: string) =>
+      ipcRenderer.invoke('deliveredApps:updateFollowUp', id, followUpSignal, followUpNotes),
+    updateLastSeen: (id: string) =>
+      ipcRenderer.invoke('deliveredApps:updateLastSeen', id),
+  },
+  iterationBacklog: {
+    create: (params: {
+      title: string;
+      description: string;
+      source: string;
+      priority?: 'high' | 'medium' | 'low';
+      linkedFeedbackId?: string;
+    }) =>
+      ipcRenderer.invoke('iterationBacklog:create', params),
+    get: (id: string) =>
+      ipcRenderer.invoke('iterationBacklog:get', id) as Promise<{
+        id: string;
+        title: string;
+        description: string;
+        source: string;
+        priority: string;
+        status: string;
+        createdAt: number;
+        updatedAt: number;
+        startedAt: number | null;
+        completedAt: number | null;
+        linkedFeedbackId: string | null;
+      } | null>,
+    list: (options?: { status?: string; priority?: string; limit?: number }) =>
+      ipcRenderer.invoke('iterationBacklog:list', options) as Promise<Array<{
+        id: string;
+        title: string;
+        description: string;
+        source: string;
+        priority: string;
+        status: string;
+        createdAt: number;
+        updatedAt: number;
+        startedAt: number | null;
+        completedAt: number | null;
+        linkedFeedbackId: string | null;
+      }>>,
+    update: (id: string, updates: { status?: string; priority?: string }) =>
+      ipcRenderer.invoke('iterationBacklog:update', id, updates),
+  },
+  runPatterns: {
+    create: (params: {
+      projectId: string;
+      runId?: string;
+      goalType?: string;
+      blueprintId?: string;
+      blueprintVersion?: string;
+      milestoneCount?: number;
+      validationResult?: string;
+      deliveryStatus?: string;
+      patternTags?: string[];
+    }) =>
+      ipcRenderer.invoke('runPatterns:create', params),
+    list: (projectId: string, limit?: number) =>
+      ipcRenderer.invoke('runPatterns:list', projectId, limit) as Promise<Array<{
+        id: string;
+        projectId: string;
+        runId: string | null;
+        goalType: string | null;
+        blueprintId: string | null;
+        blueprintVersion: string | null;
+        milestoneCount: number;
+        validationResult: string | null;
+        deliveryStatus: string | null;
+        patternTags: string[];
+        createdAt: number;
+      }>>,
+    getSummary: () =>
+      ipcRenderer.invoke('runPatterns:getSummary') as Promise<Array<{
+        goalType: string;
+        count: number;
+        successCount: number;
+        avgMilestones: number;
+      }>>,
+  },
+  portfolioSummary: {
+    get: () =>
+      ipcRenderer.invoke('portfolio:getSummary') as Promise<{
+        totalApps: number;
+        healthyCount: number;
+        recentDeliveries: number;
+        aggregateSuccessRate: number;
+      }>,
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Preview & Visual Validation (Phase 28)
+  // ─────────────────────────────────────────────────────────────────────────────
+  preview: {
+    detectCommand: (
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ) =>
+      ipcRenderer.invoke('preview:detectCommand', workspacePath, config),
+    startPreview: (
+      workspacePath: string,
+      config?: {
+        blueprintPreviewCommand?: string;
+        ralphProjectPreviewCommand?: string;
+        forcedPort?: number;
+        forcedRoutes?: string[];
+      }
+    ) =>
+      ipcRenderer.invoke('preview:startPreview', workspacePath, config),
+    stopPreview: (processId: string) =>
+      ipcRenderer.invoke('preview:stopPreview', processId),
+    getProcessStatus: (processId: string) =>
+      ipcRenderer.invoke('preview:getProcessStatus', processId),
+    stopAllPreviews: () =>
+      ipcRenderer.invoke('preview:stopAllPreviews'),
+    captureEvidence: (
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ) =>
+      ipcRenderer.invoke('preview:captureEvidence', previewUrl, routes, viewports),
+    captureAndStoreEvidence: (
+      projectId: string,
+      runId: string,
+      iteration: number,
+      previewUrl: string,
+      routes: string[],
+      viewports?: Array<'desktop' | 'mobile' | 'tablet'>
+    ) =>
+      ipcRenderer.invoke(
+        'preview:captureAndStoreEvidence',
+        projectId,
+        runId,
+        iteration,
+        previewUrl,
+        routes,
+        viewports
+      ),
+    runVisualSmokeChecks: (
+      screenshots: Array<{
+        route: string;
+        viewport: string;
+        screenshotBase64: string | null;
+        errors: Array<{ code: string; message: string }>;
+        warnings: Array<{ code: string; message: string }>;
+      }>,
+      consoleEvidence: Array<{
+        route: string;
+        viewport: string;
+        consoleErrors: string[];
+        consoleWarnings: string[];
+        pageErrors: string[];
+        failedRequests: Array<{ url: string; status: number; failureReason: string }>;
+      }>,
+      options?: { checkOverflow?: boolean; allowedConsoleErrors?: string[] }
+    ) =>
+      ipcRenderer.invoke('preview:runVisualSmokeChecks', screenshots, consoleEvidence, options),
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Policy & Governance (Phase 29)
+  // ─────────────────────────────────────────────────────────────────────────────
+  policy: {
+    getEffective: (projectId: string) =>
+      ipcRenderer.invoke('policy:getEffective', projectId),
+    listRules: (projectId: string) =>
+      ipcRenderer.invoke('policy:listRules', projectId),
+    createRule: (params: {
+      projectId: string;
+      type: PolicyRule['type'];
+      label: string;
+      description: string;
+      pattern: string;
+      enabled?: boolean;
+      scope?: string | null;
+      severity?: 'error' | 'warning';
+      inheritable?: boolean;
+    }) =>
+      ipcRenderer.invoke('policy:createRule', params),
+    updateRule: (id: string, updates: Partial<PolicyRule>) =>
+      ipcRenderer.invoke('policy:updateRule', id, updates),
+    deleteRule: (id: string) =>
+      ipcRenderer.invoke('policy:deleteRule', id),
+    check: (projectId: string, enforcementPoint: string, action: string, context?: { filePath?: string; command?: string }) =>
+      ipcRenderer.invoke('policy:check', projectId, enforcementPoint, action, context),
+    getSummary: (projectId: string) =>
+      ipcRenderer.invoke('policy:getSummary', projectId),
+    createOverride: (params: {
+      projectId: string;
+      ruleId: string;
+      action: string;
+      reason: string;
+      scope: PolicyOverride['scope'];
+      expiresAt?: number | null;
+    }) =>
+      ipcRenderer.invoke('policy:createOverride', params),
+    listOverrides: (projectId: string) =>
+      ipcRenderer.invoke('policy:listOverrides', projectId),
+    pendingOverrides: (projectId: string) =>
+      ipcRenderer.invoke('policy:pendingOverrides', projectId),
+    approveOverride: (id: string, approver: string) =>
+      ipcRenderer.invoke('policy:approveOverride', id, approver),
+    rejectOverride: (id: string, approver: string) =>
+      ipcRenderer.invoke('policy:rejectOverride', id, approver),
+    listAuditEntries: (projectId: string, limit?: number) =>
+      ipcRenderer.invoke('policy:listAuditEntries', projectId, limit),
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Connector Types (Phase 30)
+  // ─────────────────────────────────────────────────────────────────────────────
+  connector: {
+    listManifests: () =>
+      ipcRenderer.invoke('connector:listManifests'),
+    listConfigs: (projectId?: string | null) =>
+      ipcRenderer.invoke('connector:listConfigs', projectId),
+    getConfig: (id: string) =>
+      ipcRenderer.invoke('connector:getConfig', id),
+    saveConfig: (params: {
+      connectorId: string;
+      projectId?: string | null;
+      scope?: 'global' | 'project';
+      enabled?: boolean;
+      configValues: Record<string, string>;
+    }) =>
+      ipcRenderer.invoke('connector:saveConfig', params),
+    deleteConfig: (id: string) =>
+      ipcRenderer.invoke('connector:deleteConfig', id),
+    testConnection: (id: string) =>
+      ipcRenderer.invoke('connector:testConnection', id),
+    call: (params: {
+      connectorId: string;
+      capability: string;
+      operation: 'read' | 'write' | 'delete' | 'publish' | 'deploy';
+      targetScope?: string;
+      resourceId?: string;
+      params?: Record<string, unknown>;
+      projectId?: string;
+      runId?: string;
+      iteration?: number;
+      itemId?: string | null;
+    }) =>
+      ipcRenderer.invoke('connector:call', params),
+    redactedConfig: (configId: string) =>
+      ipcRenderer.invoke('connector:redactedConfig', configId),
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Analytics (Phase 31)
+  // ─────────────────────────────────────────────────────────────────────────────
+  analytics: {
+    createEvent: (params: {
+      projectId?: string | null;
+      runId?: string | null;
+      sessionId?: string | null;
+      eventType: string;
+      category: string;
+      metricName: string;
+      metricValue: number;
+      dimensions?: Record<string, unknown>;
+    }) =>
+      ipcRenderer.invoke('analytics:createEvent', params),
+    listEvents: (filter?: {
+      projectId?: string | null;
+      runId?: string | null;
+      eventType?: string;
+      category?: string;
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number) =>
+      ipcRenderer.invoke('analytics:listEvents', filter, limit),
+    getEvent: (id: string) =>
+      ipcRenderer.invoke('analytics:getEvent', id),
+    createRollup: (params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType: string;
+      timeWindow: string;
+      metricName: string;
+      metricValue: number;
+      sampleSize: number;
+      dimensions?: Record<string, unknown>;
+    }) =>
+      ipcRenderer.invoke('analytics:createRollup', params),
+    listRollups: (filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      rollupType?: string;
+      timeWindow?: string;
+      metricName?: string;
+      startTime?: number;
+      endTime?: number;
+    }, limit?: number) =>
+      ipcRenderer.invoke('analytics:listRollups', filter, limit),
+    listBottlenecks: (filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      bottleneckType?: string;
+      severity?: string;
+      status?: string;
+    }, limit?: number) =>
+      ipcRenderer.invoke('bottleneck:list', filter, limit),
+    updateBottleneck: (id: string, updates: { status?: string; suggestion?: string }) =>
+      ipcRenderer.invoke('bottleneck:update', id, updates),
+    createForecast: (params: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      appType?: string | null;
+      platformTargets?: string[];
+      stackPreferences?: string[];
+      estimatedDurationMs?: number | null;
+      estimatedIterationCount?: number | null;
+      estimatedRiskLevel?: string | null;
+      confidenceScore?: number | null;
+      caveats?: string | null;
+    }) =>
+      ipcRenderer.invoke('forecast:create', params),
+    listForecasts: (filter?: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      resolved?: boolean;
+    }, limit?: number) =>
+      ipcRenderer.invoke('forecast:list', filter, limit),
+    resolveForecast: (id: string, actuals: {
+      actualDurationMs: number;
+      actualIterationCount: number;
+      actualOutcome: 'success' | 'failure' | 'cancelled' | null;
+    }) =>
+      ipcRenderer.invoke('forecast:resolve', id, actuals),
+    listRecommendations: (filter?: {
+      projectId?: string | null;
+      recommendationType?: string;
+      targetEntityType?: string;
+      targetEntityId?: string | null;
+      status?: string;
+    }, limit?: number) =>
+      ipcRenderer.invoke('recommendation:list', filter, limit),
+    updateRecommendation: (id: string, updates: {
+      status?: string;
+      outcome?: string | null;
+      outcomeNotes?: string | null;
+      deferredUntil?: number | null;
+    }) =>
+      ipcRenderer.invoke('recommendation:update', id, updates),
+  },
+  report: {
+    generate: (filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }) =>
+      ipcRenderer.invoke('report:generate', filters),
+    exportJson: (filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }) =>
+      ipcRenderer.invoke('report:exportJson', filters),
+    exportMarkdown: (filters: {
+      projectId?: string | null;
+      blueprintId?: string | null;
+      portfolioId?: string | null;
+      startTime?: number;
+      endTime?: number;
+      dateRange?: '7d' | '30d' | '90d' | 'all';
+    }) =>
+      ipcRenderer.invoke('report:exportMarkdown', filters),
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context Bridge - Expose API to renderer
 // ─────────────────────────────────────────────────────────────────────────────
 
+contextBridge.exposeInMainWorld('ralph', api);
 contextBridge.exposeInMainWorld('knuthflow', api);
 
 // Extend Window interface for TypeScript
 declare global {
   interface Window {
-    knuthflow: KnuthflowAPI;
+    /**
+     * Ralph desktop API - preferred interface for renderer code.
+     * @deprecated Use window.ralph for new code. window.knuthflow is retained for backward compatibility.
+     */
+    knuthflow: typeof api;
+    ralph: typeof api;
   }
 }

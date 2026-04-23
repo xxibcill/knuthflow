@@ -1,12 +1,13 @@
 # Roadmap
 
-This roadmap turns the current PRD direction into an execution plan for a desktop wrapper around Claude Code CLI.
+This roadmap turns the current PRD direction into an execution plan for Ralph: a local operator desktop for app intake, Ralph-managed build loops, validation evidence, delivery artifacts, portfolio orchestration, and reusable blueprints.
 
 Current product bias:
 
-- Terminal-first desktop app first
-- PTY-backed Claude Code execution as the core feature
-- Monaco and IDE-like editing deferred until the wrapper is stable
+- Ralph-first app building and operator supervision
+- PTY-backed Claude Code execution as the local runtime Ralph controls
+- Terminal, editor, workspaces, settings, and history as supporting operator tools
+- Explicit approval gates, evidence, delivery, portfolio coordination, and blueprint reuse over unmanaged autonomy
 
 ## Phase Overview
 
@@ -26,7 +27,28 @@ Current product bias:
 | [Phase 12](./phases/phase-12-ralph-flow-upgrade.md) | Ralph Flow Upgrade | Ralph mode becomes a coherent end-to-end loop with deterministic control files, stable plan semantics, and implemented operator actions |
 | [Phase 13](./phases/phase-13-goal-to-app-bootstrap.md) | Goal To App Bootstrap | Users can turn an app idea into a scaffolded Ralph-ready workspace with generated specs, starter structure, and an approved initial plan |
 | [Phase 14](./phases/phase-14-long-horizon-app-builder.md) | Long-Horizon App Builder | Ralph can build a larger application across milestones with resumable context, preview feedback, and milestone-aware replanning |
-| [Phase 15](./phases/phase-15-desktop-one-shot-delivery.md) | Desktop One-Shot Delivery | Users can request an app from Knuthflow, review it in the desktop UI, and receive packaged delivery artifacts with explicit approval gates |
+| [Phase 15](./phases/phase-15-desktop-one-shot-delivery.md) | Desktop One-Shot Delivery | Users can request an app from Ralph, review it in the desktop UI, and receive packaged delivery artifacts with explicit approval gates |
+| [Phase 16](./phases/phase-16.md) | Multi-App Portfolio Orchestrator | Ralph manages a pipeline of multiple concurrent app builds with portfolio goals, priorities, and cross-project visibility |
+| [Phase 17](./phases/phase-17.md) | Learning Feedback Loop | Ralph learns from delivered apps and applies pattern-based improvements to future builds |
+| [Phase 18](./phases/phase-18.md) | Cross-Platform Packaging Engine | Users can target mobile, web, and desktop platforms from the same app build with unified validation and packaging |
+| [Phase 19](./phases/phase-19.md) | Autonomous Post-Delivery Iteration | Ralph can safely plan and execute post-delivery improvements with operator visibility and approval gates |
+| [Phase 20](./phases/phase-20.md) | Skill Library and Blueprint System | Operators can author, share, and reuse app blueprints so common app types are built from curated patterns |
+| [Phase 21](./phases/phase-21-ralph-product-source-of-truth.md) | Ralph Product Source of Truth | Ralph has a clear product definition, requirements baseline, and public-facing story as an operator desktop |
+| [Phase 22](./phases/phase-22-ralph-brand-and-shell.md) | Ralph Brand and Shell | The installed app, title, about screen, navigation, and first screen present Ralph as the primary product |
+| [Phase 23](./phases/phase-23-ralph-first-project-flow.md) | Ralph-First Project Flow | Users can move from app idea or existing folder through intake, bootstrap, run supervision, artifacts, and delivery without dropping into generic terminal flow |
+| [Phase 24](./phases/phase-24-ralph-api-compatibility-and-data.md) | Ralph API Compatibility and Data | New code can use Ralph-named APIs while existing Knuthflow integrations, local data, and projects continue to work |
+| [Phase 25](./phases/phase-25-ralph-release-readiness.md) | Ralph Release Readiness | Ralph can ship as a coherent Ralph-focused desktop release with docs, packaging, QA, release notes, and regression checks |
+| [Phase 26](./phases/phase-26-post-release-stability-and-iteration-foundation.md) | Post-Release Stability and Iteration Foundation | Ralph ships as a stable desktop release with health monitoring foundations, operator feedback channels, delivered app tracking, and an iteration backlog that lets Ralph learn from completed work |
+| [Phase 27](./phases/phase-27-operator-onboarding-guided-first-run.md) | Operator Onboarding and Guided First Run | New operators can complete a guided first Ralph setup, dependency check, app brief, bootstrap, and first run |
+| [Phase 28](./phases/phase-28-preview-evidence-visual-validation.md) | Preview Evidence and Visual Validation | Ralph can launch previews, capture screenshots, detect visible regressions, and attach visual evidence to run and delivery review |
+| [Phase 29](./phases/phase-29-policy-permissions-change-governance.md) | Policy, Permissions, and Change Governance | Operators can define what Ralph may change, what requires approval, and how workspace changes are governed |
+| [Phase 30](./phases/phase-30-tool-connector-hub.md) | Tool Connector Hub | Operators can connect Ralph to approved local and remote tools through scoped, governed connectors |
+| [Phase 31](./phases/phase-31-run-analytics-forecasting.md) | Run Analytics and Forecasting | Ralph shows historical run analytics, bottlenecks, and effort/risk forecasts for new work |
+| [Phase 32](./phases/phase-32-collaboration-review-handoff.md) | Collaboration and Review Handoff | Ralph can package run context, evidence, diffs, decisions, and artifacts into shareable review bundles |
+| [Phase 33](./phases/phase-33-extension-sdk-automation-hooks.md) | Extension SDK and Automation Hooks | Developers can extend Ralph with governed local extensions for blueprints, validators, analyzers, delivery targets, connectors, and hooks |
+| [Phase 34](./phases/phase-34-enterprise-workspace-governance.md) | Enterprise Workspace Governance | Teams can standardize Ralph usage with shared policies, approved blueprints, audit records, and environment checks |
+| [Phase 35](./phases/phase-35-runtime-resilience-self-healing.md) | Runtime Resilience and Self-Healing | Ralph can detect runtime degradation, recover stuck services, preserve run state, and guide safe recovery |
+| [Phase 36](./phases/phase-36-optional-sync-fleet-operations.md) | Optional Sync and Fleet Operations | Operators can optionally sync Ralph configuration, governance, blueprints, reviews, and summaries across machines or teams |
 
 ## Sequencing Logic
 
@@ -45,6 +67,27 @@ Current product bias:
 13. Add a goal-intake and workspace-bootstrap layer so Ralph can start from an app brief instead of requiring a pre-authored repository setup.
 14. Extend the upgraded Ralph loop into a milestone-aware app builder that can stay coherent across long-running product work.
 15. Finish with desktop review, packaging, and end-to-end delivery so the product can honestly support a one-shot app workflow for supported targets.
+16. Add portfolio orchestration once a single Ralph app build can be delivered reliably.
+17. Feed completed-run evidence and delivery outcomes back into future Ralph prompts and operator-visible lessons.
+18. Add cross-platform packaging once one-shot desktop delivery is reliable.
+19. Allow post-delivery iteration only after maintenance signals, safety gates, and approval boundaries are in place.
+20. Capture repeated successful patterns as reusable blueprints so app creation improves over time.
+21. Re-establish the product source of truth around Ralph so future shell, API, and release work has one consistent target.
+22. Update the app shell and visible brand after the product definition is agreed, keeping lower-level runtime tools available but secondary.
+23. Make the Ralph project lifecycle the primary interaction model, from brief to bootstrap to run to delivery.
+24. Add Ralph-named API and data compatibility layers before broad internal renames, preserving existing user data and tests.
+25. Run the release-readiness pass only after product story, shell behavior, workflow, API compatibility, and data policy are aligned.
+26. Instrument health monitoring, feedback channels, and iteration backlog after first release to close the learning loop.
+27. Add guided onboarding after the first stable release so new operators can reach first value without reading the docs.
+28. Add preview and visual validation once the primary Ralph build and delivery flow is stable.
+29. Centralize policy and permissions before adding more external tools, extensions, and team governance.
+30. Add connectors after policy boundaries exist so external integrations are scoped and auditable.
+31. Turn accumulated run history into analytics and forecasts after enough run, delivery, and learning data is captured.
+32. Add collaboration handoff after evidence, visual validation, and delivery artifacts are rich enough to review outside the live app.
+33. Add an extension SDK only after core connector, policy, blueprint, validation, and delivery boundaries are stable.
+34. Add team governance once policy, blueprints, extensions, and audit records are mature enough to standardize.
+35. Harden runtime self-healing after preview services, connectors, policies, and longer-running workflows create more recovery needs.
+36. Add optional sync and fleet operations last, after data classification, governance, review bundles, extensions, and resilience are established.
 
 ## Creating a New Phase
 
