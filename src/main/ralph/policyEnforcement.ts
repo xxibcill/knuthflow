@@ -175,16 +175,21 @@ function ruleAppliesToEnforcementPoint(
 }
 
 function actionMatchesPattern(action: string, pattern: string, filePath?: string): boolean {
-  // Glob-style pattern matching
-  // * matches anything, ** matches path separators
   const effectiveTarget = filePath || action;
 
-  // Convert glob pattern to regex
-  const regexPattern = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars except * and **
-    .replace(/\*\*/g, '<<DOUBLESTAR>>')
-    .replace(/\*/g, '[^/]*')
-    .replace(/<<DOUBLESTAR>>/g, '.*');
+  // Some built-in safety rules are authored as regexes, while file rules use
+  // glob syntax. Try regex-style patterns first, then fall back to globs.
+  if (isRegexLikePattern(pattern)) {
+    try {
+      if (new RegExp(pattern, 'i').test(effectiveTarget)) {
+        return true;
+      }
+    } catch {
+      // Invalid regex patterns are handled by the glob/substr fallbacks below.
+    }
+  }
+
+  const regexPattern = globToRegexPattern(pattern);
 
   try {
     const regex = new RegExp(regexPattern, 'i');
@@ -193,6 +198,35 @@ function actionMatchesPattern(action: string, pattern: string, filePath?: string
     // If pattern is not a valid regex, treat as literal substring match
     return effectiveTarget.toLowerCase().includes(pattern.toLowerCase());
   }
+}
+
+function isRegexLikePattern(pattern: string): boolean {
+  return /(^|[^\\])(\||\+|\(\)|\[\]|\?)/.test(pattern);
+}
+
+function globToRegexPattern(pattern: string): string {
+  const braceTokens: string[] = [];
+  const withBraceTokens = pattern.replace(/\{([^}]+)\}/g, (_match, choices: string) => {
+    const token = `<<BRACE_${braceTokens.length}>>`;
+    braceTokens.push(`(${choices.split(',').map(escapeRegex).join('|')})`);
+    return token;
+  });
+
+  let regexPattern = withBraceTokens
+    .replace(/[.+^$()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '<<DOUBLESTAR>>')
+    .replace(/\*/g, '[^/]*')
+    .replace(/<<DOUBLESTAR>>/g, '.*');
+
+  braceTokens.forEach((replacement, index) => {
+    regexPattern = regexPattern.replace(`<<BRACE_${index}>>`, replacement);
+  });
+
+  return regexPattern;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function scopePermitsAction(scope: PolicyOverride['scope'], enforcementPoint: PolicyEnforcementPoint): boolean {
