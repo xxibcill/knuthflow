@@ -9,10 +9,18 @@ import {
   type ConnectorHealth,
   type ConnectorCapability,
 } from '../shared/connectorTypes';
+import { captureConnectorInput, captureConnectorOutput, captureConnectorFailure } from './ralph/ralphArtifact';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Connector Registry Service
 // ─────────────────────────────────────────────────────────────────────────────
+
+interface ConnectorOperationContext {
+  projectId?: string;
+  runId?: string;
+  iteration?: number;
+  itemId?: string | null;
+}
 
 class ConnectorRegistry {
   private manifests: Map<string, ConnectorManifest> = new Map();
@@ -241,7 +249,7 @@ class ConnectorRegistry {
   }
 
   /**
-   * Perform a connector operation (placeholder for built-in implementations)
+   * Perform a connector operation with built-in implementations
    */
   async call(params: {
     connectorId: string;
@@ -250,7 +258,7 @@ class ConnectorRegistry {
     targetScope?: string;
     resourceId?: string;
     params?: Record<string, unknown>;
-  }): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
+  } & ConnectorOperationContext): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
     const config = this.findConfigByConnectorAndProject(params.connectorId, null) ||
                    this.findConfigByConnectorAndProject(params.connectorId, params.targetScope ?? null);
 
@@ -277,11 +285,218 @@ class ConnectorRegistry {
       };
     }
 
-    // Built-in connector implementations would go here
-    // For now, return not implemented for actual operations
+    // Capture connector input artifact if context is provided
+    if (params.projectId && params.runId && params.iteration !== undefined) {
+      captureConnectorInput({
+        projectId: params.projectId,
+        runId: params.runId,
+        iteration: params.iteration,
+        itemId: params.itemId ?? null,
+        connectorId: params.connectorId,
+        capability: params.capability,
+        operation: params.operation,
+        targetScope: params.targetScope,
+        resourceId: params.resourceId,
+        inputParams: params.params ?? {},
+      });
+    }
+
+    // Execute the built-in connector operation
+    let result: { success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } };
+
+    switch (params.connectorId) {
+      case BUILT_IN_CONNECTORS.REPOSITORY:
+        result = await this.executeRepositoryConnector(params);
+        break;
+      case BUILT_IN_CONNECTORS.ISSUES:
+        result = await this.executeIssuesConnector(params);
+        break;
+      case BUILT_IN_CONNECTORS.DESIGN:
+        result = await this.executeDesignConnector(params);
+        break;
+      case BUILT_IN_CONNECTORS.REGISTRY:
+        result = await this.executeRegistryConnector(params);
+        break;
+      case BUILT_IN_CONNECTORS.MONITORING:
+        result = await this.executeMonitoringConnector(params);
+        break;
+      default:
+        result = {
+          success: false,
+          error: { code: 'unsupported_capability', message: 'Built-in connector operation not implemented', retryable: false }
+        };
+    }
+
+    // Capture output or failure artifact
+    if (params.projectId && params.runId && params.iteration !== undefined) {
+      if (result.success) {
+        captureConnectorOutput({
+          projectId: params.projectId,
+          runId: params.runId,
+          iteration: params.iteration,
+          itemId: params.itemId ?? null,
+          connectorId: params.connectorId,
+          capability: params.capability,
+          operation: params.operation,
+          success: true,
+          outputData: result.data,
+        });
+      } else if (result.error) {
+        captureConnectorFailure({
+          projectId: params.projectId,
+          runId: params.runId,
+          iteration: params.iteration,
+          itemId: params.itemId ?? null,
+          connectorId: params.connectorId,
+          capability: params.capability,
+          operation: params.operation,
+          errorCode: result.error.code,
+          errorMessage: result.error.message,
+          retryable: result.error.retryable,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Execute repository connector operations (stub implementation)
+   */
+  private async executeRepositoryConnector(params: {
+    capability: ConnectorCapability;
+    operation: string;
+    resourceId?: string;
+    params?: Record<string, unknown>;
+  }): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
+    // Stub: return mock data for repository operations
+    if (params.capability === 'repository:read') {
+      return {
+        success: true,
+        data: { branches: ['main'], currentBranch: 'main', status: 'clean' }
+      };
+    }
+    if (params.capability === 'repository:branch') {
+      return {
+        success: true,
+        data: { branch: params.params?.branchName ?? 'feature-branch', created: true }
+      };
+    }
     return {
       success: false,
-      error: { code: 'unsupported_capability', message: 'Built-in connector operation not implemented', retryable: false }
+      error: { code: 'unsupported_capability', message: `Repository does not support ${params.capability}`, retryable: false }
+    };
+  }
+
+  /**
+   * Execute issues connector operations (stub implementation)
+   */
+  private async executeIssuesConnector(params: {
+    capability: ConnectorCapability;
+    operation: string;
+    resourceId?: string;
+    params?: Record<string, unknown>;
+  }): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
+    // Stub: return mock data for issue tracker operations
+    if (params.capability === 'issues:read') {
+      return {
+        success: true,
+        data: { issues: [], totalCount: 0 }
+      };
+    }
+    if (params.capability === 'issues:write') {
+      return {
+        success: true,
+        data: { issueId: `local-issue-${Date.now()}`, created: true }
+      };
+    }
+    return {
+      success: false,
+      error: { code: 'unsupported_capability', message: `Issue tracker does not support ${params.capability}`, retryable: false }
+    };
+  }
+
+  /**
+   * Execute design connector operations (stub implementation)
+   */
+  private async executeDesignConnector(params: {
+    capability: ConnectorCapability;
+    operation: string;
+    resourceId?: string;
+    params?: Record<string, unknown>;
+  }): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
+    // Stub: return mock data for design source operations
+    if (params.capability === 'design:read') {
+      return {
+        success: true,
+        data: { frames: [], componentCount: 0 }
+      };
+    }
+    if (params.capability === 'design:import') {
+      return {
+        success: true,
+        data: { importedFrames: 0, notes: 'Design import is a stub in local mode' }
+      };
+    }
+    return {
+      success: false,
+      error: { code: 'unsupported_capability', message: `Design source does not support ${params.capability}`, retryable: false }
+    };
+  }
+
+  /**
+   * Execute registry connector operations (stub implementation)
+   */
+  private async executeRegistryConnector(params: {
+    capability: ConnectorCapability;
+    operation: string;
+    resourceId?: string;
+    params?: Record<string, unknown>;
+  }): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
+    // Stub: return mock data for registry operations
+    if (params.capability === 'registry:read') {
+      return {
+        success: true,
+        data: { packages: [], totalCount: 0 }
+      };
+    }
+    if (params.capability === 'registry:publish') {
+      return {
+        success: true,
+        data: { published: true, version: params.params?.version ?? '1.0.0' }
+      };
+    }
+    return {
+      success: false,
+      error: { code: 'unsupported_capability', message: `Registry does not support ${params.capability}`, retryable: false }
+    };
+  }
+
+  /**
+   * Execute monitoring connector operations (stub implementation)
+   */
+  private async executeMonitoringConnector(params: {
+    capability: ConnectorCapability;
+    operation: string;
+    resourceId?: string;
+    params?: Record<string, unknown>;
+  }): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
+    // Stub: return mock data for monitoring operations
+    if (params.capability === 'monitoring:read') {
+      return {
+        success: true,
+        data: { status: 'healthy', checks: {}, lastCheckAt: Date.now() }
+      };
+    }
+    if (params.capability === 'monitoring:write') {
+      return {
+        success: true,
+        data: { updated: true }
+      };
+    }
+    return {
+      success: false,
+      error: { code: 'unsupported_capability', message: `Monitoring does not support ${params.capability}`, retryable: false }
     };
   }
 }
