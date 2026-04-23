@@ -64,7 +64,11 @@ class ConnectorRegistry {
     configValues: Record<string, string>;
   }): ConnectorConfig {
     const db = getDatabase();
-    const existingConfig = this.findConfigByConnectorAndProject(params.connectorId, params.projectId ?? null);
+    const existingConfig = this.findConfigByConnectorAndProject(
+      params.connectorId,
+      params.projectId ?? null,
+      false
+    );
 
     const now = Date.now();
     const configId = existingConfig?.id || `conn-config-${crypto.randomUUID()}`;
@@ -249,9 +253,22 @@ class ConnectorRegistry {
   /**
    * Find config by connector ID and project
    */
-  private findConfigByConnectorAndProject(connectorId: string, projectId: string | null): ConnectorConfig | undefined {
+  private findConfigByConnectorAndProject(
+    connectorId: string,
+    projectId: string | null,
+    includeGlobalFallback = true
+  ): ConnectorConfig | undefined {
     const configs = this.listConfigs(projectId);
-    return configs.find(c => c.connectorId === connectorId);
+    const exactConfig = configs.find(c => c.connectorId === connectorId && c.projectId === projectId);
+    if (exactConfig) {
+      return exactConfig;
+    }
+
+    if (includeGlobalFallback && projectId !== null) {
+      return configs.find(c => c.connectorId === connectorId && c.projectId === null);
+    }
+
+    return undefined;
   }
 
   /**
@@ -265,8 +282,13 @@ class ConnectorRegistry {
     resourceId?: string;
     params?: Record<string, unknown>;
   } & ConnectorOperationContext): Promise<{ success: boolean; data?: unknown; error?: { code: string; message: string; retryable: boolean } }> {
-    const config = this.findConfigByConnectorAndProject(params.connectorId, null) ||
-                   this.findConfigByConnectorAndProject(params.connectorId, params.targetScope ?? null);
+    const config = (params.projectId
+      ? this.findConfigByConnectorAndProject(params.connectorId, params.projectId)
+      : undefined) ||
+      (params.targetScope
+        ? this.findConfigByConnectorAndProject(params.connectorId, params.targetScope)
+        : undefined) ||
+      this.findConfigByConnectorAndProject(params.connectorId, null, false);
 
     if (!config) {
       return {
